@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calling Station</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+  <script src="./node_modules/papaparse/papaparse.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <link rel="stylesheet" href="styles.css?v=2.0">
+</head>
+<body>
+
+  <!-- GAMIFICATION: Splash Screen -->
+  <div id="startup-splash">
+    <div class="lightning-bolt">✦</div>
+    <div class="splash-text">CALLING STATION</div>
+  </div>
+
+  <header class="drag-header" style="padding-left: 80px;">
+    <div class="logo">CALLING STATION</div>
+    
+    <div class="top-nav">
+      <button class="nav-btn active" id="nav-queue" onclick="switchTab('queue')">Queue</button>
+      <button class="nav-btn" id="nav-tasks" onclick="switchTab('tasks')">Aufgaben</button>
+      <button class="nav-btn" id="nav-map" onclick="switchTab('map')">Map</button>
+    </div>
+
+    <div class="header-actions">
+      <button id="session-toggle-btn" class="action-btn-small" style="background:#0a84ff; color:#fff; border:none; margin-right:8px;" onclick="toggleSession()">🚀 Start Session</button>
+      <button class="action-btn-small outline" onclick="toggleAnalytics()">Daily Stats</button>
+      <button class="action-btn-small" onclick="document.getElementById('csv-file').click()">CSV Import</button>
+      <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="handleCSV(event)">
+    </div>
+  </header>
+
+  <div id="analytics-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="width: 400px; padding: 32px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+        <h2 style="font-weight:900; text-transform:uppercase; letter-spacing:2px; font-size:18px; color:var(--text-main); margin:0;">Mission Status</h2>
+        <select id="stat-range" class="modern-input-small" style="padding: 4px; border:1px solid var(--border); border-radius:4px; max-width: 100px;" onchange="toggleAnalytics(true)">
+          <option value="today">Heute</option>
+          <option value="week">Diese Woche</option>
+          <option value="all">Gesamt</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <span style="font-weight:600; color:var(--text-main); font-size:13px;">Calls</span>
+          <span><span id="stat-calls" style="color:var(--accent); font-weight:700;">0</span> / <input type="number" id="goal-calls" value="100" style="width:36px; background:transparent; border:none; border-bottom:1px solid var(--border); color:var(--text-muted); outline:none; text-align:right; font-family:monospace;" onchange="updateGoals()"></span>
+        </div>
+        <div style="width:100%; height:6px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+          <div id="bar-calls" style="width:0%; height:100%; background:var(--accent); transition:0.5s; box-shadow: 0 0 10px var(--accent);"></div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
+        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:16px; border-radius:8px; display:flex; flex-direction:column; align-items:center;">
+          <span style="font-weight:600; color:var(--text-main); font-size:12px; margin-bottom:4px;">Entscheider</span>
+          <span id="stat-ent" style="color:var(--success); font-weight:900; font-size:24px;">0</span>
+          <span id="stat-ent-conv" style="font-size:10px; color:var(--text-muted); margin-top:4px;">0% C-t-E</span>
+        </div>
+        
+        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--warning); padding:16px; border-radius:8px; display:flex; flex-direction:column; align-items:center; box-shadow: 0 0 15px rgba(255, 159, 10, 0.1) inset;">
+          <span style="font-weight:600; color:var(--text-main); font-size:12px; margin-bottom:4px;">Termine</span>
+          <span id="stat-term" style="color:var(--warning); font-weight:900; font-size:24px;">0</span>
+          <span id="stat-term-conv" style="font-size:10px; color:var(--text-muted); margin-top:4px;">0% C-t-T</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 24px; background:rgba(48,209,88,0.05); border:1px solid var(--success); padding:12px; border-radius:8px; text-align:center;">
+          <span style="font-weight:600; color:var(--success); font-size:12px; display:block; margin-bottom:4px;">Pipeline Deal-Value</span>
+          <span style="color:var(--success); font-weight:900; font-size:20px;">€ <span id="stat-umsatz">0</span></span>
+      </div>
+
+      <div id="mission-message" style="text-align:center; color:var(--success); font-style:italic; margin-bottom: 24px; font-weight:600; font-size:14px; text-shadow: 0 0 8px rgba(48,209,88,0.4);">Warte auf Einsatz...</div>
+      <button class="action-btn" style="width:100%; border-color:var(--text-muted); color:var(--text-muted);" onclick="toggleAnalytics()">Schliessen</button>
+    </div>
+  </div>
+
+  <!-- FLOATING SESSION WIDGET -->
+  <div id="floating-session-widget" class="floating-widget" style="position: fixed; bottom: 24px; right: 24px; width: 340px; background: rgba(20,20,22,0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(48,209,88,0.4); border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,0.8), inset 0 0 20px rgba(48,209,88,0.05); z-index: 9999; display: flex; flex-direction: column; overflow: hidden; transition: all 0.3s cubic-bezier(0.16,1,0.3,1);">
+    
+    <!-- Header / Drag Handle -->
+    <div id="widget-drag-handle" style="padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: space-between; cursor: grab;">
+      <div style="display:flex; align-items:center; gap:8px; pointer-events: none;">
+        <div id="widget-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted);"></div>
+        <span id="widget-status-text" style="font-weight: 700; font-size: 13px; letter-spacing: 1px; color: #fff;">DAILY STATS</span>
+      </div>
+      <div style="display:flex; gap: 4px;">
+        <button class="action-btn-small" style="padding:4px 8px; font-size:10px; border-color:transparent; background:rgba(255,255,255,0.1); color:#fff;" onclick="toggleWidgetCollapse()" id="widget-collapse-btn">_</button>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div id="widget-body" style="padding: 16px;">
+      
+      <!-- Progress Bar (Anrufe) -->
+      <div style="margin-bottom: 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 6px;">
+            <span style="font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:600;">Anrufe heute</span>
+            <span style="font-size:14px; font-weight:800; color:#fff;" id="live-stat-calls">0 / 100</span>
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="live-progress-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- Top 3 KPIs -->
+      <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom: 16px;">
+        <div style="flex:1; text-align:center; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.05); border-radius:8px; padding:12px 2px;">
+          <div style="font-size:9px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; font-weight:700;">Connect</div>
+          <div id="live-stat-connect" style="font-size:22px; font-weight:800; color:#fff; transition: 0.3s;">0%</div>
+        </div>
+        <div style="flex:1; text-align:center; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.05); border-radius:8px; padding:12px 2px;">
+          <div style="font-size:9px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; font-weight:700;">Entscheid.</div>
+          <div id="live-stat-entscheider" style="font-size:22px; font-weight:800; color:#0a84ff; transition: 0.3s;">0</div>
+        </div>
+        <div style="flex:1; text-align:center; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.05); border-radius:8px; padding:12px 2px;">
+          <div style="font-size:9px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; font-weight:700;">Termin</div>
+          <div id="live-stat-termin" style="font-size:22px; font-weight:800; color:#ff9f0a; transition: 0.3s;">0</div>
+        </div>
+      </div>
+
+      <!-- Detail Rows -->
+      <div style="font-size:12px; color:var(--text-muted); display:flex; flex-direction:column; gap:8px; margin-bottom: 16px;">
+        <div style="display:flex; justify-content:space-between;"><span>Conversion Rate:</span> <strong id="live-detail-conversion" style="color:#fff;">0%</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span>Gespräche:</span> <strong id="live-detail-real" style="color:#fff;">0</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span>Rückrufe:</span> <strong id="live-detail-callback" style="color:#fff;">0</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span>Kein Interesse / AB:</span> <strong id="live-detail-failed" style="color:#fff;">0</strong></div>
+      </div>
+
+    </div>
+  </div>
+
+    <div class="filters-row-global" id="filters-container" style="padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--bg); display: flex; align-items: center; gap: 16px;">
+      <input type="text" id="search-input" class="modern-input-small search-bar" style="max-width:300px;" placeholder="Global Suchen..." oninput="handleSearch(event)" />
+      <div class="filter-chips" id="chip-container" style="display:flex; align-items:center; gap:8px;">
+        <div id="filter-group-1" style="display:flex; gap:8px; align-items:center;">
+          <!-- Buttons injected by renderer.js -->
+        </div>
+        <div class="filter-divider" style="width:1px; height:20px; background:var(--border); margin:0 12px;"></div>
+        <div id="filter-group-2" style="display:flex; gap:8px; align-items:center;">
+          <!-- Buttons injected by renderer.js -->
+        </div>
+      </div>
+      <button class="action-btn-small outline" id="bulk-mode-btn" onclick="toggleBulkMode()" style="margin-left: auto;">Mehrfachauswahl</button>
+    </div>
+
+    <!-- Bulk Action Bar -->
+    <div id="bulk-action-bar" style="position:fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--border); padding: 12px 24px; border-radius: 30px; display: none; gap: 16px; align-items: center; box-shadow: 0 10px 40px rgba(0,0,0,0.8); z-index: 10000; backdrop-filter: blur(12px);">
+        <span id="bulk-count" style="font-weight: 600; font-size: 14px; color: var(--text-main);">0 Leads ausgewählt</span>
+        <button class="action-btn-small" style="background: rgba(255,69,58,0.2); color: #ff453a; border-color: #ff453a;" onclick="executeBulkDelete()">🗑️ Löschen</button>
+        <button class="action-btn-small outline" onclick="toggleBulkMode()">Abbrechen</button>
+    </div>
+
+    <div class="app-container">
+    <div class="sidebar" id="main-sidebar">
+      <div class="empty-state">Nächsten Lead wählen</div>
+    </div>
+
+    <div class="sidebar" id="map-sidebar" style="display:none;">
+      <div class="focused-lead">
+         <h2 class="focused-name">Radar Scout</h2>
+         <p style="font-size:13px; color:var(--text-muted); margin-bottom: 24px;">Extrahiere Business-Leads aus OpenStreetMap direkt in deine Warteschlange.</p>
+         
+         <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:block;">Suchbegriff, Adresse oder Firmenname</label>
+         <input type="text" id="scout-term" class="modern-input-small" style="width:100%; margin-bottom: 12px;" placeholder="Wo nach suchst du?" />
+         
+         <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:block;">Stadt / Region (Optional)</label>
+         <input type="text" id="scout-city" class="modern-input-small" style="width:100%; margin-bottom: 24px;" placeholder="Leer lassen für globale Suche" />
+         
+         <button class="action-btn success-bold" style="width:100%; padding:14px; margin-bottom:16px;" onclick="startScouting()">Radar Starten</button>
+         
+         <div id="scout-results" style="flex:1; overflow-y:auto; border-top:1px solid var(--border); padding-top:16px; margin-bottom:16px;">
+            <div class="empty-state" style="height:auto;">Warte auf Eingabe...</div>
+         </div>
+         
+         <button id="scout-import-btn" class="action-btn-small" style="display:none; width:100%; padding:12px; font-weight:600; color:#fff; background:var(--accent); border-color:var(--accent); margin-bottom:16px;" onclick="importScoutedLeads()">Alle Importieren</button>
+         
+         <div style="margin-top:auto; padding-top:16px; border-top:1px dashed var(--border);">
+           <label style="font-size:11px; color:var(--text-muted); margin-bottom:4px; display:block;">Google Places API Key (Optional)</label>
+           <input type="password" id="google-api-key" class="modern-input-small" style="width:100%; font-size:11px; padding:8px;" placeholder="AIzaSy..." value="AIzaSyD099g3LUJb3NoLTDJPrkOYEDh0XuXLCrI" onchange="saveApiKey(this.value)" />
+         </div>
+      </div>
+    </div>
+
+    <div class="main-content">
+      <div class="quick-add" id="qa-container">
+        <input type="text" id="qa-name" class="modern-input-small qa-inp" placeholder="Firma / Lead Name" />
+        <input type="text" id="qa-phone" class="modern-input-small qa-inp" placeholder="Telefon" />
+        <button class="action-btn success-bold qa-btn" onclick="quickAdd()">+ Lead Hinzufügen</button>
+      </div>
+
+      <div id="queue-container"></div>
+    </div>
+    
+    <div id="map-wrapper" style="display:none; flex:1; width:100%; height:100%; padding: 16px;">
+      <div id="map-container" style="width:100%; height:100%; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.4);"></div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
