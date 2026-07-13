@@ -23,6 +23,8 @@ window.api = {
   promptTouchID: async () => ({success: true}), 
   updateProfile: (name) => db.updateProfile(name),
   getUsers: () => db.getUsers(),
+  updateUserRole: (userId, newRole) => db.updateUserRole(userId, newRole),
+  makeMeDeveloper: () => db.makeMeDeveloper(),
 
   // Call Tracking
   logCall: (id) => db.logCall(id),

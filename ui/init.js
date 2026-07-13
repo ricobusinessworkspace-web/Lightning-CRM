@@ -145,10 +145,88 @@ import '../core/api.js';
 
   window.openProfileModal = () => {
     document.getElementById('profile-email-display').innerText = globalUser?.email || 'Keine E-Mail';
-    const roleMap = { 'admin': '👑 Administrator', 'agent': '🛡️ Agent' };
+    const roleMap = { 'developer': '👨‍💻 Developer', 'admin': '👑 Administrator', 'agent': '🛡️ Agent' };
     document.getElementById('profile-role-display').innerHTML = roleMap[globalUser?.role] || '🛡️ Agent';
     document.getElementById('profile-name-input').value = globalUser?.name || '';
+    
+    const userMgmtBtn = document.getElementById('open-user-mgmt-btn');
+    if (userMgmtBtn) {
+      if (globalUser?.role === 'admin' || globalUser?.role === 'developer') {
+        userMgmtBtn.style.display = 'flex';
+      } else {
+        userMgmtBtn.style.display = 'none';
+      }
+    }
+
     document.getElementById('profile-modal').classList.remove('hidden');
+  };
+
+  window.openUserManagement = async () => {
+    document.getElementById('profile-modal').classList.add('hidden');
+    document.getElementById('user-management-modal').classList.remove('hidden');
+    
+    const listContainer = document.getElementById('user-mgmt-list');
+    listContainer.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">Lade Benutzer...</div>';
+    
+    try {
+      const users = await window.api.getUsers();
+      listContainer.innerHTML = '';
+      users.forEach(u => {
+        const isMe = u.id === globalUser.id;
+        const div = document.createElement('div');
+        div.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:12px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px;';
+        
+        let selectHtml = `
+          <select class="modern-input-small" style="padding:4px 8px; font-size:12px; width:120px;" onchange="changeUserRole('${u.id}', this.value)" ${isMe ? 'disabled' : ''}>
+            <option value="agent" ${u.role === 'agent' ? 'selected' : ''}>Agent</option>
+            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+            <option value="developer" ${u.role === 'developer' ? 'selected' : ''}>Developer</option>
+          </select>
+        `;
+        
+        // Use a simple helper to escape HTML securely
+        const escape = (str) => String(str).replace(/[&<>'"]/g, match => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[match]));
+        
+        div.innerHTML = `
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <strong style="color:#fff; font-size:14px;">${escape(u.name || 'Unbekannt')} ${isMe ? '(Du)' : ''}</strong>
+            <span style="color:var(--text-muted); font-size:11px; font-family:monospace;">ID: ${u.id.substring(0,8)}...</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span id="role-status-${u.id}" style="font-size:11px; color:var(--success); display:none;">Gespeichert!</span>
+            ${selectHtml}
+          </div>
+        `;
+        listContainer.appendChild(div);
+      });
+    } catch(err) {
+      listContainer.innerHTML = `<div style="color:#ff453a; font-size:12px;">Fehler: ${err.message}</div>`;
+    }
+  };
+
+  window.changeUserRole = async (userId, newRole) => {
+    try {
+      await window.api.updateUserRole(userId, newRole);
+      const statusEl = document.getElementById(`role-status-${userId}`);
+      if (statusEl) {
+        statusEl.style.display = 'inline';
+        setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
+      }
+      window.globalUsersList = await window.api.getUsers(); // refresh internal list
+    } catch (e) {
+      alert("Fehler beim Ändern der Rolle: " + e.message);
+    }
+  };
+
+  window.unlockDeveloperRole = async (e) => {
+    e.preventDefault();
+    try {
+      await window.api.makeMeDeveloper();
+      alert("Erfolgreich zum Developer hochgestuft! Bitte lade die Seite neu.");
+      window.location.reload();
+    } catch (err) {
+      alert("Fehler: " + err.message);
+    }
   };
 
   window.saveProfile = async () => {

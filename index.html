@@ -70,9 +70,30 @@
         <p style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">Dieser Name wird im Activity Log der Leads angezeigt.</p>
       </div>
       
-      <button id="profile-save-btn" class="action-btn success-bold" style="width: 100%; display: flex; align-items: center; justify-content: center; padding: 12px; font-weight: 600; font-size: 14px;" onclick="saveProfile()">
+      <button id="profile-save-btn" class="action-btn success-bold" style="width: 100%; display: flex; align-items: center; justify-content: center; padding: 12px; font-weight: 600; font-size: 14px; margin-bottom: 8px;" onclick="saveProfile()">
         Profil speichern
       </button>
+      <button id="open-user-mgmt-btn" class="action-btn" style="width: 100%; display: none; align-items: center; justify-content: center; padding: 12px; font-weight: 600; font-size: 14px; background: var(--surface); color: var(--text-main); border: 1px solid var(--border);" onclick="openUserManagement()">
+        👥 Benutzerverwaltung
+      </button>
+      <div style="text-align: center; margin-top: 12px;">
+         <a href="#" onclick="unlockDeveloperRole(event)" style="font-size: 10px; color: var(--text-muted); text-decoration: none;">Entwickler-Modus freischalten</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Management Modal -->
+  <div id="user-management-modal" class="modal-overlay hidden" style="z-index: 10001;">
+    <div class="modal-content" style="width: 600px; padding: 32px; border-radius: 16px; background: #0c0c0c; box-shadow: 0 20px 40px rgba(0,0,0,0.8); border: 1px solid var(--border);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 8px;">
+           👥 Benutzerverwaltung
+        </h2>
+        <button onclick="document.getElementById('user-management-modal').classList.add('hidden')" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 20px; outline:none; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
+      </div>
+      <div id="user-mgmt-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto;">
+         <!-- Users will be rendered here -->
+      </div>
     </div>
   </div>
 
