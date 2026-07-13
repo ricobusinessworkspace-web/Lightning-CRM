@@ -589,6 +589,26 @@ export const db = {
     return data || [];
   },
 
+  updateUserRole: async (userId, newRole) => {
+    if (!currentUser || (currentUser.role !== 'developer' && currentUser.role !== 'admin')) {
+      throw new Error("Keine Berechtigung");
+    }
+    const { error } = await supabase.from('user_profiles')
+      .update({ role: newRole })
+      .eq('id', userId);
+    
+    if (error) throw new Error(error.message);
+    return true;
+  },
 
-
+  makeMeDeveloper: async () => {
+    if (!currentUser) throw new Error("Nicht eingeloggt");
+    const { error } = await supabase.from('user_profiles')
+      .update({ role: 'developer' })
+      .eq('id', currentUser.id);
+    
+    if (error) throw new Error(error.message);
+    currentUser.role = 'developer';
+    return true;
+  }
 };
