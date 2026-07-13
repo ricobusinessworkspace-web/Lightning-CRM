@@ -257,6 +257,9 @@ import '../core/api.js';
   };
 
   checkAuth();
+  
+  import { initProfileModal } from './profile-modal.js';
+  initProfileModal();
 
   // ── Supabase Realtime Integration ──────────────────────────────────────────
   if (window.api && window.api.onLeadsChanged) {
