@@ -6,3 +6,9 @@ token.json
 *.sqlite
 *.sqlite3
 *.db
+.vercel
+dist/
+*.pdf
+*.zip
+scratch/
+*.backup

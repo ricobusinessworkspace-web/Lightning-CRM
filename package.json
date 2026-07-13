@@ -1,23 +1,22 @@
 {
   "name": "calling-station",
-  "version": "1.0.0",
+  "version": "1.0.6",
   "description": "",
-  "main": "main.js",
+  "type": "module",
   "scripts": {
-    "start": "electron .",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "electron": "^41.0.3",
+    "@supabase/supabase-js": "^2.110.0",
     "googleapis": "^171.4.0",
-    "papaparse": "^5.5.3",
-    "sqlite3": "^6.0.1"
+    "papaparse": "^5.5.3"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.3"
+    "vite": "^8.1.4"
   }
 }

@@ -1,0 +1,107 @@
+=== EINFACH.PDF ===
+
+
+Dieses Dokument ist maschinell erstellt und ohne Unterschrift gültig
+Herr
+Rico Just
+Leutewitzer Ring 143 (Wohnu
+D-01169 Dresden
+Ebene:Gruppenleiter
+Art:Gutschrift
+Beleg-Nr.:PN0448099
+VP-Nr.:150470
+Finanzamt:Dresden
+Steuernummer:89531946709
+Datum:12.03.2026
+TELESON Vertriebs GmbH | Paul-Gerhardt-Allee 48 | D-81245 München
+Provisionsabrechnung 01.02.2026 bis 28.02.2026
+Sehr geehrter Herr Just,
+nach Ihrem Vergütungsplan erhalten Sie:
+AnzahlProduktartBeschreibungZeitraumUSt.Betrag
+2GasVAP/EP/Korr.Februar 2026228,00 €
+2GasStorno/RRFebruar 20260,00 €
+14StromVAP/EP/Korr.Februar 20261.053,60 €
+6StromStorno/RRFebruar 20260,00 €
+24Zwischensumme1.281,60 €
+1GasVAP/EP/Korr.Vormonate29,70 €
+1RLM / Individu...VAP/EP/Korr.Vormonate561,73 €
+1RLM / Individu...Storno/RRVormonate0,00 €
+3StromVAP/EP/Korr.Vormonate51,50 €
+2StromStorno/RRVormonate-305,50 €
+8Zwischensumme337,43 €
+Netto1.619,03 €
+Nach § 19 UStG wird keine Umsatzsteuer erhoben. Die ohne USt. aufgeführten Beträge umfassen den
+Leistungszeitraum, in dem Sie als Kleinunternehmer registriert waren bzw. sind.
+Eine detaillierte Aufstellung finden Sie in der beigefügten Anlage.
+Bitte berücksichtigen Sie, dass der Auszahlungsbetrag vom abgerechneten Betrag abweichen kann, falls ein
+anderweitiger Anspruch von uns an Sie existiert. Einen positiven Auszahlungsbetrag werden wir in den
+nächsten Tagen auf Ihre Bankverbindung überweisen.
+Konto-Inh. Rico Just
+IBAN: DEXX XXXX XXXX XXXX XX72 31
+Mit freundlichen Grüßen
+TELESON Vertriebs GmbH
+TELESON Vertriebs GmbHTelefon: 089 244498-39Geschäftsführer:Bankverbindung: Oberbank München
+Paul-Gerhardt-Allee 48Telefax: 089 244141-54Dr. Helmut Schmidt, Frank BröcklIBAN: DE05 7012 0700 1001 2395 14
+81245 MünchenE-Mail: info@teleson.deAmtsgericht München | HRB 180774BIC: OBKLDEMXXXX
+www.teleson.deSitz der Gesellschaft: MünchenUST.-IdNr. DE 815 512 023
+
+=== DETAIL.PDF ===
+
+
+Anlage zur ProvisionsabrechnungVP-Nr. 150470 - Beleg-Nr. PN0448099
+Herr Rico Just01.02.2026 bis 28.02.2026
+ 
+EinreichungKundeProduktLeistungAbrechnung
+DatumVPAuftragNameZähler/IDArtTarif / Verbrauchsgrenzen kWh/JahrDatum
+**
+Art
+*
+BasisbisheraktuellUSt.
+04.02.261504705483299Stückwerk Pizza...7ELS2535885...GasE.ON UnternehmerGas Fix 24 20000...3999912.03.26Storno161,000,000%
+04.02.261504705483330Stückwerk Pizza...1EFR246203...StrommeinPROFI Strom24 3000...1999920.02.26EP48,5048,500%
+04.02.261504705483344Stückwerk Pizza...1EFR246203...StrommeinPROFI Strom24 3000...1999920.02.26EP48,5048,500%
+05.02.261504705484827Barbershop Fyon...1ZPA0020417...StromProfiÖkostrom L 24 10000...1499912.03.26Storno146,000,000%
+06.02.261504705485838Malchas Aziz Ta...55029775StromEins Energie Komfort (Gewerbe) 4001...1000012.03.26VAP75,5060,400%
+06.02.261504705485872Leila Hasso Tahir1APAEA7223...StromEins Energie Komfort (Gewerbe) 4001...1000012.03.26VAP75,5060,400%
+09.02.261504705490413Prinz Döner Inh. ...1EFR196205...StrommeinPROFI Strom24 20000...4999912.03.26VAP73,0058,400%
+10.02.261504705491791Döner Kebap Ha...1LGZ0056675...StrommeinPROFI Strom24 20000...4999926.02.26EP73,0073,000%
+11.02.261504705488186Barbershop Fyon...1ZPA0020417...StromRespect Energy green 24 10000...2499912.03.26Storno134,500,000%
+11.02.261504705490440Prinz Döner Inh. ...7ELS2543072...GasÖkogas Fix Gewerbe Fremdmarkt 10000...9999...12.03.26Storno56,500,000%
+12.02.261504705496131DeliCa To UG1EFR246206...StrommeinPROFI Strom24 3000...1999912.03.26VAP48,5038,800%
+12.02.261504705496136Celina Imbiss1EFR206200...StromSTROM Fix Gewerbe Fremdmarkt 30000...999...12.03.26VAP111,0088,800%
+18.02.261504705502972Capriccios Resta...1ZPA5723815...StromProfiÖkostrom L 24 10000...1499912.03.26VAP146,00116,800%
+19.02.261504705505004Baderkhan, Tam...1ZPA0021256...StromÖkoStrom24 Pur 1...10000012.03.26Storno134,000,000%
+20.02.261504705506101Mujahed Bilal Ma...1ISK0063996...StromSTROM Fix Gewerbe Fremdmarkt 30000...999...12.03.26VAP111,0088,800%
+20.02.261504705506112Mujahed Bilal Ma...7ELS2541484...GasVattenfall EASY FIX 24 Gewerbegas 30000...49...12.03.26VAP142,50114,000%
+20.02.261504705506618Baderkhan, Tam...1ZPA0021256...StromÖkoStrom24 Pur 1...10000012.03.26VAP134,00107,200%
+21.02.261504705506620Baderkhan, Tam...1ISK0082923...StromeprimoStrom PrimaKlima Pur Stabil 500...1000...12.03.26Storno119,000,000%
+23.02.261504705506128Mujahed Bilal Ma...1EMH001244...StromSTROM Fix Gewerbe Fremdmarkt 30000...999...12.03.26VAP111,0088,800%
+24.02.261504705510680Bar und Restaura...7ELS2541072...GasVattenfall EASY FIX 24 Gewerbegas 30000...49...12.03.26VAP142,50114,000%
+24.02.261504705510695Bar und Restaura...1ISK0090040...StrommeinPROFI Strom24 20000...4999912.03.26VAP73,0058,400%
+25.02.261504705511860Barbershop Fyon...1ZPA0020417...Stromrabot.Fix 24 Business 6001...3000012.03.26Storno111,500,000%
+26.02.261504705511831Oscar Lounge Inh...1LGZ0053851...StromProfiÖkostrom L 24 10000...1499912.03.26VAP146,00116,800%
+26.02.261504705514920Barbershop Fyon...1ZPA0020417...StrommeinPROFI Strom24 3000...1999912.03.26Storno48,500,000%
+24 AufträgeSumme Februar 20261.281,60 
+16.01.251504705033341Lorin Döner Keba...1EMH001314...StromProfiÖkostrom L 24 70000...10000001.04.25RR nach EP227,50227,50-227,500%
+17.02.251504705065650Rzadkiewicz, Pa...1ZPA0006133...StromÖkoStrom Relax 0...5000001.12.25EP82,5066,0016,500%
+15.05.251504705170773Fyonka Barbersh...2LieferstellenStromRespect Individual Strom12.03.26Storno0,000,000%
+20.10.251504705344843CSC Pirna e.V.1APAEA7223...StromSTROM Fix Gewerbe Fremdmarkt 30000...999...13.11.25RR nach VAP97,5078,00-78,000%
+28.11.251504705399180Hirsch24 UG1EFR216203...StromTrade Ökostrom 24 1...10000001.02.26EP95,0076,0019,000%
+02.12.251504705404063Shahi Palace Inh...7ELS2539712...GasVattenfall EASY FIX 24 Gewerbegas 50000...99...01.02.26EP148,50118,8029,700%
+08.12.251504705413403Moughrabi, Hani1ZPA0021256...StromÖkostrom Privat 24 fix 1500...10000016.12.25EP80,0064,0016,000%
+29.01.261504705474332Hüseyin Solma1EMH001314...StromMeistro Individual Strom01.03.26EP561,73561,730%
+8 AufträgeSumme Vormonate337,43 
+ 
+  
+Summe Abrechnungsbetrag1.619,03 
+*
+Art der Leistung:
+VAP (Vorabprovision) = Vorabzahlung für Aufträge im Wechselprozess
+EP (Einmalprovision) = Restzahlung für Verträge in Belieferung (Basiswert abzgl. “Abrechnung bisher”) /
+Storno = kein Provisionsanspruch / Fehler = (Auftragsstatus "Klärfall", "In Bonitätsprüfung beim Lieferanten" oder "Antrag Fehlerhaft") = kein Provisionsanspruch
+RR (Rückrechnung) nach VAP = Betrag der VAP wird zurückgerechnet / RR (Rückrechnung) nach EP = 100 % der Provision werden zurückgerechnet
+Korr. bzw. Korr. USt. = Neuberechnung wegen Änderung von Basiswert bzw. USt. / Statuskorr. = Erstbelieferungsdatum wurde durch Produktpartner korrigiert
+**
+Leistungsdatum:
+VAP und Storno = Abrechnungsdatum / EP = Lieferbeginn / sonst = Datum der letzten Zahlung bzw. Abrechnungsdatum
+Seite 1 von 1
