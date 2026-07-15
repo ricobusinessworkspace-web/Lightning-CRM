@@ -1709,3 +1709,67 @@ window.toggleBulkMode = () => {
       }
     } catch(e) { console.error(e); }
   };
+
+  window.renderDashboard = async () => {
+    const container = document.getElementById('dashboard-content');
+    if (!container) return;
+    
+    container.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1;">Lade Metriken...</div>';
+    
+    try {
+      const stats = await window.api.getAgentStats();
+      
+      if (!stats || stats.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1;">Noch keine Metriken verfügbar.</div>';
+        return;
+      }
+      
+      container.innerHTML = '';
+      
+      stats.forEach(stat => {
+        const totalCalls = stat.calls;
+        const answeredCalls = totalCalls - stat.unanswered;
+        const answeredRate = totalCalls > 0 ? Math.round((answeredCalls / totalCalls) * 100) : 0;
+        
+        const card = document.createElement('div');
+        card.style.cssText = 'background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 16px;';
+        
+        card.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <h3 style="margin: 0 0 4px 0; font-size: 16px; font-weight: 700; color: var(--text-main);">${stat.name}</h3>
+              <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Minion ID: ${stat.id.split('-')[0]}</div>
+            </div>
+            <div style="background: var(--surface); padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--text-main); border: 1px solid var(--border);">
+              ${stat.role === 'minion' ? 'Minion' : stat.role}
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; text-align: center;">
+              <div style="font-size: 24px; font-weight: 800; color: #fff;">${stat.leads}</div>
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">CRM Leads</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; text-align: center;">
+              <div style="font-size: 24px; font-weight: 800; color: #fff;">${totalCalls}</div>
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Calls</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; text-align: center;">
+              <div style="font-size: 24px; font-weight: 800; color: #fff;">${stat.emails}</div>
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">E-Mails</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; text-align: center;">
+              <div style="font-size: 24px; font-weight: 800; color: #34c759;">${answeredRate}%</div>
+              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Erreicht</div>
+            </div>
+          </div>
+        `;
+        
+        container.appendChild(card);
+      });
+      
+    } catch(err) {
+      console.error(err);
+      container.innerHTML = \`<div class="empty-state" style="grid-column: 1 / -1; color: #ff453a;">Fehler beim Laden der Metriken: \${err.message}</div>\`;
+    }
+  };
