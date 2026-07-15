@@ -593,11 +593,15 @@ export const db = {
     if (!currentUser || (currentUser.role !== 'developer' && currentUser.role !== 'admin')) {
       throw new Error("Keine Berechtigung");
     }
-    const { error } = await supabase.from('user_profiles')
+    const { data, error } = await supabase.from('user_profiles')
       .update({ role: newRole })
-      .eq('id', userId);
+      .eq('id', userId)
+      .select();
     
     if (error) throw new Error(error.message);
+    if (!data || data.length === 0) {
+      throw new Error("Fehler: Update durch Supabase RLS blockiert.");
+    }
     return true;
   },
 
