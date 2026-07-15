@@ -25,6 +25,7 @@ window.api = {
   getUsers: () => db.getUsers(),
   updateUserRole: (userId, newRole) => db.updateUserRole(userId, newRole),
   makeMeDeveloper: () => db.makeMeDeveloper(),
+  getAgentStats: () => db.getAgentStats(),
 
   // Call Tracking
   logCall: (id) => db.logCall(id),

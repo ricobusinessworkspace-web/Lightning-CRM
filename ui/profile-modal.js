@@ -7,7 +7,6 @@ export function initProfileModal() {
   const closeBtn = document.getElementById('close-profile-btn');
   const saveBtn = document.getElementById('save-profile-btn');
   const biometricsBtn = document.getElementById('setup-biometrics-btn');
-  const devUnlock = document.getElementById('dev-unlock-trigger');
   
   closeBtn.addEventListener('click', () => {
     modal.style.display = 'none';
@@ -37,20 +36,6 @@ export function initProfileModal() {
     }
   });
 
-  // Developer Bootstrapper
-  let clickCount = 0;
-  devUnlock.addEventListener('click', async () => {
-    clickCount++;
-    if (clickCount >= 5) {
-      clickCount = 0;
-      const success = await auth.unlockDeveloper();
-      if (success) {
-        alert("Developer Mode Unlocked! Lade neu...");
-        location.reload();
-      }
-    }
-  });
-
   // Global event listener to open modal (e.g. from header)
   window.addEventListener('open-profile', async () => {
     const user = await window.api.getCurrentUser();
@@ -60,7 +45,7 @@ export function initProfileModal() {
     document.getElementById('profile-email-input').value = user.email || '';
     
     const roleBadge = document.getElementById('profile-role-badge');
-    roleBadge.textContent = user.role;
+    roleBadge.textContent = (user.role === 'minion' || user.role === 'agent') ? '🛡️ Agent' : user.role;
     
     if (user.role === 'admin' || user.role === 'developer') {
       document.getElementById('admin-section').style.display = 'block';
@@ -85,8 +70,9 @@ async function loadAdminUsers(currentRole) {
       const row = document.createElement('div');
       row.className = 'admin-user-row';
       
+      const displayRole = (u.role === 'minion' || u.role === 'agent') ? 'Agent' : u.role;
       const info = document.createElement('div');
-      info.innerHTML = `<strong>${u.name}</strong> <span class="mono">${u.role}</span>`;
+      info.innerHTML = `<strong>${u.name}</strong> <span class="mono">${displayRole}</span>`;
       
       const actions = document.createElement('div');
       if (currentRole === 'developer' && u.role !== 'developer') {

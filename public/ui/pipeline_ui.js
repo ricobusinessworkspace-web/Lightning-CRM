@@ -318,10 +318,11 @@ window.toggleBulkMode = () => {
     
     document.getElementById('map-wrapper').style.display = tab === 'map' ? 'flex' : 'none';
     if(document.getElementById('scout-wrapper')) document.getElementById('scout-wrapper').style.display = tab === 'scout' ? 'flex' : 'none';
-    if(document.getElementById('main-list-wrapper')) document.getElementById('main-list-wrapper').style.display = (tab !== 'map' && tab !== 'scout') ? 'flex' : 'none';
+    if(document.getElementById('dashboard-wrapper')) document.getElementById('dashboard-wrapper').style.display = tab === 'dashboard' ? 'flex' : 'none';
+    if(document.getElementById('main-list-wrapper')) document.getElementById('main-list-wrapper').style.display = (tab !== 'map' && tab !== 'scout' && tab !== 'dashboard') ? 'flex' : 'none';
     
-    document.getElementById('main-sidebar').style.display = tab === 'scout' ? 'none' : 'flex';
-    document.querySelector('.main-content').style.display = (tab === 'map' || tab === 'scout') ? 'none' : 'flex';
+    document.getElementById('main-sidebar').style.display = (tab === 'scout' || tab === 'dashboard') ? 'none' : 'flex';
+    document.querySelector('.main-content').style.display = (tab === 'map' || tab === 'scout' || tab === 'dashboard') ? 'none' : 'flex';
 
     if (tab === 'map') {
       setTimeout(() => { if (map) map.invalidateSize(); }, 100);
@@ -331,7 +332,7 @@ window.toggleBulkMode = () => {
       if (typeof window.loadApiKey === 'function') window.loadApiKey();
     }
     
-    const hiddenTabs = ['scout', 'projects'];
+    const hiddenTabs = ['scout', 'projects', 'dashboard'];
     document.getElementById('qa-container').style.display = hiddenTabs.includes(tab) ? 'none' : 'flex';
     document.getElementById('filters-container').style.display = hiddenTabs.includes(tab) ? 'none' : 'flex';
     
@@ -348,11 +349,17 @@ window.toggleBulkMode = () => {
 
     currentFilter1 = 'all';
     currentFilter2 = 'all';
-    currentSearch = ''; 
-    currentColdCallFilter = 'all';
-    if(document.getElementById('search-input')) document.getElementById('search-input').value = '';
     
-    await loadUi();
+    if (tab === 'dashboard') {
+      if (typeof window.renderDashboard === 'function') {
+        window.renderDashboard();
+      }
+    } else {
+      currentSearch = ''; 
+      currentColdCallFilter = 'all';
+      if(document.getElementById('search-input')) document.getElementById('search-input').value = '';
+      await loadUi();
+    }
   };
 
   window.toggleAdvancedMode = () => {

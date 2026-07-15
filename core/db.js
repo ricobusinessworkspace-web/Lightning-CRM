@@ -541,7 +541,7 @@ export const db = {
       id: data.session.user.id, 
       email: data.session.user.email, 
       name: profile ? profile.name : 'Unknown', 
-      role: profile ? profile.role : 'agent' 
+      role: profile ? profile.role : 'minion' 
     };
     return currentUser;
   },
@@ -552,12 +552,12 @@ export const db = {
     
     // Fallback: If trigger doesn't exist, try to insert profile manually
     if (data.user) {
-       await supabase.from('user_profiles').insert({ id: data.user.id, name: email.split('@')[0], role: 'agent' });
+       await supabase.from('user_profiles').insert({ id: data.user.id, name: email.split('@')[0], role: 'minion' });
        currentUser = { 
          id: data.user.id, 
          email: data.user.email, 
          name: email.split('@')[0], 
-         role: 'agent' 
+         role: 'minion' 
        };
        return currentUser;
     }
@@ -576,7 +576,7 @@ export const db = {
     const { error } = await supabase.from('user_profiles').upsert({ 
       id: currentUser.id, 
       name: name, 
-      role: currentUser.role || 'agent' 
+      role: currentUser.role || 'minion' 
     });
     if (error) throw new Error(error.message);
     currentUser.name = name;
@@ -614,5 +614,43 @@ export const db = {
     if (error) throw new Error(error.message);
     currentUser.role = 'developer';
     return true;
+  },
+
+  getAgentStats: async () => {
+    if (!currentUser || (currentUser.role !== 'developer' && currentUser.role !== 'admin')) {
+      throw new Error("Keine Berechtigung");
+    }
+    
+    const { data: users, error: userErr } = await supabase.from('user_profiles').select('id, name, role');
+    if (userErr) throw new Error(userErr.message);
+    
+    let stats = {};
+    users.forEach(u => {
+      stats[u.id] = { id: u.id, name: u.name, role: u.role, calls: 0, unanswered: 0, emails: 0, leads: 0 };
+    });
+    
+    const { data, error } = await supabase.from(TABLE).select('claimed_by, call_history');
+    if (error) throw new Error(error.message);
+    
+    for (const row of (data || [])) {
+      if (row.claimed_by && stats[row.claimed_by]) {
+        stats[row.claimed_by].leads++;
+      }
+      const history = Array.isArray(row.call_history) ? row.call_history : [];
+      for (const entry of history) {
+        const norm = normalizeCallEntry(entry);
+        if (norm && norm.by_user_id && stats[norm.by_user_id]) {
+          if (norm.type === 'call') {
+            stats[norm.by_user_id].calls++;
+            if (norm.status === 'not_answered') {
+              stats[norm.by_user_id].unanswered++;
+            }
+          } else if (norm.type === 'email') {
+            stats[norm.by_user_id].emails++;
+          }
+        }
+      }
+    }
+    return Object.values(stats);
   }
 };

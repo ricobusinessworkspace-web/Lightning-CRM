@@ -108,6 +108,7 @@
       <button class="nav-btn" id="nav-customers" onclick="switchTab('customers')">Kunden</button>
       <button class="nav-btn" id="nav-map" onclick="switchTab('map')">Karte</button>
       <button class="nav-btn" id="nav-scout" onclick="switchTab('scout')">Radar Scout</button>
+      <button class="nav-btn" id="nav-dashboard" style="display: none;" onclick="switchTab('dashboard')">Dashboard</button>
     </div>
 
     <div class="header-actions" style="display: flex; align-items: center; gap: 12px;">
@@ -358,6 +359,14 @@
             <div class="empty-state" style="grid-column: 1 / -1;">Warte auf Eingabe...</div>
           </div>
         </div>
+        
+        <div id="dashboard-wrapper" style="display:none; flex:1; flex-direction:column; overflow-y:auto; padding: 32px 48px;">
+          <div class="list-header" style="margin-bottom: 24px;">Performance Dashboard</div>
+          <div id="dashboard-content" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; padding-bottom: 24px;">
+            <div class="empty-state" style="grid-column: 1 / -1;">Lade Metriken...</div>
+          </div>
+        </div>
+
       </div>
     </div>
 

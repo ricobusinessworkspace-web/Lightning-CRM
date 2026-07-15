@@ -52,7 +52,8 @@ import '../core/api.js';
   function executeLoginSuccess() {
     document.getElementById('login-modal').style.display = 'none';
     const accInfo = document.getElementById('account-info');
-    if (accInfo) accInfo.innerText = `Eingeloggt als ${globalUser.name || globalUser.email || 'Unknown'} (${globalUser.role || 'agent'})`;
+    const displayRole = (globalUser.role === 'minion' || globalUser.role === 'agent') ? 'Agent' : globalUser.role;
+    if (accInfo) accInfo.innerText = `Eingeloggt als ${globalUser.name || globalUser.email || 'Unknown'} (${displayRole})`;
     
     const headerInitial = document.getElementById('header-profile-initial');
     if (headerInitial) {
@@ -82,7 +83,8 @@ import '../core/api.js';
         if(splash) splash.classList.add('splash-hidden');
         
         const accInfo = document.getElementById('account-info');
-        if (accInfo) accInfo.innerText = `Eingeloggt als ${globalUser.name || globalUser.email || 'Unknown'} (${globalUser.role || 'agent'})`;
+        const displayRole = (globalUser.role === 'minion' || globalUser.role === 'agent') ? 'Agent' : globalUser.role;
+        if (accInfo) accInfo.innerText = `Eingeloggt als ${globalUser.name || globalUser.email || 'Unknown'} (${displayRole})`;
         
         const headerInitial = document.getElementById('header-profile-initial');
         if (headerInitial) {
@@ -91,6 +93,11 @@ import '../core/api.js';
         }
         
         window.globalUsersList = await window.api.getUsers();
+        
+        if (globalUser.role === 'admin' || globalUser.role === 'developer') {
+          const navDash = document.getElementById('nav-dashboard');
+          if (navDash) navDash.style.display = 'inline-block';
+        }
         
         // Init App
         if(typeof loadApiKey === 'function') loadApiKey();
