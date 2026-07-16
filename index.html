@@ -24,10 +24,10 @@
   </div>
 
   <!-- Login Screen -->
-  <div id="login-modal" class="modal-overlay" style="z-index: 10000; background: #000; display: none;">
-    <div class="modal-content" style="width: 360px; padding: 40px; border-radius: 16px; background: #0c0c0c; box-shadow: 0 20px 40px rgba(0,0,0,0.8); border: 1px solid var(--border); text-align: center;">
-      <div class="lightning-bolt" style="font-size: 40px; margin-bottom: 16px; animation: none; text-shadow: none;">⚡</div>
-      <h2 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 800; color: #fff;">Willkommen zurück</h2>
+  <div id="login-modal" class="modal-overlay" style="z-index: 10000; background: var(--color-bg-base); display: none;">
+    <div class="modal-content" style="width: 360px; padding: 40px; border-radius: 16px; background: var(--color-bg-panel); box-shadow: var(--shadow-md); border: 1px solid var(--color-border-base); text-align: center;">
+      <img src="/apple-touch-icon.png" alt="Lightning CRM" style="width: 64px; height: 64px; border-radius: 14px; margin-bottom: 24px;">
+      <h2 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 800; color: var(--color-text-primary);">Willkommen zurück</h2>
       <p style="margin: 0 0 24px 0; font-size: 13px; color: var(--text-muted);">Bitte logge dich ein, um fortzufahren.</p>
       
       <form id="login-form" onsubmit="handleLogin(event)">
@@ -46,10 +46,10 @@
   </div>
 
   <!-- Profile Edit Modal -->
-  <div id="profile-modal" class="modal-overlay hidden" style="z-index: 10000;">
-    <div class="modal-content" style="width: 400px; padding: 32px; border-radius: 16px; background: #0c0c0c; box-shadow: 0 20px 40px rgba(0,0,0,0.8); border: 1px solid var(--border);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">
-        <h2 style="margin: 0; font-size: 20px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 8px;">
+  <div id="profile-modal" class="modal-overlay hidden" style="z-index: 10000; background: var(--color-bg-base);">
+    <div class="modal-content" style="width: 400px; padding: 32px; border-radius: 16px; background: var(--color-bg-panel); box-shadow: var(--shadow-md); border: 1px solid var(--color-border-base);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--color-border-base); padding-bottom: 16px;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 800; color: var(--color-text-primary); display: flex; align-items: center; gap: 8px;">
            <div style="width:32px; height:32px; border-radius:50%; background:var(--surface); border: 1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:bold;">ID</div>
            Dein Profil
         </h2>
