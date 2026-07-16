@@ -1613,9 +1613,6 @@ if (typeof window.renderDashboard === 'function') {
       if (!l) return;
       
       l.starred = l.starred ? 0 : 1;
-      
-      // Update DOM button immediately in the sidebar
-      const starBtn = document.getElementById('sidebar-star-btn');
       if (starBtn) {
         starBtn.setAttribute('data-starred', l.starred ? '1' : '0');
         starBtn.style.color = l.starred ? '#ffcc00' : 'var(--text-muted)';
@@ -1631,7 +1628,7 @@ if (typeof window.renderDashboard === 'function') {
     }
   };
 
-  window.executeEmailEnrichment = async () => {
+  window.executeUniversalEnrichment = async () => {
     const btn = document.getElementById('btn-run-enrich');
     if (btn) {
       btn.innerText = 'Läuft... Bitte warten ⏳';
@@ -1640,45 +1637,87 @@ if (typeof window.renderDashboard === 'function') {
     
     try {
       const allLeads = await window.api.getLeads({ all: true });
-      // Clean URLs for consistency
-      const leadsToEnrich = allLeads.filter(l => !l.email && l.website_url && l.website_url.startsWith('http'));
+      const apiKey = localStorage.getItem('googlePlacesApiKey') || '';
       
-      if (leadsToEnrich.length === 0) {
-        showToast("Keine Leads mit Website ohne E-Mail gefunden.");
-        return;
-      }
+      showToast(`${allLeads.length} Leads werden auf fehlende Daten geprüft...`);
       
-      showToast(`${leadsToEnrich.length} Leads werden auf E-Mails geprüft...`);
+      let emailEnrichedCount = 0;
+      let apiEnrichedCount = 0;
       
-      let enrichedCount = 0;
-      let errorCount = 0;
-      
-      for (let i = 0; i < leadsToEnrich.length; i++) {
-        const l = leadsToEnrich[i];
-        if (btn) btn.innerText = `Prüfe ${i + 1} von ${leadsToEnrich.length}...`;
+      for (let i = 0; i < allLeads.length; i++) {
+        const l = allLeads[i];
+        let changed = false;
+
+        if (btn) btn.innerText = `Prüfe ${i + 1} von ${allLeads.length}...`;
         
-        try {
-          const email = await scrapeEmailFromWebsite(l.website_url);
-          if (email) {
-            l.email = email;
-            await window.api.saveLead(l);
-            enrichedCount++;
-          }
-        } catch (err) {
-          console.warn("Fehler beim Scrapen von " + l.website_url, err);
-          errorCount++;
+        // 1. Google Places Backfill (if we have ID and are missing fields)
+        const needsApi = !l.phone || !l.maps_city || !l.lat || !l.lng || !l.opening_hours;
+        if (l.google_place_id && apiKey && needsApi) {
+           try {
+             const url = `https://places.googleapis.com/v1/places/${l.google_place_id}`;
+             const res = await fetch(url, {
+               headers: {
+                 'X-Goog-Api-Key': apiKey,
+                 'X-Goog-FieldMask': 'displayName,formattedAddress,location,nationalPhoneNumber,internationalPhoneNumber,regularOpeningHours'
+               }
+             });
+             if (res.ok) {
+               const data = await res.json();
+               if (data) {
+                 if (!l.phone && (data.nationalPhoneNumber || data.internationalPhoneNumber)) {
+                    l.phone = data.nationalPhoneNumber || data.internationalPhoneNumber;
+                    changed = true;
+                 }
+                 const bestAddress = data.formattedAddress || data.displayName?.text;
+                 if (!l.maps_city && bestAddress) {
+                    l.maps_city = bestAddress;
+                    changed = true;
+                 }
+                 if ((!l.lat || !l.lng) && data.location) {
+                    l.lat = data.location.latitude;
+                    l.lng = data.location.longitude;
+                    changed = true;
+                 }
+                 if (!l.opening_hours && data.regularOpeningHours) {
+                    l.opening_hours = JSON.stringify(data.regularOpeningHours);
+                    changed = true;
+                 }
+               }
+             }
+           } catch (e) {
+             console.warn("Places API Error", e);
+           }
+        }
+
+        // 2. Website Email Backfill
+        if (!l.email && l.website_url && l.website_url.startsWith('http')) {
+           try {
+             const email = await scrapeEmailFromWebsite(l.website_url);
+             if (email) {
+               l.email = email;
+               changed = true;
+               emailEnrichedCount++;
+             }
+           } catch (e) {
+             console.warn("Website Scrape Error", e);
+           }
+        }
+
+        if (changed) {
+          apiEnrichedCount++;
+          await window.api.saveLead(l);
         }
       }
       
-      showToast(`Enrichment fertig! ${enrichedCount} E-Mails hinzugefügt.`);
-      await loadUi(); // Refresh UI to show new emails
+      showToast(`Enrichment fertig! ${apiEnrichedCount} Leads aktualisiert (davon ${emailEnrichedCount} neue E-Mails).`);
+      await loadUi(); // Refresh UI
       
     } catch (err) {
       console.error(err);
       showToast(`Enrichment Fehler: ${err.message}`, true);
     } finally {
       if (btn) {
-        btn.innerText = 'E-Mails anreichern (Alle Leads)';
+        btn.innerText = 'Data Enrichment (Alle fehlenden Daten laden)';
         btn.disabled = false;
       }
     }
@@ -1923,131 +1962,5 @@ if (typeof window.renderDashboard === 'function') {
     } catch(err) {
       console.error(err);
       container.innerHTML = `<div class="empty-state" style="width: 100%; color: #ff453a;">Fehler beim Laden der Metriken: ${err.message}</div>`;
-    }
-  };
-  window.executeDeduplication = async () => {
-    const btn = document.getElementById('btn-run-dedupe');
-    if (btn) {
-      btn.innerText = 'Deduplizierung läuft... ⏳';
-      btn.disabled = true;
-    }
-
-    try {
-      const allLeads = await window.api.getLeads({ all: true });
-      const groups = {};
-      
-      // Group by name + city (or google_place_id)
-      for (const l of allLeads) {
-        let key = '';
-        if (l.google_place_id) {
-           key = 'gid_' + l.google_place_id;
-        } else {
-           const name = (l.name || '').toLowerCase().trim();
-           const city = (l.maps_city || '').toLowerCase().trim();
-           key = 'name_' + name + '_' + city;
-        }
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(l);
-      }
-
-      let mergedCount = 0;
-      let deletedCount = 0;
-
-      for (const key in groups) {
-        const group = groups[key];
-        if (group.length > 1) {
-          // Sort to find the primary: prefer 'Kunde' over 'Lead', then latest contact, then latest created
-          group.sort((a, b) => {
-             const statusScore = (s) => (s === 'Kunde' ? 2 : (s === 'Interessiert' ? 1 : 0));
-             const scoreA = statusScore(a.status);
-             const scoreB = statusScore(b.status);
-             if (scoreA !== scoreB) return scoreB - scoreA;
-             if ((a.last_contact_ms || 0) !== (b.last_contact_ms || 0)) return (b.last_contact_ms || 0) - (a.last_contact_ms || 0);
-             return (b.created_at_ms || 0) - (a.created_at_ms || 0);
-          });
-
-          const primary = group[0];
-          let updatedPrimary = false;
-
-          for (let i = 1; i < group.length; i++) {
-             const dup = group[i];
-             
-             // Merge text/number fields if primary is empty
-             const fieldsToMerge = ['phone', 'email', 'notes', 'maps_city', 'website_url', 'opening_hours', 'director_name', 'google_maps_url', 'zaehlernummern', 'abschlussdatum'];
-             for (const f of fieldsToMerge) {
-               if (!primary[f] && dup[f]) {
-                 primary[f] = dup[f];
-                 updatedPrimary = true;
-               } else if (f === 'notes' && dup[f] && primary[f] && !primary[f].includes(dup[f])) {
-                 primary[f] += '\n' + dup[f];
-                 updatedPrimary = true;
-               }
-             }
-
-             // Merge numeric/boolean flags
-             const numericFields = ['entscheider', 'termin', 'rechnung', 'umsatz', 'provi_umsatz'];
-             for (const f of numericFields) {
-               if (!primary[f] && dup[f]) {
-                 primary[f] = dup[f];
-                 updatedPrimary = true;
-               }
-             }
-             if (dup.starred === 1 && primary.starred !== 1) {
-                 primary.starred = 1;
-                 updatedPrimary = true;
-             }
-
-             // Merge call_history
-             const histP = Array.isArray(primary.call_history) ? primary.call_history : [];
-             const histD = Array.isArray(dup.call_history) ? dup.call_history : [];
-             if (histD.length > 0) {
-                const combined = [...histP, ...histD];
-                // deduplicate by timestamp
-                const uniqueHist = [];
-                const seenTs = new Set();
-                for (const entry of combined) {
-                   const ts = typeof entry === 'number' ? entry : entry.ts;
-                   if (ts && !seenTs.has(ts)) {
-                      seenTs.add(ts);
-                      uniqueHist.push(entry);
-                   }
-                }
-                uniqueHist.sort((a,b) => {
-                   const ta = typeof a === 'number' ? a : a.ts;
-                   const tb = typeof b === 'number' ? b : b.ts;
-                   return ta - tb;
-                });
-                primary.call_history = uniqueHist;
-                // update last_contact_ms
-                if (uniqueHist.length > 0) {
-                  const last = uniqueHist[uniqueHist.length - 1];
-                  primary.last_contact_ms = typeof last === 'number' ? last : (last?.ts || 0);
-                }
-                updatedPrimary = true;
-             }
-             
-             // Delete the duplicate
-             await window.api.deleteLead(dup.id);
-             deletedCount++;
-          }
-          
-          if (updatedPrimary) {
-             await window.api.saveLead(primary);
-             mergedCount++;
-          }
-        }
-      }
-
-      showToast(`Deduplizierung fertig! ${mergedCount} Leads aktualisiert, ${deletedCount} Duplikate gelöscht.`);
-      await loadUi();
-
-    } catch (err) {
-      console.error(err);
-      showToast(`Fehler bei Deduplizierung: ${err.message}`, true);
-    } finally {
-      if (btn) {
-        btn.innerText = 'Duplikate zusammenführen';
-        btn.disabled = false;
-      }
     }
   };

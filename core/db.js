@@ -322,6 +322,38 @@ export const db = {
       if (error) throw new Error(error.message || error.details || JSON.stringify(error));
       return { id: lead.id, updated: 1 };
     } else {
+      // DEDUPLICATION CHECK: Never allow a duplicate to be inserted
+      let dupQuery = supabase.from(TABLE).select('*');
+      if (payload.google_place_id) {
+         dupQuery = dupQuery.eq('google_place_id', payload.google_place_id);
+      } else {
+         dupQuery = dupQuery.eq('name', payload.name).eq('maps_city', payload.maps_city);
+      }
+      
+      const { data: dupData } = await dupQuery;
+      
+      if (dupData && dupData.length > 0) {
+         // Duplicate found! We DO NOT insert. We merge non-destructive data into the first duplicate.
+         const existingDup = dupData[0];
+         const updatePayload = {};
+         for (const key in payload) {
+            // Only update if the existing field is empty or falsy, and the new payload has a value
+            // (Don't overwrite existing user data!)
+            if ((!existingDup[key] || existingDup[key] === 0 || existingDup[key] === '') && payload[key]) {
+               updatePayload[key] = payload[key];
+            }
+         }
+         
+         if (Object.keys(updatePayload).length > 0) {
+            updatePayload.last_edited_ms = now;
+            const { error: updErr } = await supabase.from(TABLE).update(updatePayload).eq('id', existingDup.id);
+            if (updErr) throw new Error(updErr.message || updErr.details || JSON.stringify(updErr));
+         }
+         
+         return { id: existingDup.id, inserted: false, updated: 1, duplicate_prevented: true };
+      }
+
+      // No duplicate found, safe to insert!
       payload.created_at_ms   = now;
       payload.last_contact_ms = lead.last_contact_ms ?? 0;
       payload.call_history    = [];
