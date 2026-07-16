@@ -692,23 +692,27 @@ body { background-color: var(--bg); color: var(--text-main); height: 100vh; disp
 @media (max-width: 768px) {
   /* Header Adjustments (with iOS Safe Area) */
   .drag-header {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: center;
-    height: auto;
-    padding: max(12px, env(safe-area-inset-top)) 16px 12px 16px;
+    display: grid !important;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: 
+      "logo actions"
+      "nav nav";
+    gap: 12px;
+    height: auto !important;
+    padding: max(12px, env(safe-area-inset-top)) 16px 12px 16px !important;
   }
   .drag-header .logo {
-    margin-bottom: 0;
-    flex: 1;
+    grid-area: logo;
+    margin: 0;
   }
   .header-actions {
+    grid-area: actions;
     width: auto;
     justify-content: flex-end;
   }
   .top-nav {
-    margin: 12px 0 0 0;
+    grid-area: nav;
+    margin: 0;
     width: 100%;
     overflow-x: auto;
     justify-content: flex-start;
@@ -719,25 +723,23 @@ body { background-color: var(--bg); color: var(--text-main); height: 100vh; disp
     display: none; /* Chrome/Safari */
   }
 
-  /* Split Screen for Mobile (List Top, Detail Bottom) */
+  /* Split Screen for Mobile (Sidebar Top, List Bottom) */
   .app-container {
-    flex-direction: column-reverse;
+    flex-direction: column;
   }
   .sidebar {
-    width: 100%;
-    min-width: 100%;
-    max-width: 100%;
-    height: 45vh;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    flex: 0 0 40vh; /* 40% of available height for detail view */
     border-right: none;
-    border-top: 1px solid var(--border);
-    border-top-left-radius: 16px;
-    border-top-right-radius: 16px;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+    border-bottom: 2px solid var(--border);
     z-index: 10;
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
   .main-container {
-    height: 55vh;
+    flex: 1;
+    min-height: 0; /* Allows internal scrolling */
+    height: auto;
   }
 
   /* Paddings and Layouts */
@@ -749,7 +751,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100vh; disp
   .filters-row-global {
     flex-direction: column;
     align-items: stretch !important;
-    gap: 12px;
+    gap: 8px !important;
     padding-top: 12px !important;
     padding-bottom: 12px !important;
   }
@@ -765,10 +767,16 @@ body { background-color: var(--bg); color: var(--text-main); height: 100vh; disp
   .quick-add {
     flex-direction: column;
     align-items: stretch !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 0 !important;
+    gap: 8px !important;
   }
   .quick-add input, .quick-add button {
     max-width: 100% !important;
     width: 100% !important;
+    padding: 10px !important;
+    min-height: 40px;
   }
   
   .leads-grid {

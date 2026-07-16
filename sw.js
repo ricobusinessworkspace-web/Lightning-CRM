@@ -1,33 +1,31 @@
-// Basic Service Worker for Offline Fallback & caching
-const CACHE_NAME = 'lightning-crm-cache-v1';
+// Safer Service Worker for Offline Fallback & caching
+const CACHE_NAME = 'lightning-crm-cache-v2';
 const urlsToCache = [
   '/',
   '/index.html',
   '/styles.css',
   '/theme.css',
-  '/manifest.json',
-  '/apple-touch-icon.png'
+  '/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
+      .then((cache) => cache.addAll(urlsToCache))
+      .catch((err) => console.log('SW Cache error', err))
   );
 });
 
 self.addEventListener('fetch', (event) => {
+  // Bypass cache for APIs, Supabase, and non-GET requests
+  if (event.request.method !== 'GET' || event.request.url.includes('supabase.co')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
+        return response || fetch(event.request);
       })
   );
 });
