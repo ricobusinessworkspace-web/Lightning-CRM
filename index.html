@@ -144,15 +144,20 @@
           </button>
         </div>
 
-        <!-- Group: Database Enrich (E-Mails) -->
+        <!-- Group: Database Tools -->
         <div style="background: rgba(10,132,255,0.05); border: 1px solid rgba(10,132,255,0.3); padding: 18px; border-radius: 12px;">
           <h3 style="margin: 0 0 10px 0; font-size: 13px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;">
-            Datenbank Enrich (E-Mails)
+            Datenbank Tools
           </h3>
-          <p style="margin: 0 0 16px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">Durchsucht alle Leads im CRM ohne E-Mail-Adresse und versucht, E-Mails (bevorzugt Geschäftsführer) von deren Webseiten und Impressen auszulesen.</p>
-          <button id="btn-run-enrich" class="action-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 600; font-size: 13px; background: rgba(10,132,255,0.1); color: var(--accent); border: 1px solid var(--accent);" onclick="executeEmailEnrichment()">
-            E-Mails anreichern (Alle Leads)
-          </button>
+          <p style="margin: 0 0 16px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">Pflege-Tools für das CRM: E-Mails via Impressum anreichern oder mehrfach angelegte Duplikate intelligent zusammenführen.</p>
+          <div style="display: flex; gap: 8px; flex-direction: column;">
+            <button id="btn-run-enrich" class="action-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 600; font-size: 13px; background: rgba(10,132,255,0.1); color: var(--accent); border: 1px solid var(--accent);" onclick="executeEmailEnrichment()">
+              E-Mails anreichern (Alle Leads)
+            </button>
+            <button id="btn-run-dedupe" class="action-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 600; font-size: 13px; background: rgba(255, 159, 10, 0.1); color: #ff9f0a; border: 1px solid #ff9f0a;" onclick="executeDeduplication()">
+              Duplikate zusammenführen
+            </button>
+          </div>
         </div>
 
         <!-- Group: Lead Intelligence -->

@@ -1925,3 +1925,129 @@ if (typeof window.renderDashboard === 'function') {
       container.innerHTML = `<div class="empty-state" style="width: 100%; color: #ff453a;">Fehler beim Laden der Metriken: ${err.message}</div>`;
     }
   };
+  window.executeDeduplication = async () => {
+    const btn = document.getElementById('btn-run-dedupe');
+    if (btn) {
+      btn.innerText = 'Deduplizierung läuft... ⏳';
+      btn.disabled = true;
+    }
+
+    try {
+      const allLeads = await window.api.getLeads({ all: true });
+      const groups = {};
+      
+      // Group by name + city (or google_place_id)
+      for (const l of allLeads) {
+        let key = '';
+        if (l.google_place_id) {
+           key = 'gid_' + l.google_place_id;
+        } else {
+           const name = (l.name || '').toLowerCase().trim();
+           const city = (l.maps_city || '').toLowerCase().trim();
+           key = 'name_' + name + '_' + city;
+        }
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(l);
+      }
+
+      let mergedCount = 0;
+      let deletedCount = 0;
+
+      for (const key in groups) {
+        const group = groups[key];
+        if (group.length > 1) {
+          // Sort to find the primary: prefer 'Kunde' over 'Lead', then latest contact, then latest created
+          group.sort((a, b) => {
+             const statusScore = (s) => (s === 'Kunde' ? 2 : (s === 'Interessiert' ? 1 : 0));
+             const scoreA = statusScore(a.status);
+             const scoreB = statusScore(b.status);
+             if (scoreA !== scoreB) return scoreB - scoreA;
+             if ((a.last_contact_ms || 0) !== (b.last_contact_ms || 0)) return (b.last_contact_ms || 0) - (a.last_contact_ms || 0);
+             return (b.created_at_ms || 0) - (a.created_at_ms || 0);
+          });
+
+          const primary = group[0];
+          let updatedPrimary = false;
+
+          for (let i = 1; i < group.length; i++) {
+             const dup = group[i];
+             
+             // Merge text/number fields if primary is empty
+             const fieldsToMerge = ['phone', 'email', 'notes', 'maps_city', 'website_url', 'opening_hours', 'director_name', 'google_maps_url', 'zaehlernummern', 'abschlussdatum'];
+             for (const f of fieldsToMerge) {
+               if (!primary[f] && dup[f]) {
+                 primary[f] = dup[f];
+                 updatedPrimary = true;
+               } else if (f === 'notes' && dup[f] && primary[f] && !primary[f].includes(dup[f])) {
+                 primary[f] += '\n' + dup[f];
+                 updatedPrimary = true;
+               }
+             }
+
+             // Merge numeric/boolean flags
+             const numericFields = ['entscheider', 'termin', 'rechnung', 'umsatz', 'provi_umsatz'];
+             for (const f of numericFields) {
+               if (!primary[f] && dup[f]) {
+                 primary[f] = dup[f];
+                 updatedPrimary = true;
+               }
+             }
+             if (dup.starred === 1 && primary.starred !== 1) {
+                 primary.starred = 1;
+                 updatedPrimary = true;
+             }
+
+             // Merge call_history
+             const histP = Array.isArray(primary.call_history) ? primary.call_history : [];
+             const histD = Array.isArray(dup.call_history) ? dup.call_history : [];
+             if (histD.length > 0) {
+                const combined = [...histP, ...histD];
+                // deduplicate by timestamp
+                const uniqueHist = [];
+                const seenTs = new Set();
+                for (const entry of combined) {
+                   const ts = typeof entry === 'number' ? entry : entry.ts;
+                   if (ts && !seenTs.has(ts)) {
+                      seenTs.add(ts);
+                      uniqueHist.push(entry);
+                   }
+                }
+                uniqueHist.sort((a,b) => {
+                   const ta = typeof a === 'number' ? a : a.ts;
+                   const tb = typeof b === 'number' ? b : b.ts;
+                   return ta - tb;
+                });
+                primary.call_history = uniqueHist;
+                // update last_contact_ms
+                if (uniqueHist.length > 0) {
+                  const last = uniqueHist[uniqueHist.length - 1];
+                  primary.last_contact_ms = typeof last === 'number' ? last : (last?.ts || 0);
+                }
+                updatedPrimary = true;
+             }
+             
+             // Delete the duplicate
+             await window.api.deleteLead(dup.id);
+             deletedCount++;
+          }
+          
+          if (updatedPrimary) {
+             await window.api.saveLead(primary);
+             mergedCount++;
+          }
+        }
+      }
+
+      showToast(`Deduplizierung fertig! ${mergedCount} Leads aktualisiert, ${deletedCount} Duplikate gelöscht.`);
+      await loadUi();
+
+    } catch (err) {
+      console.error(err);
+      showToast(`Fehler bei Deduplizierung: ${err.message}`, true);
+    } finally {
+      if (btn) {
+        btn.innerText = 'Duplikate zusammenführen';
+        btn.disabled = false;
+      }
+    }
+  };

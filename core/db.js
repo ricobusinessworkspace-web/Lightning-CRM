@@ -278,6 +278,7 @@ export const db = {
       legal_company_name: lead.legal_company_name  ?? '',
       director_name:      lead.director_name       ?? '',
       phone_source:       lead.phone_source        ?? '',
+      opening_hours:      lead.opening_hours       ?? '',
       estimated_kwh:      lead.estimated_kwh       ?? 0,
     };
 
