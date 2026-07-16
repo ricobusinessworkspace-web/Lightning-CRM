@@ -1651,7 +1651,8 @@ if (typeof window.renderDashboard === 'function') {
         if (btn) btn.innerText = `Prüfe ${i + 1} von ${allLeads.length}...`;
         
         // 1. Google Places Backfill (if we have ID and are missing fields)
-        const needsApi = !l.phone || !l.maps_city || !l.lat || !l.lng || !l.opening_hours;
+        const hasOpeningHours = l.locations && l.locations.length > 0 && !!l.locations[0].opening_hours;
+        const needsApi = !l.phone || !l.maps_city || !l.lat || !l.lng || !hasOpeningHours;
         if (l.google_place_id && apiKey && needsApi) {
            try {
              const url = `https://places.googleapis.com/v1/places/${l.google_place_id}`;
@@ -1678,9 +1679,17 @@ if (typeof window.renderDashboard === 'function') {
                     l.lng = data.location.longitude;
                     changed = true;
                  }
-                 if (!l.opening_hours && data.regularOpeningHours) {
-                    l.opening_hours = JSON.stringify(data.regularOpeningHours);
-                    changed = true;
+                 if (data.regularOpeningHours) {
+                    if (!l.locations) l.locations = [];
+                    if (l.locations.length === 0) {
+                      l.locations.push({
+                         address: l.maps_city, lat: l.lat, lng: l.lng, place_id: l.google_place_id, opening_hours: data.regularOpeningHours.weekdayDescriptions
+                      });
+                      changed = true;
+                    } else if (!l.locations[0].opening_hours) {
+                      l.locations[0].opening_hours = data.regularOpeningHours.weekdayDescriptions;
+                      changed = true;
+                    }
                  }
                }
              }
