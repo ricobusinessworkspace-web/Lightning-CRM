@@ -735,9 +735,12 @@ window.setPipeline = async (type) => {
 
 
 
-  // Cache leads for the select dropdown
-  window.api.getLeads({ all: true }).then(leads => {
-    window._cachedLeadsForSelect = leads.sort((a,b) => a.name.localeCompare(b.name));
+  window.addEventListener('DOMContentLoaded', () => {
+    if (window.api && window.api.getLeads) {
+      window.api.getLeads({ all: true }).then(leads => {
+        window._cachedLeadsForSelect = leads.sort((a,b) => a.name.localeCompare(b.name));
+      }).catch(e => console.error("Error caching leads:", e));
+    }
   });
 
   // --- HTML ESCAPE HELPER ---

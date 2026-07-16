@@ -1845,6 +1845,6 @@ window.toggleBulkMode = () => {
       
     } catch(err) {
       console.error(err);
-      container.innerHTML = \`<div class="empty-state" style="width: 100%; color: #ff453a;">Fehler beim Laden der Metriken: \${err.message}</div>\`;
+      container.innerHTML = `<div class="empty-state" style="width: 100%; color: #ff453a;">Fehler beim Laden der Metriken: ${err.message}</div>`;
     }
   };

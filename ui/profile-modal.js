@@ -8,12 +8,15 @@ export function initProfileModal() {
   const saveBtn = document.getElementById('save-profile-btn');
   const biometricsBtn = document.getElementById('setup-biometrics-btn');
   
-  closeBtn.addEventListener('click', () => {
-    modal.style.display = 'none';
-  });
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      modal.style.display = 'none';
+    });
+  }
 
-  saveBtn.addEventListener('click', async () => {
-    const name = document.getElementById('profile-name-input').value;
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      const name = document.getElementById('profile-name-input').value;
     try {
       saveBtn.textContent = 'Speichere...';
       await window.api.updateProfile(name);
@@ -24,17 +27,20 @@ export function initProfileModal() {
       saveBtn.textContent = 'Fehler!';
     }
   });
+  }
 
-  biometricsBtn.addEventListener('click', async () => {
-    biometricsBtn.innerHTML = '<span class="icon">⏳</span> Richte ein...';
-    // Im Desktop-Modus greift Electron IPC, im Web greift WebAuthn
-    const res = window.api.promptTouchID ? await window.api.promptTouchID() : await auth.registerPasskey();
-    if (res && res.success) {
-      biometricsBtn.innerHTML = '<span class="icon">✅</span> Eingerichtet';
-    } else {
-      biometricsBtn.innerHTML = '<span class="icon">❌</span> Fehler';
-    }
-  });
+  if (biometricsBtn) {
+    biometricsBtn.addEventListener('click', async () => {
+      biometricsBtn.innerHTML = '<span class="icon">⏳</span> Richte ein...';
+      // Im Desktop-Modus greift Electron IPC, im Web greift WebAuthn
+      const res = window.api.promptTouchID ? await window.api.promptTouchID() : await auth.registerPasskey();
+      if (res && res.success) {
+        biometricsBtn.innerHTML = '<span class="icon">✅</span> Eingerichtet';
+      } else {
+        biometricsBtn.innerHTML = '<span class="icon">❌</span> Fehler';
+      }
+    });
+  }
 
   // Global event listener to open modal (e.g. from header)
   window.addEventListener('open-profile', async () => {
