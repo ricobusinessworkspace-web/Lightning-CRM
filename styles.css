@@ -687,3 +687,84 @@ body { background-color: var(--bg); color: var(--text-main); height: 100vh; disp
   flex-shrink: 0;
 }
 .project-task-deadline-input:focus { border-color: var(--accent); }
+
+/* ─── MOBILE RESPONSIVENESS (PWA) ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Header Adjustments */
+  .drag-header {
+    flex-direction: column;
+    height: auto;
+    padding: 12px 16px;
+    align-items: flex-start;
+  }
+  .drag-header .logo {
+    margin-bottom: 12px;
+  }
+  .top-nav {
+    margin: 0 0 12px 0;
+    width: 100%;
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding-bottom: 8px;
+  }
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /* Split Screen for Mobile (List Top, Detail Bottom) */
+  .app-container {
+    flex-direction: column-reverse;
+  }
+  .sidebar {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    height: 45vh;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+    z-index: 10;
+  }
+  .main-container {
+    height: 55vh;
+  }
+
+  /* Paddings and Layouts */
+  .main-content, .filters-row-global, .quick-add, #map-wrapper, #scout-wrapper, #dashboard-wrapper {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  
+  .leads-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  /* Modals */
+  .modal-content {
+    min-width: 90vw;
+    width: 90vw !important;
+    padding: 20px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Touch Targets */
+  .action-btn, .action-btn-small, .nav-btn, .chip {
+    min-height: 44px; /* Apple Human Interface Guideline for Touch */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Kanban Adjustments */
+  .kanban-board {
+    flex-direction: column;
+  }
+  .kanban-column {
+    min-height: 400px;
+    height: auto;
+  }
+}
