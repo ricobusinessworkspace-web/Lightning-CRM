@@ -32,9 +32,10 @@ window.api = {
   logEmail: (id) => db.logEmail(id),
   markCallNotAnswered: (leadId, callTs) => db.markCallNotAnswered(leadId, callTs),
   getCallsToday: () => db.getCallsToday(),
+  updateCallGoal: (goal) => db.updateCallGoal(goal),
 
   // Utilities
-  updateTray: (count) => { console.log("Tray updated:", count); document.title = `📞 ${count}/100 - Lightning CRM`; },
+  updateTray: (count) => { console.log("Tray updated:", count); },
   copyText: async (text) => {
     try {
       await navigator.clipboard.writeText(text);

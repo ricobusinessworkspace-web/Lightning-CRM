@@ -7,7 +7,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const userDataPath = process.platform === 'darwin' ? path.join(process.env.HOME, 'Library', 'Application Support') : path.join(process.env.HOME, '.config');
-const configPath = path.join(userDataPath, 'calling-station', 'config.json');
+const configPath = path.join(userDataPath, 'lightning-crm', 'config.json');
 
 let apiKey = 'AIzaSyD099g3LUJb3NoLTDJPrkOYEDh0XuXLCrI';
 

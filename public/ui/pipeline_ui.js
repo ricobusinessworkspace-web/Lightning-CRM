@@ -1714,62 +1714,137 @@ window.toggleBulkMode = () => {
     const container = document.getElementById('dashboard-content');
     if (!container) return;
     
-    container.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1;">Lade Metriken...</div>';
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '32px';
+    
+    container.innerHTML = '<div class="empty-state" style="width: 100%;">Lade Metriken...</div>';
     
     try {
       const stats = await window.api.getAgentStats();
+      const currentUser = await window.api.getCurrentUser();
       
       if (!stats || stats.length === 0) {
-        container.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1;">Noch keine Metriken verfügbar.</div>';
+        container.innerHTML = '<div class="empty-state" style="width: 100%;">Noch keine Metriken verfügbar.</div>';
         return;
       }
       
       container.innerHTML = '';
       
-      stats.forEach(stat => {
-        const totalCalls = stat.calls;
-        const answeredCalls = totalCalls - stat.unanswered;
-        const answeredRate = totalCalls > 0 ? Math.round((answeredCalls / totalCalls) * 100) : 0;
+      const myStats = stats.find(s => s.id === currentUser.id);
+      
+      if (myStats) {
+        const mySection = document.createElement('div');
         
-        const card = document.createElement('div');
-        card.style.cssText = 'background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 16px;';
+        const goal = myStats.daily_call_goal || 100;
+        const callsToday = myStats.today.calls;
+        const progressPct = Math.min(100, Math.round((callsToday / goal) * 100)) || 0;
         
-        card.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div>
-              <h3 style="margin: 0 0 4px 0; font-size: 16px; font-weight: 700; color: var(--text-main);">${stat.name}</h3>
-              <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Minion ID: ${stat.id.split('-')[0]}</div>
-            </div>
-            <div style="background: var(--surface); padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--text-main); border: 1px solid var(--border);">
-              ${stat.role === 'minion' ? 'Minion' : stat.role}
+        mySection.innerHTML = `
+          <div style="margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="font-size: 18px; font-weight: 700; color: #fff; margin: 0;">Meine Performance</h2>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 12px; color: var(--text-muted);">Tagesziel:</span>
+              <input type="number" id="daily-goal-input" value="${goal}" class="modern-input-small" style="width: 70px; text-align: center; padding: 4px;" />
+              <button class="action-btn-small outline" onclick="window.saveCallGoal()" style="padding: 4px 12px;">Speichern</button>
             </div>
           </div>
           
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; text-align: center;">
-              <div style="font-size: 24px; font-weight: 800; color: #fff;">${stat.leads}</div>
-              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">CRM Leads</div>
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px;">
+              <div>
+                <div style="font-size: 32px; font-weight: 900; color: #fff;">${callsToday} <span style="font-size: 16px; color: var(--text-muted); font-weight: 600;">/ ${goal} Calls Heute</span></div>
+              </div>
+              <div style="font-size: 14px; font-weight: 600; color: ${progressPct >= 100 ? 'var(--success)' : 'var(--accent)'};">${progressPct}% erreicht</div>
             </div>
-            <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; text-align: center;">
-              <div style="font-size: 24px; font-weight: 800; color: #fff;">${totalCalls}</div>
-              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Calls</div>
+            
+            <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.4); border-radius: 4px; overflow: hidden; margin-bottom: 24px;">
+              <div style="width: ${progressPct}%; height: 100%; background: ${progressPct >= 100 ? 'var(--success)' : 'var(--accent)'}; border-radius: 4px; transition: width 0.5s ease;"></div>
             </div>
-            <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; text-align: center;">
-              <div style="font-size: 24px; font-weight: 800; color: #fff;">${stat.emails}</div>
-              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">E-Mails</div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
+              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 20px; font-weight: 800; color: #fff;">${myStats.week.calls}</div>
+                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Calls (Woche)</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 20px; font-weight: 800; color: #fff;">${myStats.today.emails}</div>
+                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">E-Mails (Heute)</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 20px; font-weight: 800; color: #fff;">${myStats.week.emails}</div>
+                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">E-Mails (Woche)</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 20px; font-weight: 800; color: #34c759;">${myStats.today.calls > 0 ? Math.round(((myStats.today.calls - myStats.today.unanswered)/myStats.today.calls)*100) : 0}%</div>
+                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Erreicht (Heute)</div>
+              </div>
             </div>
-            <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; text-align: center;">
-              <div style="font-size: 24px; font-weight: 800; color: #34c759;">${answeredRate}%</div>
-              <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Erreicht</div>
+          </div>
+        `;
+        container.appendChild(mySection);
+        
+        window.saveCallGoal = async () => {
+          const input = document.getElementById('daily-goal-input');
+          if (!input) return;
+          try {
+            await window.api.updateCallGoal(input.value);
+            window.renderDashboard();
+          } catch(e) {
+            alert("Fehler beim Speichern des Ziels.");
+          }
+        };
+      }
+      
+      const teamSection = document.createElement('div');
+      teamSection.innerHTML = `
+        <div style="margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+          <h2 style="font-size: 18px; font-weight: 700; color: #fff; margin: 0;">Team Performance</h2>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;" id="team-grid"></div>
+      `;
+      container.appendChild(teamSection);
+      
+      const teamGrid = document.getElementById('team-grid');
+      
+      stats.forEach(stat => {
+        const answeredRate = stat.today.calls > 0 ? Math.round(((stat.today.calls - stat.today.unanswered) / stat.today.calls) * 100) : 0;
+        const answeredRateWeek = stat.week.calls > 0 ? Math.round(((stat.week.calls - stat.week.unanswered) / stat.week.calls) * 100) : 0;
+        
+        const card = document.createElement('div');
+        card.style.cssText = 'background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 16px;';
+        
+        card.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="width:36px; height:36px; border-radius:50%; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; color:var(--text-main);">
+                ${stat.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h3 style="margin: 0 0 2px 0; font-size: 15px; font-weight: 700; color: var(--text-main);">${stat.name}</h3>
+                <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">${stat.role === 'minion' ? 'Agent' : stat.role}</div>
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 6px;">Ziel: ${stat.daily_call_goal || 100}</div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 800; color: #fff;">${stat.today.calls} <span style="font-size: 11px; color: var(--text-muted); font-weight: 500;">/ ${stat.week.calls}</span></div>
+              <div style="font-size: 9px; color: var(--text-muted); text-transform: uppercase;">Calls (Heute / Woche)</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 800; color: #34c759;">${answeredRate}% <span style="font-size: 11px; color: var(--text-muted); font-weight: 500;">/ ${answeredRateWeek}%</span></div>
+              <div style="font-size: 9px; color: var(--text-muted); text-transform: uppercase;">Erreicht (Heute / Woche)</div>
             </div>
           </div>
         `;
         
-        container.appendChild(card);
+        teamGrid.appendChild(card);
       });
       
     } catch(err) {
       console.error(err);
-      container.innerHTML = \`<div class="empty-state" style="grid-column: 1 / -1; color: #ff453a;">Fehler beim Laden der Metriken: \${err.message}</div>\`;
+      container.innerHTML = \`<div class="empty-state" style="width: 100%; color: #ff453a;">Fehler beim Laden der Metriken: \${err.message}</div>\`;
     }
   };

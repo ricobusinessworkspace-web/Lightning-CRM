@@ -225,16 +225,7 @@ import '../core/api.js';
     }
   };
 
-  window.unlockDeveloperRole = async (e) => {
-    e.preventDefault();
-    try {
-      await window.api.makeMeDeveloper();
-      alert("Erfolgreich zum Developer hochgestuft! Bitte lade die Seite neu.");
-      window.location.reload();
-    } catch (err) {
-      alert("Fehler: " + err.message);
-    }
-  };
+
 
   window.saveProfile = async () => {
     const newName = document.getElementById('profile-name-input').value.trim();

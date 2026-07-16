@@ -526,7 +526,7 @@ export const db = {
     // Fetch profile
     const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single();
     if (profile) {
-      currentUser = { id: session.user.id, email: session.user.email, name: profile.name, role: profile.role };
+      currentUser = { id: session.user.id, email: session.user.email, name: profile.name, role: profile.role, daily_call_goal: profile.daily_call_goal || 100 };
     }
     return currentUser;
   },
@@ -541,7 +541,8 @@ export const db = {
       id: data.session.user.id, 
       email: data.session.user.email, 
       name: profile ? profile.name : 'Unknown', 
-      role: profile ? profile.role : 'minion' 
+      role: profile ? profile.role : 'minion',
+      daily_call_goal: profile ? (profile.daily_call_goal || 100) : 100
     };
     return currentUser;
   },
@@ -552,12 +553,13 @@ export const db = {
     
     // Fallback: If trigger doesn't exist, try to insert profile manually
     if (data.user) {
-       await supabase.from('user_profiles').insert({ id: data.user.id, name: email.split('@')[0], role: 'minion' });
+       await supabase.from('user_profiles').insert({ id: data.user.id, name: email.split('@')[0], role: 'minion', daily_call_goal: 100 });
        currentUser = { 
          id: data.user.id, 
          email: data.user.email, 
          name: email.split('@')[0], 
-         role: 'minion' 
+         role: 'minion',
+         daily_call_goal: 100
        };
        return currentUser;
     }
@@ -573,13 +575,20 @@ export const db = {
 
   updateProfile: async (name) => {
     if (!currentUser) throw new Error("Not logged in");
-    const { error } = await supabase.from('user_profiles').upsert({ 
-      id: currentUser.id, 
-      name: name, 
-      role: currentUser.role || 'minion' 
-    });
+    const { error } = await supabase.from('user_profiles').update({ name: name }).eq('id', currentUser.id);
     if (error) throw new Error(error.message);
     currentUser.name = name;
+    return currentUser;
+  },
+
+  updateCallGoal: async (goal) => {
+    if (!currentUser) throw new Error("Not logged in");
+    const parsedGoal = parseInt(goal, 10);
+    if (isNaN(parsedGoal)) throw new Error("Invalid goal");
+
+    const { error } = await supabase.from('user_profiles').update({ daily_call_goal: parsedGoal }).eq('id', currentUser.id);
+    if (error) throw new Error(error.message);
+    currentUser.daily_call_goal = parsedGoal;
     return currentUser;
   },
 
@@ -617,36 +626,68 @@ export const db = {
   },
 
   getAgentStats: async () => {
-    if (!currentUser || (currentUser.role !== 'developer' && currentUser.role !== 'admin')) {
-      throw new Error("Keine Berechtigung");
-    }
+    if (!currentUser) throw new Error("Keine Berechtigung");
     
-    const { data: users, error: userErr } = await supabase.from('user_profiles').select('id, name, role');
+    const { data: users, error: userErr } = await supabase.from('user_profiles').select('id, name, role, daily_call_goal');
     if (userErr) throw new Error(userErr.message);
     
     let stats = {};
     users.forEach(u => {
-      stats[u.id] = { id: u.id, name: u.name, role: u.role, calls: 0, unanswered: 0, emails: 0, leads: 0 };
+      stats[u.id] = { 
+        id: u.id, name: u.name, role: u.role, daily_call_goal: u.daily_call_goal || 100,
+        today: { calls: 0, unanswered: 0, emails: 0, leads: 0 },
+        week: { calls: 0, unanswered: 0, emails: 0, leads: 0 },
+        total: { calls: 0, unanswered: 0, emails: 0, leads: 0 }
+      };
     });
+
+    if (!stats[currentUser.id]) {
+      stats[currentUser.id] = {
+        id: currentUser.id, name: currentUser.name, role: currentUser.role, daily_call_goal: currentUser.daily_call_goal || 100,
+        today: { calls: 0, unanswered: 0, emails: 0, leads: 0 },
+        week: { calls: 0, unanswered: 0, emails: 0, leads: 0 },
+        total: { calls: 0, unanswered: 0, emails: 0, leads: 0 }
+      }
+    }
     
-    const { data, error } = await supabase.from(TABLE).select('claimed_by, call_history');
+    const { data, error } = await supabase.from(TABLE).select('claimed_by, call_history, created_at_ms');
     if (error) throw new Error(error.message);
+
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    
+    // Start of week (Monday)
+    const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday
+    const diffToMonday = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), diffToMonday).getTime();
     
     for (const row of (data || [])) {
       if (row.claimed_by && stats[row.claimed_by]) {
-        stats[row.claimed_by].leads++;
+        stats[row.claimed_by].total.leads++;
+        if (row.created_at_ms >= startOfDay) stats[row.claimed_by].today.leads++;
+        if (row.created_at_ms >= startOfWeek) stats[row.claimed_by].week.leads++;
       }
       const history = Array.isArray(row.call_history) ? row.call_history : [];
       for (const entry of history) {
         const norm = normalizeCallEntry(entry);
         if (norm && norm.by_user_id && stats[norm.by_user_id]) {
+          const isToday = norm.ts >= startOfDay;
+          const isWeek = norm.ts >= startOfWeek;
+
           if (norm.type === 'call') {
-            stats[norm.by_user_id].calls++;
+            stats[norm.by_user_id].total.calls++;
+            if (isToday) stats[norm.by_user_id].today.calls++;
+            if (isWeek) stats[norm.by_user_id].week.calls++;
+
             if (norm.status === 'not_answered') {
-              stats[norm.by_user_id].unanswered++;
+              stats[norm.by_user_id].total.unanswered++;
+              if (isToday) stats[norm.by_user_id].today.unanswered++;
+              if (isWeek) stats[norm.by_user_id].week.unanswered++;
             }
           } else if (norm.type === 'email') {
-            stats[norm.by_user_id].emails++;
+            stats[norm.by_user_id].total.emails++;
+            if (isToday) stats[norm.by_user_id].today.emails++;
+            if (isWeek) stats[norm.by_user_id].week.emails++;
           }
         }
       }

@@ -408,12 +408,8 @@ window.setPipeline = async (type) => {
 
   window.updateTrayCount = async () => {
     try {
-      const count = await window.api.getCallsToday();
-      window.api.updateTray(count);
-      const topbarEl = document.getElementById('topbar-calls-count');
-      if (topbarEl) {
-        topbarEl.innerText = `📞 ${count}/100`;
-        topbarEl.style.display = 'block';
+      if (window.currentTab === 'dashboard' && typeof window.renderDashboard === 'function') {
+        window.renderDashboard();
       }
     } catch(e) {
       console.error('Error updating tray count:', e);

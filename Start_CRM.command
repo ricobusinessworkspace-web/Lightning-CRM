@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ~/calling-station-v2
+cd "$HOME/dev/Lightning CRM"
 
 echo "Prüfe auf Updates..."
 
@@ -33,5 +33,5 @@ else
   echo "✓ Du bist auf dem neuesten Stand (v$LOCAL_VERSION)."
 fi
 
-echo "Startet Calling Station CRM..."
+echo "Startet Lightning CRM..."
 npm start
