@@ -351,12 +351,43 @@ window.toggleBulkMode = () => {
     currentFilter2 = 'all';
     
     if (tab === 'dashboard') {
-      if (typeof window.renderDashboard === 'function') {
+if (typeof window.renderDashboard === 'function') {
         window.renderDashboard();
       }
     } else {
       currentSearch = ''; 
       currentColdCallFilter = 'all';
+
+      // --- LAZY LOADING SETUP ---
+      window._lazyLoadQueue = [];
+      if (!window._lazyObserver) {
+        window._lazyObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const sentinel = entry.target;
+              const queueId = sentinel.dataset.queueId;
+              const qObj = window._lazyLoadQueue[queueId];
+              if (qObj) {
+                const batch = qObj.listToRender.slice(qObj.currentIndex, qObj.currentIndex + 50);
+                qObj.currentIndex += 50;
+                
+                const temp = document.createElement('div');
+                temp.innerHTML = qObj.renderFn(batch);
+                while(temp.firstChild) {
+                  sentinel.parentNode.insertBefore(temp.firstChild, sentinel);
+                }
+                
+                if (qObj.currentIndex >= qObj.listToRender.length) {
+                  window._lazyObserver.unobserve(sentinel);
+                  sentinel.remove();
+                }
+              }
+            }
+          });
+        }, { rootMargin: '400px' }); // Load 400px before reaching the end
+      }
+      // --------------------------
+
       if(document.getElementById('search-input')) document.getElementById('search-input').value = '';
       await loadUi();
     }
@@ -493,7 +524,10 @@ window.toggleBulkMode = () => {
     let tabTitle = currentTab === 'queue' ? 'Pipeline' : (currentTab === 'cold' ? 'Kaltakquise' : (currentTab === 'tasks' ? 'Aufgaben' : (currentTab === 'customers' ? 'Kunden' : 'Radar')));
     if (currentSearch) tabTitle = `Globale Suche: "${currentSearch}"`;
 
-    const renderLeadList = (list) => list.map(l => {
+    // Reset lazy load queue for this render cycle
+    window._lazyLoadQueue = [];
+
+    const renderSingleLead = (l) => {
         const sMap = getLeadStatusMap(l);
         let titleColor = sMap.color;
         let milestone = sMap.label;
@@ -583,7 +617,26 @@ window.toggleBulkMode = () => {
           ${avatarHtml}
         </div>
         `;
-    }).join('');
+    };
+
+    const renderLeadList = (list) => {
+        if (!list || list.length === 0) return '';
+        const MAX_INITIAL = 50;
+        
+        const toRender = list.slice(0, MAX_INITIAL);
+        const html = toRender.map(renderSingleLead).join('');
+
+        if (list.length > MAX_INITIAL) {
+            const queueId = window._lazyLoadQueue.length;
+            window._lazyLoadQueue.push({
+               listToRender: list,
+               currentIndex: MAX_INITIAL,
+               renderFn: (batch) => batch.map(renderSingleLead).join('')
+            });
+            return html + `<div class="lazy-sentinel" data-queue-id="${queueId}" style="height: 1px; width: 100%;"></div>`;
+        }
+        return html;
+    };
 
     if (currentTab === 'queue' && !currentSearch) {
       // KANBAN VIEW (CRM)
@@ -871,7 +924,13 @@ window.toggleBulkMode = () => {
         <div class="leads-grid">
           ${renderLeadList(activeLeads)}
         </div>
+        </div>
       `;
+    }
+
+    // Attach observers to all new sentinels after rendering
+    if (window._lazyObserver) {
+       document.querySelectorAll('.lazy-sentinel').forEach(s => window._lazyObserver.observe(s));
     }
   }
 

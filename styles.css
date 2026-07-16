@@ -692,28 +692,31 @@ body { background-color: var(--bg); color: var(--text-main); height: 100vh; disp
 @media (max-width: 768px) {
   /* Header Adjustments (with iOS Safe Area) */
   .drag-header {
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
     height: auto;
     padding: max(12px, env(safe-area-inset-top)) 16px 12px 16px;
-    align-items: flex-start;
   }
   .drag-header .logo {
-    margin-bottom: 12px;
+    margin-bottom: 0;
+    flex: 1;
+  }
+  .header-actions {
+    width: auto;
+    justify-content: flex-end;
   }
   .top-nav {
-    margin: 0 0 12px 0;
+    margin: 12px 0 0 0;
     width: 100%;
     overflow-x: auto;
     justify-content: flex-start;
-    padding-bottom: 8px;
+    padding-bottom: 4px;
     scrollbar-width: none; /* Firefox */
   }
   .top-nav::-webkit-scrollbar {
     display: none; /* Chrome/Safari */
-  }
-  .header-actions {
-    width: 100%;
-    justify-content: flex-end;
   }
 
   /* Split Screen for Mobile (List Top, Detail Bottom) */
@@ -741,6 +744,31 @@ body { background-color: var(--bg); color: var(--text-main); height: 100vh; disp
   .main-content, .filters-row-global, .quick-add, #map-wrapper, #scout-wrapper, #dashboard-wrapper {
     padding-left: 16px !important;
     padding-right: 16px !important;
+  }
+  
+  .filters-row-global {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+  }
+  .filters-row-global input {
+    max-width: 100% !important;
+  }
+  .filter-chips {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .filter-chips::-webkit-scrollbar { display: none; }
+  
+  .quick-add {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .quick-add input, .quick-add button {
+    max-width: 100% !important;
+    width: 100% !important;
   }
   
   .leads-grid {
