@@ -144,14 +144,14 @@
           </button>
         </div>
 
-        <!-- Group: Database Cleanup (Temporary) -->
-        <div style="background: rgba(255,69,58,0.05); border: 1px solid rgba(255,69,58,0.3); padding: 18px; border-radius: 12px;">
-          <h3 style="margin: 0 0 10px 0; font-size: 13px; font-weight: 700; color: #ff453a; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;">
-            Datenbank Cleanup
+        <!-- Group: Database Enrich (E-Mails) -->
+        <div style="background: rgba(10,132,255,0.05); border: 1px solid rgba(10,132,255,0.3); padding: 18px; border-radius: 12px;">
+          <h3 style="margin: 0 0 10px 0; font-size: 13px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;">
+            Datenbank Enrich (E-Mails)
           </h3>
-          <p style="margin: 0 0 16px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">Bereinigt Notizen, repariert Call-Tracker Timestamps vom 21.05. und lädt Google Places Daten (Adresse, Telefon) bei verknüpften Leads nach.</p>
-          <button id="btn-run-cleanup" class="action-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 600; font-size: 13px; background: rgba(255,69,58,0.1); color: #ff453a; border: 1px solid #ff453a;" onclick="executeDeepCleanup()">
-            Cleanup jetzt ausführen
+          <p style="margin: 0 0 16px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">Durchsucht alle Leads im CRM ohne E-Mail-Adresse und versucht, E-Mails (bevorzugt Geschäftsführer) von deren Webseiten und Impressen auszulesen.</p>
+          <button id="btn-run-enrich" class="action-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 600; font-size: 13px; background: rgba(10,132,255,0.1); color: var(--accent); border: 1px solid var(--accent);" onclick="executeEmailEnrichment()">
+            E-Mails anreichern (Alle Leads)
           </button>
         </div>
 

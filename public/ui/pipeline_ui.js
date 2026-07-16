@@ -1631,8 +1631,8 @@ if (typeof window.renderDashboard === 'function') {
     }
   };
 
-  window.executeDeepCleanup = async () => {
-    const btn = document.getElementById('btn-run-cleanup');
+  window.executeEmailEnrichment = async () => {
+    const btn = document.getElementById('btn-run-enrich');
     if (btn) {
       btn.innerText = 'Läuft... Bitte warten ⏳';
       btn.disabled = true;
@@ -1640,120 +1640,138 @@ if (typeof window.renderDashboard === 'function') {
     
     try {
       const allLeads = await window.api.getLeads({ all: true });
-      let notesCleaned = 0;
-      let timeRepaired = 0;
-      let apiBackfilled = 0;
+      // Clean URLs for consistency
+      const leadsToEnrich = allLeads.filter(l => !l.email && l.website_url && l.website_url.startsWith('http'));
       
-      const apiKey = localStorage.getItem('googlePlacesApiKey') || '';
+      if (leadsToEnrich.length === 0) {
+        showToast("Keine Leads mit Website ohne E-Mail gefunden.");
+        return;
+      }
       
-      for (const l of allLeads) {
-        let changed = false;
+      showToast(`${leadsToEnrich.length} Leads werden auf E-Mails geprüft...`);
+      
+      let enrichedCount = 0;
+      let errorCount = 0;
+      
+      for (let i = 0; i < leadsToEnrich.length; i++) {
+        const l = leadsToEnrich[i];
+        if (btn) btn.innerText = `Prüfe ${i + 1} von ${leadsToEnrich.length}...`;
         
-        // A. Clean Notes
-        if (l.notes) {
-          const lines = l.notes.split('\n');
-          const cleanLines = lines.filter(line => {
-            return !line.trim().startsWith('Website aus Scout:') && 
-                   !line.trim().startsWith('Google Rating:');
-          });
-          const newNotes = cleanLines.join('\n').trim();
-          if (newNotes !== l.notes.trim()) {
-            l.notes = newNotes;
-            changed = true;
-            notesCleaned++;
+        try {
+          const email = await scrapeEmailFromWebsite(l.website_url);
+          if (email) {
+            l.email = email;
+            await window.api.saveLead(l);
+            enrichedCount++;
           }
-        }
-        
-        // B. Call Tracker Timestamp 21.05.
-        // check if last_contact_ms is on 21.05.2026
-        if (l.last_contact_ms && l.last_contact_ms > 0) {
-          const lTime = new Date(l.last_contact_ms);
-          if (lTime.getFullYear() === 2026 && lTime.getMonth() === 4 && lTime.getDate() === 21) {
-            // call_history is now an array (not a JSON string) from Supabase
-            let history = Array.isArray(l.call_history) ? l.call_history : [];
-            if (Array.isArray(history)) {
-               // Remove all entries from 21.05. (handle both {ts,status} and legacy number)
-               history = history.filter(entry => {
-                  const ts = typeof entry === 'number' ? entry : (entry?.ts || 0);
-                  const d = new Date(ts);
-                  return !(d.getFullYear() === 2026 && d.getMonth() === 4 && d.getDate() === 21);
-               });
-               l.call_history = history;
-               if (history.length > 0) {
-                 const last = history[history.length - 1];
-                 l.last_contact_ms = typeof last === 'number' ? last : (last?.ts || 0);
-               } else {
-                 l.last_contact_ms = 0;
-               }
-            } else {
-               l.last_contact_ms = 0;
-            }
-            changed = true;
-            timeRepaired++;
-          }
-        }
-
-        
-        // C. API Backfill (phone, maps_city, lat, lng, opening_hours)
-        const needsBackfill = !l.phone || !l.maps_city || !l.lat || !l.lng || !l.opening_hours;
-        if (l.google_place_id && apiKey && needsBackfill) {
-           const url = `https://places.googleapis.com/v1/places/${l.google_place_id}`;
-           const res = await fetch(url, {
-             headers: {
-               'X-Goog-Api-Key': apiKey,
-               'X-Goog-FieldMask': 'displayName,formattedAddress,location,nationalPhoneNumber,internationalPhoneNumber,regularOpeningHours'
-             }
-           });
-           
-           if (res.ok) {
-             const data = await res.json();
-             if (data) {
-               let localChanged = false;
-               if (!l.phone && (data.nationalPhoneNumber || data.internationalPhoneNumber)) {
-                  l.phone = data.nationalPhoneNumber || data.internationalPhoneNumber;
-                  localChanged = true;
-               }
-               const bestAddress = data.formattedAddress || data.displayName?.text;
-               if (bestAddress && l.maps_city !== bestAddress) {
-                  l.maps_city = bestAddress;
-                  localChanged = true;
-               }
-               if ((!l.lat || !l.lng) && data.location) {
-                  l.lat = data.location.latitude;
-                  l.lng = data.location.longitude;
-                  localChanged = true;
-               }
-               if (!l.opening_hours && data.regularOpeningHours) {
-                  l.opening_hours = JSON.stringify(data.regularOpeningHours);
-                  localChanged = true;
-               }
-               
-               if (localChanged) {
-                  changed = true;
-                  apiBackfilled++;
-               }
-             }
-           }
-        }
-        
-        if (changed) {
-          await window.api.saveLead(l);
+        } catch (err) {
+          console.warn("Fehler beim Scrapen von " + l.website_url, err);
+          errorCount++;
         }
       }
       
-      showToast(`Cleanup fertig! Notizen: ${notesCleaned}, Timestamps: ${timeRepaired}, API geladen: ${apiBackfilled}`);
-      await loadUi();
+      showToast(`Enrichment fertig! ${enrichedCount} E-Mails hinzugefügt.`);
+      await loadUi(); // Refresh UI to show new emails
       
     } catch (err) {
       console.error(err);
-      showToast(`Cleanup Fehler: ${err.message}`, true);
+      showToast(`Enrichment Fehler: ${err.message}`, true);
     } finally {
       if (btn) {
-        btn.innerText = 'Cleanup jetzt ausführen';
+        btn.innerText = 'E-Mails anreichern (Alle Leads)';
         btn.disabled = false;
       }
     }
   };
+
+  async function scrapeEmailFromWebsite(baseUrl) {
+    try {
+      let html = "";
+      // First try the main page
+      const res = await window.api.fetchApi(baseUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (res.ok) {
+         html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+      }
+      
+      let email = extractBestEmail(html);
+      
+      // If no email on main page, search for impressum link
+      if (!email && html) {
+         const parser = new DOMParser();
+         const doc = parser.parseFromString(html, "text/html");
+         const links = Array.from(doc.querySelectorAll('a'));
+         let impressumUrl = null;
+         for (let a of links) {
+           const text = a.textContent.toLowerCase();
+           const href = a.getAttribute('href') || '';
+           if (text.includes('impressum') || href.toLowerCase().includes('impressum') || text.includes('kontakt')) {
+             if (href.startsWith('http')) {
+                impressumUrl = href;
+             } else if (href.startsWith('/')) {
+                impressumUrl = baseUrl.replace(/\/$/, '') + href;
+             } else {
+                impressumUrl = baseUrl.replace(/\/$/, '') + '/' + href;
+             }
+             break;
+           }
+         }
+         
+         if (impressumUrl) {
+           const impRes = await window.api.fetchApi(impressumUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+           if (impRes.ok) {
+              const impHtml = typeof impRes.data === 'string' ? impRes.data : JSON.stringify(impRes.data);
+              email = extractBestEmail(impHtml);
+           }
+         }
+      }
+      return email;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function extractBestEmail(html) {
+    if (!html) return null;
+    const bodyText = html.replace(/<style[^>]*>.*<\/style>/gis, '')
+                         .replace(/<script[^>]*>.*<\/script>/gis, '')
+                         .replace(/<[^>]+>/g, ' ');
+    
+    // Find all emails
+    const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
+    const matches = [...bodyText.matchAll(emailRegex)];
+    if (matches.length === 0) return null;
+    
+    // Look for keywords near the email
+    const keywords = ['geschäftsführer', 'inhaber', 'vertretungsberechtigt', 'ceo', 'vorstand'];
+    
+    for (let m of matches) {
+      const email = m[1].toLowerCase();
+      // Avoid obvious dummy emails or image names disguised as emails
+      if (email.endsWith('.png') || email.endsWith('.jpg') || email.endsWith('.jpeg') || email.endsWith('.gif') || email.endsWith('.webp')) continue;
+      
+      const index = m.index;
+      // Extract a window of text around the email
+      const windowStart = Math.max(0, index - 200);
+      const windowEnd = Math.min(bodyText.length, index + 200);
+      const context = bodyText.substring(windowStart, windowEnd).toLowerCase();
+      
+      for (let k of keywords) {
+         if (context.includes(k)) {
+           return m[1]; // Found a prioritized email
+         }
+      }
+    }
+    
+    // Return the first valid one if no keywords found
+    for (let m of matches) {
+      const email = m[1].toLowerCase();
+      if (!(email.endsWith('.png') || email.endsWith('.jpg') || email.endsWith('.jpeg') || email.endsWith('.gif') || email.endsWith('.webp'))) {
+         return m[1];
+      }
+    }
+    
+    return null;
+  }
 
   // Background Event Sync is handled centrally in init.js via window.api.onLeadsChanged
 

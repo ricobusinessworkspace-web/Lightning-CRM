@@ -214,7 +214,8 @@
       return;
     }
 
-    resCont.innerHTML = filtered.map((r, index) => {
+    resCont.innerHTML = filtered.map((r) => {
+      const originalIndex = scoutedResults.indexOf(r);
       // Deduplication Priority Check across ALL CRM states
       const extLead = window.findDuplicateCRMLead(r, existingLeads);
       
@@ -259,10 +260,10 @@
         `;
       } else if (r.website) {
         phoneHtml = `
-          <div class="scout-card-detail" id="enrich-phone-container-${index}">
+          <div class="scout-card-detail" id="enrich-phone-container-${originalIndex}">
             <span>📞</span>
             <span style="font-style: italic; color: var(--text-muted); font-size: 12px;">Keine Nummer</span>
-            <button class="action-btn-small outline" style="padding: 2px 8px; font-size: 10px; margin-left: auto; color: var(--accent); border-color: var(--accent);" onclick="triggerManualEnrichment(${index})">🔎 Suchen</button>
+            <button class="action-btn-small outline" style="padding: 2px 8px; font-size: 10px; margin-left: auto; color: var(--accent); border-color: var(--accent);" onclick="triggerManualEnrichment(${originalIndex})">🔎 Suchen</button>
           </div>
         `;
       } else {
@@ -283,11 +284,11 @@
       } else if (!canIngest) {
         importBtnHtml = `<button class="action-btn-small" style="flex:1; background:transparent; border-color:var(--border); color:var(--text-muted);" title="Import derzeit nicht möglich" disabled>⚠️ Unvollständig</button>`;
       } else {
-        importBtnHtml = `<button class="action-btn-small success-bold" style="flex:1; padding: 6px; font-size: 11px;" onclick="importSingleScoutedLead(${index})">📥 Importieren</button>`;
+        importBtnHtml = `<button class="action-btn-small success-bold" style="flex:1; padding: 6px; font-size: 11px;" onclick="importSingleScoutedLead(${originalIndex})">📥 Importieren</button>`;
       }
 
       return `
-        <div class="${cardClass}" id="scout-card-${index}">
+        <div class="${cardClass}" id="scout-card-${originalIndex}">
           <div class="scout-card-header">
             <div class="scout-card-title" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div>
             ${badgeHtml}
