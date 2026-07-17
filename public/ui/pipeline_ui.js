@@ -7,7 +7,7 @@ const escapeHtml = (unsafe) => {
        .replace(/'/g, "&#039;");
 };
 
-window.toggleBulkMode = () => {
+  window.toggleBulkMode = () => {
       isBulkMode = !isBulkMode;
       selectedBulkIds.clear();
       const btn = document.getElementById('bulk-mode-btn');
@@ -16,13 +16,17 @@ window.toggleBulkMode = () => {
               btn.innerText = 'Auswahl abbrechen';
               btn.style.borderColor = 'var(--text-main)';
               btn.style.color = 'var(--text-main)';
+              const bar = document.getElementById('bulk-action-bar');
+              if(bar) bar.style.display = 'flex';
           } else {
               btn.innerText = 'Mehrfachauswahl';
               btn.style.borderColor = 'var(--border)';
               btn.style.color = 'var(--text-muted)';
-              document.getElementById('bulk-action-bar').style.display = 'none';
+              const bar = document.getElementById('bulk-action-bar');
+              if(bar) bar.style.display = 'none';
           }
       }
+      updateBulkUI();
       loadUi();
   };
 
@@ -43,15 +47,22 @@ window.toggleBulkMode = () => {
   window.updateBulkUI = () => {
       const bar = document.getElementById('bulk-action-bar');
       if(!bar) return;
-      if (selectedBulkIds.size > 0) {
+      const uncalledBtn = document.getElementById('bulk-uncalled-btn');
+      
+      if (isBulkMode) {
           bar.style.display = 'flex';
           const cnt = document.getElementById('bulk-count');
           if(cnt) cnt.innerText = `${selectedBulkIds.size} Leads ausgewählt`;
+          
+          if (window.currentTab === 'cold' && uncalledBtn) {
+              uncalledBtn.style.display = 'inline-block';
+          } else if (uncalledBtn) {
+              uncalledBtn.style.display = 'none';
+          }
       } else {
           bar.style.display = 'none';
       }
   };
-
   window.executeBulkDelete = async () => {
       if (selectedBulkIds.size === 0) return;
       if (confirm(`Wirklich ${selectedBulkIds.size} Leads unwiderruflich löschen?`)) {
@@ -60,9 +71,34 @@ window.toggleBulkMode = () => {
           if (typeof window.renderEmptySidebar === 'function') {
             window.renderEmptySidebar();
           } else {
-            sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar) sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
           }
-          showToast("Leads in Bulk gelöscht!");
+          if (typeof showToast === 'function') showToast("Leads in Bulk gelöscht!");
+      }
+  };
+
+  window.executeBulkDeleteUncalled = async () => {
+      if (window.currentTab !== 'cold') return;
+      
+      const leads = await window.api.getLeads({ tab: 'cold' });
+      const uncalled = leads.filter(l => (l.call_status || 'never') === 'never');
+      
+      if (uncalled.length === 0) {
+        if (typeof showToast === 'function') showToast("Keine unangerufenen Leads gefunden.", true);
+        return;
+      }
+      
+      if (confirm(`Wirklich alle ${uncalled.length} unangerufenen Leads unwiderruflich löschen?`)) {
+          await window.api.deleteLeads(uncalled.map(l => l.id));
+          toggleBulkMode(); // exits bulk mode and reloads
+          if (typeof window.renderEmptySidebar === 'function') {
+            window.renderEmptySidebar();
+          } else {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar) sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
+          }
+          if (typeof showToast === 'function') showToast(`${uncalled.length} unangerufene Leads gelöscht!`);
       }
   };
 
@@ -1900,10 +1936,6 @@ if (typeof window.renderDashboard === 'function') {
                 <div style="font-size: 20px; font-weight: 800; color: #fff;">${myStats.week.emails}</div>
                 <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">E-Mails (Woche)</div>
               </div>
-              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 20px; font-weight: 800; color: #34c759;">${myStats.today.calls > 0 ? Math.round(((myStats.today.calls - myStats.today.unanswered)/myStats.today.calls)*100) : 0}%</div>
-                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Erreicht (Heute)</div>
-              </div>
             </div>
           </div>
         `;
@@ -1953,14 +1985,10 @@ if (typeof window.renderDashboard === 'function') {
             <div style="font-size: 11px; color: var(--text-muted); background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 6px;">Ziel: ${stat.daily_call_goal || 100}</div>
           </div>
           
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
             <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; text-align: center;">
               <div style="font-size: 18px; font-weight: 800; color: #fff;">${stat.today.calls} <span style="font-size: 11px; color: var(--text-muted); font-weight: 500;">/ ${stat.week.calls}</span></div>
               <div style="font-size: 9px; color: var(--text-muted); text-transform: uppercase;">Calls (Heute / Woche)</div>
-            </div>
-            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; text-align: center;">
-              <div style="font-size: 18px; font-weight: 800; color: #34c759;">${answeredRate}% <span style="font-size: 11px; color: var(--text-muted); font-weight: 500;">/ ${answeredRateWeek}%</span></div>
-              <div style="font-size: 9px; color: var(--text-muted); text-transform: uppercase;">Erreicht (Heute / Woche)</div>
             </div>
           </div>
         `;

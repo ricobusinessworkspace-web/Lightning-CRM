@@ -242,7 +242,8 @@
             <!-- Bulk Action Bar -->
             <div id="bulk-action-bar" style="display:none; align-items:center; justify-content:space-between; padding:16px 24px; background:rgba(20,20,22,0.85); backdrop-filter:blur(16px); border:1px solid var(--border-focus); border-radius:12px; margin-top:16px; box-shadow:0 12px 32px rgba(0,0,0,0.6); animation:slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); z-index: 100;">
               <span id="bulk-count" style="font-weight:600; font-size:14px; color:var(--text-main);">0 Leads ausgewählt</span>
-              <div style="display:flex; gap:12px;">
+              <div style="display:flex; gap:12px; align-items:center;">
+                <button id="bulk-uncalled-btn" class="action-btn-small outline" onclick="executeBulkDeleteUncalled()" style="border-color:#ff453a; color:#ff453a; display:none;">Alle unangerufenen löschen</button>
                 <button class="action-btn-small outline" onclick="toggleBulkMode()" style="border-color:var(--border-focus); color:var(--text-muted);">Abbrechen</button>
                 <button class="action-btn-small" onclick="executeBulkDelete()" style="background:#ff453a; border-color:#ff453a; color:#fff; font-weight:600;">Ausgewählte löschen 🗑️</button>
               </div>
