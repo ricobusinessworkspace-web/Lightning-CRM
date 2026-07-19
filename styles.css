@@ -691,6 +691,394 @@ body { background-color: var(--bg); color: var(--text-main); height: 100vh; disp
 .project-task-deadline-input:focus { border-color: var(--accent); }
 
 /* ─── MOBILE RESPONSIVENESS (PWA) ───────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════════════
+   POLISH SYSTEM — Phase 1: Utility Classes, Animations, States
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Utility Layout Classes ──────────────────────────────────────────────── */
+.flex-row { display: flex; align-items: center; gap: 8px; }
+.flex-col { display: flex; flex-direction: column; gap: 8px; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.gap-4 { gap: 4px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.gap-24 { gap: 24px; }
+
+/* ── Card Section (replaces inline bg/border/radius patterns) ────────────── */
+.card-section {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+.card-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* ── Button Loading State ────────────────────────────────────────────────── */
+.btn-loading {
+  pointer-events: none;
+  opacity: 0.7;
+  position: relative;
+}
+.btn-loading::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: btnSpin 0.6s linear infinite;
+  display: inline-block;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+@keyframes btnSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Button Success Flash ────────────────────────────────────────────────── */
+.btn-success-flash {
+  background: var(--success) !important;
+  color: #000 !important;
+  border-color: var(--success) !important;
+  transition: all 0.3s ease;
+}
+
+/* ── Sidebar Transitions ─────────────────────────────────────────────────── */
+.sidebar-enter {
+  animation: sidebarFadeIn 0.2s ease-out;
+}
+@keyframes sidebarFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Modal Animations ────────────────────────────────────────────────────── */
+.modal-active {
+  animation: modalFadeIn 0.2s ease-out;
+}
+.modal-exit {
+  animation: modalFadeOut 0.2s ease-in forwards;
+}
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes modalFadeOut {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.96); }
+}
+
+/* ── Custom Confirm Dialog ───────────────────────────────────────────────── */
+.confirm-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  animation: modalFadeIn 0.2s ease-out;
+}
+.confirm-dialog {
+  width: 380px;
+  padding: 24px;
+  border-radius: 16px;
+  background: #0c0c0c;
+  border: 1px solid var(--border);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+  text-align: center;
+}
+.confirm-dialog-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+.confirm-dialog-title {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+.confirm-dialog-message {
+  margin: 0 0 24px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.confirm-dialog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.confirm-btn-danger {
+  width: 100%;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(255, 69, 58, 0.1);
+  color: #ff453a;
+  border: 1px solid #ff453a;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.confirm-btn-danger:hover {
+  background: rgba(255, 69, 58, 0.2);
+}
+.confirm-btn-cancel {
+  width: 100%;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.confirm-btn-cancel:hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--text-main);
+}
+
+/* ── Lead Card Fade-In Animation ─────────────────────────────────────────── */
+.card-fade-in {
+  animation: cardFadeIn 0.2s ease-out both;
+}
+@keyframes cardFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Content Fade for Tab Switching ───────────────────────────────────────── */
+.content-fade-out {
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.content-fade-in {
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+
+/* ── Nav Button Active Indicator ─────────────────────────────────────────── */
+.nav-btn.active {
+  position: relative;
+}
+.nav-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 25%;
+  width: 50%;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  animation: navIndicatorIn 0.2s ease-out;
+}
+@keyframes navIndicatorIn {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* ── Notification Dropdown Animation ─────────────────────────────────────── */
+.notification-dropdown-enter {
+  animation: dropdownSlideIn 0.2s ease-out;
+}
+@keyframes dropdownSlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Toast System Upgrade ────────────────────────────────────────────────── */
+.app-toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 24px;
+  border-radius: 30px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 99999;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  color: #fff;
+}
+.app-toast.toast-success {
+  background: rgba(48, 209, 88, 0.2);
+  border: 1px solid #30d158;
+}
+.app-toast.toast-error {
+  background: rgba(255, 69, 58, 0.2);
+  border: 1px solid #ff453a;
+}
+.app-toast.toast-info {
+  background: rgba(10, 132, 255, 0.2);
+  border: 1px solid #0a84ff;
+}
+
+/* ── Pipeline Segment Glow on Active ─────────────────────────────────────── */
+.pipe-seg.active-blue { box-shadow: inset 0 0 12px rgba(10, 132, 255, 0.15); }
+.pipe-seg.active-orange { box-shadow: inset 0 0 12px rgba(255, 159, 10, 0.15); }
+.pipe-seg.active-red { box-shadow: inset 0 0 12px rgba(255, 69, 58, 0.15); }
+.pipe-seg.active-success { box-shadow: inset 0 0 12px rgba(48, 209, 88, 0.15); }
+
+/* ── Sidebar Sections (used in lead detail view) ─────────────────────────── */
+.sidebar-contact-input {
+  font-family: ui-monospace, monospace;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  outline: none;
+  transition: border-color 0.2s ease;
+  color: var(--text-muted);
+  flex: 1;
+  margin-right: 16px;
+}
+.sidebar-contact-input:focus {
+  border-bottom-color: var(--accent);
+}
+.sidebar-copy-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+.sidebar-copy-btn:hover {
+  opacity: 0.8;
+}
+.sidebar-activity-row {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sidebar-danger-btn {
+  border: none;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 11px;
+  padding: 4px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+.sidebar-danger-btn:hover {
+  color: #ff453a;
+}
+
+/* ── Task Item Hover (replaces onmouseover/onmouseout JS) ────────────────── */
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.2s, border-color 0.2s;
+}
+.task-item:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.08);
+}
+.task-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  flex-shrink: 0;
+  opacity: 0.4;
+  transition: all 0.2s;
+}
+.task-delete-btn:hover {
+  opacity: 1;
+  color: #ff453a;
+}
+.task-deadline-trigger {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  color: var(--text-muted);
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  z-index: 1;
+  padding-right: 8px;
+}
+.task-deadline-trigger:hover {
+  opacity: 1;
+}
+
+/* ── Empty State Enhancement ─────────────────────────────────────────────── */
+.empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+.empty-state-text {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.empty-state {
+  flex-direction: column;
+  gap: 8px;
+  animation: cardFadeIn 0.3s ease-out;
+}
+
+/* ── Excluded Lead Row Hover ─────────────────────────────────────────────── */
+.excluded-lead-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+.excluded-lead-row:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+/* ── Notification Item Hover ─────────────────────────────────────────────── */
+.notification-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.notification-item:hover {
+  background: rgba(255,255,255,0.05);
+}
+.notification-item.unread {
+  background: rgba(255, 69, 58, 0.1);
+}
+.notification-item.unread:hover {
+  background: rgba(255, 69, 58, 0.15);
+}
+
 @media (max-width: 768px) {
   /* Header Adjustments (with iOS Safe Area) */
   .drag-header {

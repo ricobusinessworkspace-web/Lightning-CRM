@@ -154,19 +154,65 @@ window.setPipeline = async (type) => {
   };
 
 
-  window.showToast = (msg, isError = false) => {
-    document.querySelectorAll('.app-toast').forEach(e => e.remove());
-    const t = document.createElement('div');
-    t.className = 'app-toast';
-    const bg = isError ? 'rgba(255, 69, 58, 0.2)' : 'rgba(48,209,88,0.2)';
-    const color = isError ? '#ff453a' : '#30d158';
+  window.showToast = (msg, type = 'success') => {
+    // Support legacy boolean API: showToast('msg', true) means error
+    if (type === true) type = 'error';
+    if (type === false) type = 'success';
     
-    t.style = `position:fixed; top:-50px; left:50%; transform:translateX(-50%); background:${bg}; border:1px solid ${color}; color:#fff; padding:10px 24px; border-radius:30px; font-size:14px; font-weight:600; z-index:99999; box-shadow:0 10px 30px rgba(0,0,0,0.6); pointer-events:none; transition:all 0.4s cubic-bezier(0.16, 1, 0.3, 1); backdrop-filter:blur(12px); opacity:0;`;
+    const existing = document.querySelectorAll('.app-toast');
+    const offset = existing.length * 56;
+    existing.forEach((e, i) => {
+      // Push existing toasts up
+      const currentTop = parseInt(e.style.top) || 30;
+      e.style.top = (currentTop - 56) + 'px';
+    });
+    
+    const t = document.createElement('div');
+    t.className = `app-toast toast-${type}`;
+    t.style.cssText = `top: -50px; opacity: 0;`;
     t.innerHTML = msg;
     document.body.appendChild(t);
     
     requestAnimationFrame(() => { t.style.top = '30px'; t.style.opacity = '1'; });
     setTimeout(() => { t.style.top = '-50px'; t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2500);
+  };
+
+  window.showConfirmDialog = (title, message, confirmLabel, onConfirm) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-dialog">
+        <div class="confirm-dialog-icon">⚠️</div>
+        <h3 class="confirm-dialog-title">${title}</h3>
+        <p class="confirm-dialog-message">${message}</p>
+        <div class="confirm-dialog-actions">
+          <button class="confirm-btn-danger" id="confirm-yes">${confirmLabel}</button>
+          <button class="confirm-btn-cancel" id="confirm-no">Abbrechen</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#confirm-yes').onclick = () => { overlay.remove(); onConfirm(); };
+    overlay.querySelector('#confirm-no').onclick = () => overlay.remove();
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  };
+
+  window.Modal = {
+    open(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('hidden');
+      el.classList.add('modal-active');
+    },
+    close(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.add('modal-exit');
+      setTimeout(() => {
+        el.classList.add('hidden');
+        el.classList.remove('modal-active', 'modal-exit');
+      }, 200);
+    }
   };
 
   // Remove confirmEnrich, autoEnrich, cancelEnrich, etc. (deprecated)
@@ -181,6 +227,13 @@ window.setPipeline = async (type) => {
     window._sessionRecentLeads.add(id);
 
     try {
+      const saveBtn = document.getElementById('main-save-btn');
+      if (saveBtn) {
+        saveBtn.classList.add('btn-loading');
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Speichern...';
+      }
+
       // BUGFIX: Always fetch the current lead object BEFORE referencing it to prevent ReferenceError crashes
       const lData = (await window.api.getLeads({all:true})).find(x => x.id === id);
 
@@ -271,18 +324,6 @@ window.setPipeline = async (type) => {
         provi_umsatz: lData ? (lData.provi_umsatz || 0) : 0
       });
 
-      // F6: Apply pending call log only on save
-      if (window._pendingCallLog) {
-        await window.api.logCall(id);
-        await window.updateTrayCount();
-        window._pendingCallLog = false;
-      }
-      
-      if (window._pendingEmailLog) {
-        await window.api.logEmail(id);
-        window._pendingEmailLog = false;
-      }
-
       // IMPORTANT: Only call loadUi() here — NOT loadMapData() directly.
       // Calling loadMapData() from here causes a Leaflet crash when the user is NOT on the
       // map tab because initMap() tries to mount onto the hidden/absent #map-container element.
@@ -304,9 +345,24 @@ window.setPipeline = async (type) => {
       
       try { await loadUi(); } catch (e) { console.warn('Non-critical loadUi error after save:', e); }
       
+      if (saveBtn) {
+        saveBtn.classList.remove('btn-loading');
+        saveBtn.classList.add('btn-success-flash');
+        saveBtn.disabled = false;
+        saveBtn.textContent = '✓ Gespeichert';
+        setTimeout(() => {
+          saveBtn.classList.remove('btn-success-flash');
+          saveBtn.textContent = 'Speichern';
+        }, 1200);
+      }
       showToast("Lead gespeichert!");
       return true;
     } catch (err) {
+      if (saveBtn) {
+        saveBtn.classList.remove('btn-loading');
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Speichern';
+      }
       console.error('saveLeadMain error:', err);
       showToast(`Speicher-Fehler: ${err.message}`, true);
       return false;
@@ -436,8 +492,11 @@ window.setPipeline = async (type) => {
       console.log('Clipboard fallback error:', err);
     }
 
-    // F6: Only set pending flag. Do not write to DB until "Speichern" is clicked.
-    window._pendingCallLog = true;
+    // Persist call log immediately — a call is a fact, not a draft
+    try {
+      await window.api.logCall(id);
+      await window.updateTrayCount();
+    } catch(err) { console.warn('Call log failed:', err); }
     
     // Quick UI feedback for the copy button
     const btn = e.currentTarget || e.target;
@@ -471,7 +530,10 @@ window.setPipeline = async (type) => {
       console.log('Clipboard fallback error:', err);
     }
 
-    window._pendingEmailLog = true;
+    // Persist email log immediately
+    try {
+      await window.api.logEmail(id);
+    } catch(err) { console.warn('Email log failed:', err); }
     
     const btn = e.currentTarget || e.target;
     if (btn && btn.tagName === 'BUTTON') {
@@ -507,19 +569,28 @@ window.setPipeline = async (type) => {
   };
 
   window.deleteLead = async (id) => {
-    if(confirm("Diesen Lead endgültig löschen? Er verschwindet komplett!")) {
-      await window.api.deleteLead(id);
-      if (typeof window.renderEmptySidebar === 'function') {
-        window.renderEmptySidebar();
-      } else {
-        sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
+    showConfirmDialog(
+      'Lead endgültig löschen?',
+      'Der Lead verschwindet komplett und kann nicht wiederhergestellt werden.',
+      'Ja, endgültig löschen',
+      async () => {
+        await window.api.deleteLead(id);
+        if (typeof window.renderEmptySidebar === 'function') {
+          window.renderEmptySidebar();
+        } else {
+          sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
+        }
+        await loadUi();
       }
-      await loadUi();
-    }
+    );
   };
 
   window.markLeadUninteresting = async (id) => {
-    if(confirm("Möchtest du diesen Lead wirklich als uninteressant markieren? Er wird aus all deinen aktiven Listen ausgeblendet.")) {
+    showConfirmDialog(
+      'Lead als uninteressant markieren?',
+      'Möchtest du diesen Lead wirklich als uninteressant markieren? Er wird aus all deinen aktiven Listen ausgeblendet.',
+      'Ja, archivieren',
+      async () => {
       try {
         const fullList = await window.api.getLeads({ all: true });
         const l = fullList.find(x => x.id === id);
@@ -542,7 +613,7 @@ window.setPipeline = async (type) => {
         console.error(e);
         showToast("Fehler beim Archivieren.", true);
       }
-    }
+    });
   };
 
   window.toggleAnalytics = async (isUpdate = false) => {
@@ -586,7 +657,11 @@ window.setPipeline = async (type) => {
 
   window.toggleSettings = () => {
     const modal = document.getElementById('settings-modal');
-    if (modal) modal.classList.toggle('hidden');
+    if (modal && modal.classList.contains('hidden')) {
+      Modal.open('settings-modal');
+    } else {
+      Modal.close('settings-modal');
+    }
   };
 
   window.triggerCSVImport = () => {
@@ -611,7 +686,7 @@ window.setPipeline = async (type) => {
         });
         if (leadsToImport.length > 0) {
           await window.api.importLeads(leadsToImport);
-          alert(`${leadsToImport.length} Leads importiert!`);
+          showToast(`${leadsToImport.length} Leads importiert!`);
           loadUi();
           
           // Auto-close settings modal on success
@@ -838,9 +913,13 @@ window.setPipeline = async (type) => {
   window.toggleNotifications = () => {
     const d = document.getElementById('notification-dropdown');
     if (d) {
-      d.style.display = d.style.display === 'none' ? 'flex' : 'none';
-      if (d.style.display === 'flex') {
+      if (d.style.display === 'none' || !d.style.display) {
+        d.style.display = 'flex';
+        d.classList.add('notification-dropdown-enter');
+        setTimeout(() => d.classList.remove('notification-dropdown-enter'), 200);
         window.fetchNotifications();
+      } else {
+        d.style.display = 'none';
       }
     }
   };

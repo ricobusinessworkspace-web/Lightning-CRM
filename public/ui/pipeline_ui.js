@@ -65,7 +65,11 @@ const escapeHtml = (unsafe) => {
   };
   window.executeBulkDelete = async () => {
       if (selectedBulkIds.size === 0) return;
-      if (confirm(`Wirklich ${selectedBulkIds.size} Leads unwiderruflich löschen?`)) {
+      showConfirmDialog(
+        'Leads in Bulk löschen?',
+        `Wirklich ${selectedBulkIds.size} Leads unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`,
+        `${selectedBulkIds.size} Leads löschen`,
+        async () => {
           await window.api.deleteLeads(Array.from(selectedBulkIds));
           toggleBulkMode(); // exits bulk mode and reloads
           if (typeof window.renderEmptySidebar === 'function') {
@@ -75,7 +79,7 @@ const escapeHtml = (unsafe) => {
             if (sidebar) sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
           }
           if (typeof showToast === 'function') showToast("Leads in Bulk gelöscht!");
-      }
+      });
   };
 
   window.executeBulkDeleteUncalled = async () => {
@@ -89,7 +93,11 @@ const escapeHtml = (unsafe) => {
         return;
       }
       
-      if (confirm(`Wirklich alle ${uncalled.length} unangerufenen Leads unwiderruflich löschen?`)) {
+      showConfirmDialog(
+        'Leads in Bulk löschen?',
+        `Wirklich alle ${uncalled.length} unangerufenen Leads unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`,
+        `${uncalled.length} Leads löschen`,
+        async () => {
           await window.api.deleteLeads(uncalled.map(l => l.id));
           toggleBulkMode(); // exits bulk mode and reloads
           if (typeof window.renderEmptySidebar === 'function') {
@@ -99,7 +107,7 @@ const escapeHtml = (unsafe) => {
             if (sidebar) sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
           }
           if (typeof showToast === 'function') showToast(`${uncalled.length} unangerufene Leads gelöscht!`);
-      }
+      });
   };
 
   window.getLeadStatusMap = (l) => {
@@ -528,9 +536,11 @@ if (typeof window.renderDashboard === 'function') {
     loadUi();
   };
 
+  let _searchDebounceTimer = null;
   window.handleSearch = (e) => {
     currentSearch = e.target.value.trim();
-    loadUi();
+    if (_searchDebounceTimer) clearTimeout(_searchDebounceTimer);
+    _searchDebounceTimer = setTimeout(() => loadUi(), 250);
   };
 
   // ── Helper: has active email task ────────────────────────────────────────────
@@ -989,7 +999,13 @@ if (typeof window.renderDashboard === 'function') {
     window._currentSelectedLeadId = id;
     
     const sidebarEl = document.getElementById('main-sidebar');
-    if (sidebarEl) sidebarEl.classList.remove('collapsed');
+    if (sidebarEl) {
+      sidebarEl.classList.remove('collapsed');
+      sidebarEl.classList.add('sidebar-enter');
+      requestAnimationFrame(() => {
+        setTimeout(() => sidebarEl.classList.remove('sidebar-enter'), 200);
+      });
+    }
 
     document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
     const card = document.getElementById(`lead-card-${id}`);
