@@ -225,7 +225,42 @@ import '../core/api.js';
     }
   };
 
+  window.inviteUserReal = async () => {
+    const emailInput = document.getElementById('invite-email-input-real');
+    const statusMsg = document.getElementById('invite-status-msg-real');
+    const btn = document.getElementById('invite-user-btn-real');
+    const email = emailInput.value.trim();
+    
+    if (!email) {
+      statusMsg.style.display = 'block';
+      statusMsg.style.color = '#ff453a';
+      statusMsg.textContent = 'Bitte E-Mail eingeben.';
+      return;
+    }
 
+    try {
+      btn.disabled = true;
+      btn.textContent = 'Lädt...';
+      statusMsg.style.display = 'none';
+
+      await window.api.inviteUser(email);
+      
+      statusMsg.style.display = 'block';
+      statusMsg.style.color = '#32d74b';
+      statusMsg.textContent = 'Einladung erfolgreich gesendet!';
+      emailInput.value = '';
+      
+      // Reload list
+      await window.openUserManagement();
+    } catch (err) {
+      statusMsg.style.display = 'block';
+      statusMsg.style.color = '#ff453a';
+      statusMsg.textContent = 'Fehler: ' + err.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Einladen';
+    }
+  };
 
   window.saveProfile = async () => {
     const newName = document.getElementById('profile-name-input').value.trim();

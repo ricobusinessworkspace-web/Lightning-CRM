@@ -91,6 +91,17 @@
         </h2>
         <button onclick="document.getElementById('user-management-modal').classList.add('hidden')" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 20px; outline:none; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
       </div>
+
+      <!-- Invite Widget -->
+      <div class="invite-widget" style="margin-bottom: 24px; padding: 16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px;">
+        <h4 style="margin-top: 0; margin-bottom: 12px; font-size: 13px; font-weight: 700; color: #fff;">Neuen Benutzer einladen</h4>
+        <div style="display: flex; gap: 8px;">
+          <input type="email" id="invite-email-input-real" class="modern-input-small" placeholder="E-Mail Adresse" style="flex: 1; padding: 8px 12px;">
+          <button id="invite-user-btn-real" class="action-btn success-bold" style="padding: 8px 16px; font-weight: 600;" onclick="inviteUserReal()">Einladen</button>
+        </div>
+        <p id="invite-status-msg-real" style="font-size: 11px; margin-top: 8px; display: none;"></p>
+      </div>
+
       <div id="user-mgmt-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto;">
          <!-- Users will be rendered here -->
       </div>
