@@ -287,20 +287,22 @@ window.setPipeline = async (type) => {
       // Calling loadMapData() from here causes a Leaflet crash when the user is NOT on the
       // map tab because initMap() tries to mount onto the hidden/absent #map-container element.
       // loadUi() already calls loadMapData() internally when currentTab === 'map'.
-      try { await loadUi(); } catch (e) { console.warn('Non-critical loadUi error after save:', e); }
-      
       if (!noClose) {
-        window._currentSelectedLeadId = null;
-        if (typeof window.renderEmptySidebar === 'function') {
-          window.renderEmptySidebar();
+        if (typeof window.closeLeadSidebar === 'function') {
+          window.closeLeadSidebar();
         } else {
-          const mainSidebar = document.getElementById('main-sidebar');
-          if (mainSidebar) mainSidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
+          window._currentSelectedLeadId = null;
+          document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
+          if (typeof window.renderEmptySidebar === 'function') {
+            window.renderEmptySidebar();
+          }
         }
       } else {
         if (window.openLeadDirectly) window.openLeadDirectly(id);
         else if (window.openLead) window.openLead(id);
       }
+      
+      try { await loadUi(); } catch (e) { console.warn('Non-critical loadUi error after save:', e); }
       
       showToast("Lead gespeichert!");
       return true;
