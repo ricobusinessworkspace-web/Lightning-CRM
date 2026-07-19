@@ -78,7 +78,9 @@ function hasActiveEmailTask(taskText) {
 // ─── Internal: map Supabase row → renderer-compatible object ─────────────────
 function normalizeRow(row) {
   if (!row) return row;
-  const callHistory = Array.isArray(row.call_history) ? row.call_history : [];
+  const callHistory = Array.isArray(row.crm_calls) ? row.crm_calls : (Array.isArray(row.call_history) ? row.call_history : []);
+  // Sort by ts ascending just to be safe
+  callHistory.sort((a,b) => (a.ts || 0) - (b.ts || 0));
   return {
     ...row,
     locations:    Array.isArray(row.locations)    ? row.locations    : [],
@@ -209,7 +211,7 @@ export const db = {
 
   // ── getLeads ───────────────────────────────────────────────────────────────
   getLeads: async (filters = {}) => {
-    let query = supabase.from(TABLE).select('*');
+    let query = supabase.from(TABLE).select('*, crm_calls(*)').order('ts', { foreignTable: 'crm_calls', ascending: true });
 
     if (filters.search && filters.search.length > 0) {
       query = query.ilike('name', `%${filters.search}%`);
@@ -281,10 +283,6 @@ export const db = {
       estimated_kwh:      lead.estimated_kwh       ?? 0,
     };
 
-    // Preserve call_history if provided (e.g. from markCallNotAnswered)
-    if (lead.call_history !== undefined) {
-      payload.call_history = lead.call_history;
-    }
     if (lead.last_contact_ms !== undefined) {
       payload.last_contact_ms = lead.last_contact_ms;
     }
@@ -355,7 +353,6 @@ export const db = {
       // No duplicate found, safe to insert!
       payload.created_at_ms   = now;
       payload.last_contact_ms = lead.last_contact_ms ?? 0;
-      payload.call_history    = [];
 
       const { data, error } = await supabase.from(TABLE).insert(payload).select('id').single();
       if (error) throw new Error(error.message || error.details || JSON.stringify(error));
@@ -364,132 +361,129 @@ export const db = {
   },
 
   // ── logCall ────────────────────────────────────────────────────────────────
-  // Logs a new call entry as { ts, status: 'answered' }.
-  // Backward compat: old bare-number entries are preserved as-is.
-  logCall: async (id) => {
-    const { data: row, error: fetchErr } = await supabase
-      .from(TABLE).select('call_history, last_contact_ms').eq('id', id).single();
-    if (fetchErr) throw fetchErr;
-
-    let history = Array.isArray(row.call_history) ? row.call_history : [];
-
-    // Fallback for old records with no call_history but a last_contact_ms
-    if (history.length === 0 && row.last_contact_ms > 0) {
-      history.push({ ts: row.last_contact_ms, status: 'answered' });
-    }
-
+  logCall: async (id, status = 'answered') => {
     const now = Date.now();
-    // New entry as object
-    const entry = { ts: now, status: 'answered' };
-    if (currentUser) {
-      entry.by_user_id = currentUser.id;
-      entry.by_user_name = currentUser.name;
-    }
-    history.push(entry);
+    try {
+      const entry = { lead_id: id, ts: now, status, type: 'call' };
+      if (currentUser) {
+        entry.by_user_id = currentUser.id;
+        entry.by_user_name = currentUser.name;
+      }
+      
+      // 1. Insert into relational table
+      await supabase.from('crm_calls').insert(entry);
+      
+      // 2. Update lead timestamp
+      const { data, error } = await supabase
+        .from(TABLE)
+        .update({ last_contact_ms: now })
+        .eq('id', id)
+        .select('*, crm_calls(*)');
 
-    const { error } = await supabase
-      .from(TABLE)
-      .update({ last_contact_ms: now, call_history: history })
-      .eq('id', id);
-    if (error) throw new Error(error.message || error.details || JSON.stringify(error));
-    return { logged: true };
+      if (error) throw error;
+      return Array.isArray(data) ? data[0] : data;
+    } catch (e) {
+      console.error('logCall error:', e);
+      return null;
+    }
   },
 
   // ── logEmail ───────────────────────────────────────────────────────────────
-  // Logs a new email entry as { ts, type: 'email' }.
   logEmail: async (id) => {
-    const { data: row, error: fetchErr } = await supabase
-      .from(TABLE).select('call_history, last_contact_ms').eq('id', id).single();
-    if (fetchErr) throw fetchErr;
-
-    let history = Array.isArray(row.call_history) ? row.call_history : [];
-
-    // Fallback for old records with no call_history but a last_contact_ms
-    if (history.length === 0 && row.last_contact_ms > 0) {
-      history.push({ ts: row.last_contact_ms, status: 'answered', type: 'call' });
-    }
-
     const now = Date.now();
-    // New entry as object
-    const entry = { ts: now, type: 'email' };
-    if (currentUser) {
-      entry.by_user_id = currentUser.id;
-      entry.by_user_name = currentUser.name;
-    }
-    history.push(entry);
+    try {
+      const entry = { lead_id: id, ts: now, status: 'sent', type: 'email' };
+      if (currentUser) {
+        entry.by_user_id = currentUser.id;
+        entry.by_user_name = currentUser.name;
+      }
+      await supabase.from('crm_calls').insert(entry);
 
-    const { error } = await supabase
-      .from(TABLE)
-      .update({ last_contact_ms: now, call_history: history })
-      .eq('id', id);
-    if (error) throw new Error(error.message || error.details || JSON.stringify(error));
-    return { logged: true };
+      const { data, error } = await supabase
+        .from(TABLE)
+        .update({ last_contact_ms: now })
+        .eq('id', id)
+        .select('*, crm_calls(*)');
+
+      if (error) throw error;
+      return Array.isArray(data) ? data[0] : data;
+    } catch (e) {
+      console.error('logEmail error:', e);
+      return null;
+    }
   },
 
   // ── markCallNotAnswered ────────────────────────────────────────────────────
-  // Marks the call entry with timestamp `callTs` as not_answered.
-  // Also sets a 15-minute snooze on the lead.
   markCallNotAnswered: async (leadId, callTs) => {
-    const { data: row, error: fetchErr } = await supabase
-      .from(TABLE).select('call_history, snooze_until_ms').eq('id', leadId).single();
-    if (fetchErr) throw fetchErr;
+    try {
+      // Find the specific call and update its status
+      const { data: callData, error: callErr } = await supabase
+        .from('crm_calls')
+        .update({ status: 'not_answered' })
+        .eq('lead_id', leadId)
+        .eq('ts', callTs)
+        .eq('type', 'call')
+        .select();
 
-    let history = Array.isArray(row.call_history) ? [...row.call_history] : [];
+      if (callErr) throw callErr;
+      if (!callData || callData.length === 0) return null;
 
-    // Find and update the entry by ts (handle both legacy and new format)
-    let found = false;
-    history = history.map(entry => {
-      const norm = normalizeCallEntry(entry);
-      if (norm && norm.ts === callTs) {
-        found = true;
-        return { ...norm, status: 'not_answered' };
-      }
-      return entry;
-    });
+      // Update snooze logic
+      const { data: row, error: fetchErr } = await supabase
+        .from(TABLE).select('snooze_until_ms').eq('id', leadId).single();
+      if (fetchErr) throw fetchErr;
 
-    if (!found) {
-      // If not found by exact ts, mark the most recent entry
-      for (let i = history.length - 1; i >= 0; i--) {
-        const norm = normalizeCallEntry(history[i]);
-        if (norm) {
-          history[i] = { ...norm, status: 'not_answered' };
-          break;
+      const now = Date.now();
+      let snoozeUntilMs = row.snooze_until_ms || 0;
+      if (!snoozeUntilMs || snoozeUntilMs < now) {
+        // Set to 4 PM next business day if it's currently earlier
+        const d = new Date();
+        if (d.getHours() < 16) {
+          d.setHours(16, 0, 0, 0);
+          snoozeUntilMs = d.getTime();
+        } else {
+          // If already past 4 PM, just add 15 minutes as fallback
+          snoozeUntilMs = Date.now() + 15 * 60 * 1000;
         }
+      } else {
+        snoozeUntilMs = Date.now() + 15 * 60 * 1000;
       }
-    }
 
-    const snoozeUntilMs = Date.now() + 15 * 60 * 1000;
-
-    const { error } = await supabase
+      const { data, error } = await supabase
       .from(TABLE)
-      .update({ call_history: history, snooze_until_ms: snoozeUntilMs })
-      .eq('id', leadId);
-    if (error) throw new Error(error.message || error.details || JSON.stringify(error));
-    return { updated: true, snoozeUntilMs };
+      .update({ snooze_until_ms: snoozeUntilMs })
+      .eq('id', leadId)
+      .select('*, crm_calls(*)');
+
+      if (error) throw error;
+      return Array.isArray(data) ? data[0] : data;
+    } catch (e) {
+      console.error('markCallNotAnswered error:', e);
+      return null;
+    }
   },
 
   // ── getCallsToday ──────────────────────────────────────────────────────────
-  // Counts all call entries from today, handling both old (number) and new ({ts,status}) format.
   getCallsToday: async () => {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const startMs = startOfDay.getTime();
+    try {
+      if (!currentUser) return 0;
+      const now = new Date();
+      now.setHours(0,0,0,0);
+      const startOfDay = now.getTime();
 
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select('call_history')
-      .not('call_history', 'is', null);
-    if (error) throw new Error(error.message || error.details || JSON.stringify(error));
+      const { data, error, count } = await supabase
+        .from('crm_calls')
+        .select('*', { count: 'exact', head: true })
+        .eq('by_user_id', currentUser.id)
+        .eq('type', 'call')
+        .gte('ts', startOfDay);
 
-    let count = 0;
-    for (const row of (data || [])) {
-      const history = Array.isArray(row.call_history) ? row.call_history : [];
-      for (const entry of history) {
-        const norm = normalizeCallEntry(entry);
-        if (norm && norm.ts >= startMs && norm.type === 'call') count++;
-      }
+      if (error) throw error;
+      return count || 0;
+    } catch (e) {
+      console.error(e);
+      return 0;
     }
-    return count;
   },
 
   // ── deleteLead ─────────────────────────────────────────────────────────────
@@ -704,7 +698,7 @@ export const db = {
       }
     }
     
-    const { data, error } = await supabase.from(TABLE).select('claimed_by, call_history, created_at_ms');
+    const { data, error } = await supabase.from(TABLE).select('claimed_by, created_at_ms, crm_calls(*)');
     if (error) throw new Error(error.message);
 
     const now = new Date();
@@ -721,7 +715,7 @@ export const db = {
         if (row.created_at_ms >= startOfDay) stats[row.claimed_by].today.leads++;
         if (row.created_at_ms >= startOfWeek) stats[row.claimed_by].week.leads++;
       }
-      const history = Array.isArray(row.call_history) ? row.call_history : [];
+      const history = Array.isArray(row.crm_calls) ? row.crm_calls : [];
       for (const entry of history) {
         const norm = normalizeCallEntry(entry);
         if (norm && norm.by_user_id && stats[norm.by_user_id]) {
