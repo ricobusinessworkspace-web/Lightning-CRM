@@ -59,5 +59,11 @@ window.api = {
     }
   },
 
-  onLeadsChanged: (callback) => db.subscribeToLeadChanges(callback)
+  onLeadsChanged: (callback) => db.subscribeToLeadChanges(callback),
+  
+  // Notifications
+  getNotifications: () => db.getNotifications(),
+  markNotificationRead: (id) => db.markNotificationRead(id),
+  sendNotification: (userId, type, leadId, message) => db.sendNotification(userId, type, leadId, message),
+  subscribeToNotifications: (callback) => db.subscribeToNotifications(callback)
 };

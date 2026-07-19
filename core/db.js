@@ -741,5 +741,54 @@ export const db = {
       }
     }
     return Object.values(stats);
+  },
+
+  // ── Notifications ───────────────────────────────────────────────────────────
+  getNotifications: async () => {
+    if (!currentUser) return [];
+    const { data, error } = await supabase
+      .from('crm_notifications')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false });
+    if (error) { console.error("Notifications error", error); return []; }
+    return data || [];
+  },
+
+  markNotificationRead: async (id) => {
+    const { error } = await supabase
+      .from('crm_notifications')
+      .update({ is_read: true })
+      .eq('id', id);
+    if (error) console.error("Mark read error", error);
+  },
+
+  sendNotification: async (userId, type, leadId, message) => {
+    if (!currentUser) return false;
+    const { error } = await supabase
+      .from('crm_notifications')
+      .insert({
+        user_id: userId,
+        type: type,
+        lead_id: leadId || null,
+        message: message
+      });
+    if (error) { console.error("Send notification error", error); return false; }
+    return true;
+  },
+  
+  subscribeToNotifications: (callback) => {
+    if (!currentUser) return () => {};
+    const channel = supabase
+      .channel('crm_notifications_changes')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'crm_notifications', filter: `user_id=eq.${currentUser.id}` },
+        payload => {
+          callback(payload.new);
+        }
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
   }
 };

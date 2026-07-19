@@ -987,6 +987,9 @@ if (typeof window.renderDashboard === 'function') {
   window.openLeadDirectly = async (id, keepForceLocationSearch = false) => {
     if (!keepForceLocationSearch) window._forceLocationSearch = false;
     window._currentSelectedLeadId = id;
+    
+    const sidebarEl = document.getElementById('main-sidebar');
+    if (sidebarEl) sidebarEl.classList.remove('collapsed');
 
     document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
     const card = document.getElementById(`lead-card-${id}`);
@@ -1230,6 +1233,30 @@ if (typeof window.renderDashboard === 'function') {
           })()}
 
           ${locationMatchingHtml}
+
+          ${(function(){
+            let assignmentHtml = '';
+            if (window.globalUser && (window.globalUser.role === 'admin' || window.globalUser.role === 'developer')) {
+              const usersOpts = [{ id: 'unassigned', name: 'Niemandem (Kalt)' }].concat(window.globalUsersList || []);
+              const optsHtml = usersOpts.map(u => `<option value="${u.id}" ${l.claimed_by === u.id || (!l.claimed_by && u.id === 'unassigned') ? 'selected' : ''}>${escapeHtml(u.name)}</option>`).join('');
+              
+              assignmentHtml = `
+                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                  <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display:block;">Lead Zuweisung</label>
+                  <select id="sys-claimed-by" class="modern-input-small" style="width: 100%; box-sizing: border-box; margin-bottom: 8px;" onchange="handleLeadAssignmentChange(this.value)">
+                    ${optsHtml}
+                  </select>
+                  <div id="lead-message-container" style="display: ${l.claimed_by ? 'block' : 'none'};">
+                    <input type="text" id="lead-message-input" class="modern-input-small" placeholder="Kurze Nachricht an Agent..." style="width: 100%; box-sizing: border-box; margin-bottom: 8px;">
+                    <button class="action-btn-small outline" style="width: 100%;" onclick="sendLeadMessage(${l.id})">Nachricht Senden 📩</button>
+                  </div>
+                </div>
+              `;
+            } else {
+              assignmentHtml = `<input type="hidden" id="sys-claimed-by" value="${l.claimed_by || 'unassigned'}">`;
+            }
+            return assignmentHtml;
+          })()}
 
           <div class="actions">
             <!-- PIPELINE -->
