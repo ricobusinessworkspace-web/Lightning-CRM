@@ -38,6 +38,17 @@
       <div id="admin-section" class="profile-section" style="display: none;">
         <hr class="section-divider">
         <h3>Benutzerverwaltung</h3>
+        
+        <!-- Invite Widget -->
+        <div class="invite-widget" style="margin-bottom: 20px; padding: 16px; background: var(--color-surface-hover, #1c1c1e); border-radius: 8px;">
+          <h4 style="margin-top: 0; margin-bottom: 12px; font-size: 13px;">Neuen Benutzer einladen</h4>
+          <div style="display: flex; gap: 8px;">
+            <input type="email" id="invite-email-input" class="input" placeholder="E-Mail Adresse" style="flex: 1;">
+            <button id="invite-user-btn" class="btn btn-primary" style="padding: 0 16px;">Einladen</button>
+          </div>
+          <p id="invite-status-msg" style="font-size: 11px; margin-top: 8px; display: none;"></p>
+        </div>
+
         <div class="admin-user-list" id="admin-user-list">
           <!-- Users will be populated here -->
         </div>

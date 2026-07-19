@@ -646,6 +646,28 @@ export const db = {
     return true;
   },
 
+  inviteUser: async (email) => {
+    if (!currentUser || (currentUser.role !== 'developer' && currentUser.role !== 'admin')) {
+      throw new Error("Keine Berechtigung");
+    }
+    
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const baseUrl = isLocal ? window.location.origin : 'https://calling-station-wardogs.vercel.app';
+    
+    try {
+      const res = await fetch(`${baseUrl}/api/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Einladungsfehler");
+      return result;
+    } catch (e) {
+      throw new Error(e.message);
+    }
+  },
+
   makeMeDeveloper: async () => {
     if (!currentUser) throw new Error("Nicht eingeloggt");
     const { error } = await supabase.from('user_profiles')

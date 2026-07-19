@@ -42,6 +42,46 @@ export function initProfileModal() {
     });
   }
 
+  const inviteBtn = document.getElementById('invite-user-btn');
+  if (inviteBtn) {
+    inviteBtn.addEventListener('click', async () => {
+      const emailInput = document.getElementById('invite-email-input');
+      const statusMsg = document.getElementById('invite-status-msg');
+      const email = emailInput.value.trim();
+      
+      if (!email) {
+        statusMsg.style.display = 'block';
+        statusMsg.style.color = '#ff453a';
+        statusMsg.textContent = 'Bitte E-Mail eingeben.';
+        return;
+      }
+
+      try {
+        inviteBtn.disabled = true;
+        inviteBtn.textContent = 'Lädt...';
+        statusMsg.style.display = 'none';
+
+        await window.api.inviteUser(email);
+        
+        statusMsg.style.display = 'block';
+        statusMsg.style.color = '#32d74b';
+        statusMsg.textContent = 'Einladung erfolgreich gesendet!';
+        emailInput.value = '';
+        
+        // Reload list to show the new user
+        const user = await window.api.getCurrentUser();
+        if (user) loadAdminUsers(user.role);
+      } catch (err) {
+        statusMsg.style.display = 'block';
+        statusMsg.style.color = '#ff453a';
+        statusMsg.textContent = 'Fehler: ' + err.message;
+      } finally {
+        inviteBtn.disabled = false;
+        inviteBtn.textContent = 'Einladen';
+      }
+    });
+  }
+
   // Global event listener to open modal (e.g. from header)
   window.addEventListener('open-profile', async () => {
     const user = await window.api.getCurrentUser();
