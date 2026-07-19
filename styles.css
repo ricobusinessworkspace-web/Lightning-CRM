@@ -26,8 +26,9 @@ body { background-color: var(--bg); color: var(--text-main); height: 100vh; disp
 .nav-btn.active { color: var(--text-main); background: rgba(255,255,255,0.1); font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
 
 .app-container { display: flex; flex: 1; overflow: hidden; }
-.sidebar { width: 33.333vw; max-width: 500px; min-width: 340px; background-color: var(--bg-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100%; overflow: hidden; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-.sidebar.collapsed { width: 0 !important; min-width: 0 !important; max-width: 0 !important; border-right: none !important; opacity: 0; pointer-events: none; }
+.sidebar { width: 33.333vw; max-width: 500px; min-width: 340px; background-color: var(--bg-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100%; overflow: hidden; transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); align-items: flex-end; }
+.sidebar > * { width: clamp(340px, 33.333vw, 500px); flex-shrink: 0; }
+.sidebar.collapsed { width: 0 !important; min-width: 0 !important; max-width: 0 !important; border-right-color: transparent !important; opacity: 0; pointer-events: none; }
 
 .main-content { flex: 1; padding: 32px 48px; overflow-y: auto; }
 
