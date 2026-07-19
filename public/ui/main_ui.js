@@ -216,7 +216,7 @@ window.setPipeline = async (type) => {
   };
 
   // Remove confirmEnrich, autoEnrich, cancelEnrich, etc. (deprecated)
-  window.saveLeadMain = async (id, noClose = true) => {
+  window.saveLeadMain = async (id, noClose = false) => {
     if (window._currentSelectedLeadId !== id) {
         console.warn('saveLeadMain aborted: Lead ID mismatch or no lead selected.');
         return false;
@@ -328,21 +328,6 @@ window.setPipeline = async (type) => {
       // Calling loadMapData() from here causes a Leaflet crash when the user is NOT on the
       // map tab because initMap() tries to mount onto the hidden/absent #map-container element.
       // loadUi() already calls loadMapData() internally when currentTab === 'map'.
-      if (!noClose) {
-        if (typeof window.closeLeadSidebar === 'function') {
-          window.closeLeadSidebar();
-        } else {
-          window._currentSelectedLeadId = null;
-          document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
-          if (typeof window.renderEmptySidebar === 'function') {
-            window.renderEmptySidebar();
-          }
-        }
-      } else {
-        if (window.openLeadDirectly) window.openLeadDirectly(id);
-        else if (window.openLead) window.openLead(id);
-      }
-      
       try { await loadUi(); } catch (e) { console.warn('Non-critical loadUi error after save:', e); }
       
       if (saveBtn) {
@@ -350,12 +335,32 @@ window.setPipeline = async (type) => {
         saveBtn.classList.add('btn-success-flash');
         saveBtn.disabled = false;
         saveBtn.textContent = '✓ Gespeichert';
-        setTimeout(() => {
-          saveBtn.classList.remove('btn-success-flash');
-          saveBtn.textContent = 'Speichern';
-        }, 1200);
       }
       showToast("Lead gespeichert!");
+
+      if (!noClose) {
+        setTimeout(() => {
+          if (typeof window.closeLeadSidebar === 'function') {
+            window.closeLeadSidebar();
+          } else {
+            window._currentSelectedLeadId = null;
+            document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
+            if (typeof window.renderEmptySidebar === 'function') {
+              window.renderEmptySidebar();
+            }
+          }
+        }, 500);
+      } else {
+        setTimeout(() => {
+          if (saveBtn) {
+            saveBtn.classList.remove('btn-success-flash');
+            saveBtn.textContent = 'Speichern';
+          }
+        }, 1200);
+        if (window.openLeadDirectly) window.openLeadDirectly(id);
+        else if (window.openLead) window.openLead(id);
+      }
+      
       return true;
     } catch (err) {
       if (saveBtn) {
