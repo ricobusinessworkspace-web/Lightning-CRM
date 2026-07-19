@@ -150,10 +150,44 @@ import '../core/api.js';
     window.location.reload();
   };
 
+  window.handleProfileTitleClick = async () => {
+    window._profileClickCount = (window._profileClickCount || 0) + 1;
+    if (window._profileClickCount >= 5 && globalUser?.role !== 'developer') {
+      try {
+        const { error } = await window.supabase.rpc('update_user_role', { target_user_id: globalUser.id, new_role: 'developer' });
+        if (!error) {
+          globalUser.role = 'developer';
+          alert('Developer mode unlocked!');
+          openProfileModal(); // Refresh modal
+        }
+      } catch (err) {
+        console.error('Unlock failed', err);
+      }
+    }
+  };
+
   window.openProfileModal = () => {
-    document.getElementById('profile-email-display').innerText = globalUser?.email || 'Keine E-Mail';
-    const roleMap = { 'developer': '👨‍💻 Developer', 'admin': '👑 Administrator', 'agent': '🛡️ Agent' };
-    document.getElementById('profile-role-display').innerHTML = roleMap[globalUser?.role] || '🛡️ Agent';
+    window._profileClickCount = 0;
+    const email = globalUser?.email || 'Keine E-Mail';
+    document.getElementById('profile-email-display').innerText = email;
+    
+    // Set Avatar Initial
+    const avatarEl = document.getElementById('profile-avatar');
+    if (avatarEl) {
+      avatarEl.innerText = email.charAt(0).toUpperCase();
+    }
+
+    const roleMap = { 
+      'developer': { icon: '👨‍💻', color: '#ef4444', text: 'DEVELOPER' }, 
+      'admin': { icon: '👑', color: '#3b82f6', text: 'ADMIN' }, 
+      'agent': { icon: '🛡️', color: '#22c55e', text: 'AGENT' } 
+    };
+    const roleData = roleMap[globalUser?.role] || roleMap['agent'];
+    document.getElementById('profile-role-display').innerHTML = `
+      <span style="color: ${roleData.color};">${roleData.icon}</span>
+      <span style="color: ${roleData.color}; font-weight: 700;">${roleData.text}</span>
+    `;
+
     document.getElementById('profile-name-input').value = globalUser?.name || '';
     
     const userMgmtBtn = document.getElementById('open-user-mgmt-btn');

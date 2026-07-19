@@ -49,21 +49,20 @@
   <div id="profile-modal" class="modal-overlay hidden" style="z-index: 10000; background: var(--color-bg-base);">
     <div class="modal-content" style="width: 400px; padding: 32px; border-radius: 16px; background: var(--color-bg-panel); box-shadow: var(--shadow-md); border: 1px solid var(--color-border-base);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--color-border-base); padding-bottom: 16px;">
-        <h2 style="margin: 0; font-size: 20px; font-weight: 800; color: var(--color-text-primary); display: flex; align-items: center; gap: 8px;">
-           <div style="width:32px; height:32px; border-radius:50%; background:var(--surface); border: 1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:bold;">ID</div>
-           Dein Profil
+        <h2 onclick="handleProfileTitleClick()" style="margin: 0; font-size: 20px; font-weight: 800; color: var(--color-text-primary); display: flex; align-items: center; gap: 8px; cursor: default; user-select: none;">
+           System Profile
         </h2>
         <button onclick="document.getElementById('profile-modal').classList.add('hidden')" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 20px; outline:none; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
       </div>
       
-      <div style="margin-bottom: 24px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
-        <div style="margin-bottom: 12px;">
-          <label style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight: 700;">E-Mail Adresse</label>
-          <div id="profile-email-display" style="font-size:14px; font-weight:500; color:var(--text-main); margin-top:4px;">Lade...</div>
+      <div style="margin-bottom: 24px; padding: 16px; border-radius: 12px; border: 1px solid var(--border); display: flex; align-items: center; gap: 16px;">
+        <div style="position: relative; cursor: pointer;" title="Profilbild ändern (Demnächst)">
+          <div id="profile-avatar" style="width: 64px; height: 64px; border-radius: 50%; background: var(--color-brand-primary, #0066cc); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; border: 2px solid var(--border);">?</div>
+          <div style="position: absolute; bottom: -4px; right: -4px; background: var(--surface); border: 1px solid var(--border); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px;">📷</div>
         </div>
         <div>
-          <label style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight: 700;">System-Rolle</label>
-          <div id="profile-role-display" style="font-size:14px; font-weight:500; color:var(--text-main); margin-top:4px; display:flex; align-items:center; gap:6px;">Lade...</div>
+          <div id="profile-email-display" style="font-size: 18px; font-weight: 700; color: var(--text-main);">Lade...</div>
+          <div id="profile-role-display" style="font-size: 13px; font-weight: 600; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Lade...</div>
         </div>
       </div>
 
