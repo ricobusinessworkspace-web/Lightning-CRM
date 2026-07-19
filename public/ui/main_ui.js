@@ -409,7 +409,7 @@ window.setPipeline = async (type) => {
       }
       
       html += `
-        <div style="display:flex; align-items:center; gap:12px; padding:10px 12px; margin-bottom:6px; border-radius:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); transition:background 0.2s, border-color 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.04)'; this.style.borderColor='rgba(255,255,255,0.08)';" onmouseout="this.style.background='rgba(255,255,255,0.02)'; this.style.borderColor='rgba(255,255,255,0.04)';">
+        <div class="task-item">
           <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask(${t.id}, this.checked)" style="flex-shrink:0; margin-top:2px; cursor:pointer; accent-color:var(--success); transform:scale(1.2);" />
           <div style="flex:1; font-size:13px; font-weight:500; color:var(--text-main); outline:none; border-bottom:1px solid transparent; transition:0.2s; padding:2px 4px; border-radius:4px; ${textStyle}" contenteditable="${t.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateTaskText(${t.id}, this.innerText)">${escapeHtml(t.text)}</div>
           ${deadlineBadge}
@@ -417,9 +417,9 @@ window.setPipeline = async (type) => {
             <input type="date" value="${t.deadline || ''}" title="Deadline" 
               onchange="setTaskDeadline(${t.id}, this.value)"
               style="width:24px; height:24px; opacity:0; cursor:pointer; position:absolute; right:0; z-index:2;">
-            <span style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; color:var(--text-muted); opacity:0.6; transition:opacity 0.2s; z-index:1; padding-right:8px;" title="Deadline setzen" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">Termin</span>
+            <span class="task-deadline-trigger" title="Deadline setzen">Termin</span>
           </div>
-          <button onclick="deleteTask(${t.id})" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:16px; flex-shrink:0; opacity:0.4; transition:all 0.2s;" onmouseover="this.style.opacity='1'; this.style.color='#ff453a';" onmouseout="this.style.opacity='0.4'; this.style.color='var(--text-muted)';">✕</button>
+          <button onclick="deleteTask(${t.id})" class="task-delete-btn">✕</button>
         </div>
       `;
     });
@@ -949,7 +949,7 @@ window.setPipeline = async (type) => {
              const bg = n.is_read ? 'transparent' : 'rgba(255, 69, 58, 0.1)';
              const icon = n.type === 'message' ? '📩' : (n.type === 'task' ? '⏰' : '🕒');
              return `
-               <div style="padding:12px 16px; border-bottom:1px solid var(--border); background:${bg}; cursor:pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='${bg}'" onclick="handleNotificationClick('${n.id}', ${n.lead_id})">
+               <div class="notification-item ${n.is_read ? '' : 'unread'}" onclick="handleNotificationClick('${n.id}', ${n.lead_id})">
                  <div style="font-size:13px; color:var(--text-main); display:flex; gap:8px;">
                    <span>${icon}</span>
                    <span style="${n.is_read ? 'color:var(--text-muted);' : 'font-weight:600;'}">${escapeHtml(n.message)}</span>

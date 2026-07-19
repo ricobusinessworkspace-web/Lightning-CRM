@@ -351,6 +351,10 @@ const escapeHtml = (unsafe) => {
   };
 
   window.switchTab = async (tab) => {
+    // Subtle content fade-out
+    const contentArea = document.getElementById('queue-container');
+    if (contentArea) contentArea.classList.add('content-fade-out');
+
     currentTab = tab;
     hideMapHoverCard();
     
@@ -435,6 +439,14 @@ if (typeof window.renderDashboard === 'function') {
       if(document.getElementById('search-input')) document.getElementById('search-input').value = '';
       await loadUi();
     }
+
+    // Fade in new content
+    requestAnimationFrame(() => {
+      if (contentArea) {
+        contentArea.classList.remove('content-fade-out');
+        contentArea.classList.add('content-fade-in');
+      }
+    });
   };
 
   window.toggleAdvancedMode = () => {
@@ -561,9 +573,22 @@ if (typeof window.renderDashboard === 'function') {
 
   function renderQueue(leads) {
     if(!leads || leads.length === 0) {
-      let stateMsg = "Pick up the phone and start dialing.";
-      if (currentSearch) stateMsg = `Kein Lead für "${currentSearch}" gefunden.`;
-      qList.innerHTML = `<div class="empty-state">${stateMsg}</div>`;
+      let icon = '📞';
+      let stateMsg = 'Pick up the phone and start dialing.';
+      if (currentSearch) {
+        icon = '🔍';
+        stateMsg = `Kein Lead für "${escapeHtml(currentSearch)}" gefunden.`;
+      } else if (currentTab === 'tasks') {
+        icon = '🎉';
+        stateMsg = 'Zero Inbox! Keine offenen Aufgaben.';
+      } else if (currentTab === 'customers') {
+        icon = '👥';
+        stateMsg = 'Noch keine Kunden. Weiter so!';
+      } else if (currentTab === 'cold') {
+        icon = '❄️';
+        stateMsg = 'Keine Leads in der Kaltakquise.';
+      }
+      qList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${icon}</div><div class="empty-state-text">${stateMsg}</div></div>`;
       return;
     }
     
@@ -893,7 +918,7 @@ if (typeof window.renderDashboard === 'function') {
          }
 
          return `
-           <div class="task-row-item" style="display:flex; align-items:flex-start; gap: 12px; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.03); transition:background 0.2s ease;" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='transparent'">
+           <div class="task-row-item" style="display:flex; align-items:flex-start; gap: 12px; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.03);">
              <input type="checkbox" style="margin-top:2px; cursor:pointer; flex-shrink:0;" onchange="toggleTaskFast(${lead.id}, ${task.id}, this.checked)">
              <div style="flex:1; min-width:0;">
                <div contenteditable="true" class="truncate-1" style="outline:none; font-size:14px; color:var(--text-main); line-height:1.5;" onblur="updateGlobalTaskText(${lead.id}, ${task.id}, this.innerText)" onclick="event.stopPropagation()">${escapeHtml(task.text)}</div>
