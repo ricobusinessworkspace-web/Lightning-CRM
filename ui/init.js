@@ -88,6 +88,7 @@ import '../core/api.js';
       window.globalUser = globalUser;
       
       if (globalUser) {
+        localStorage.setItem('lightning_user_name', globalUser.name || globalUser.email.split('@')[0]);
         loginModal.style.display = 'none';
         if(splash) splash.classList.add('splash-hidden');
         
@@ -152,6 +153,7 @@ import '../core/api.js';
         globalUser = await window.api.login(email, pw);
       }
       window.globalUser = globalUser;
+      localStorage.setItem('lightning_user_name', globalUser.name || globalUser.email.split('@')[0]);
       
       executeLoginSuccess();
       btn.innerText = isRegisterMode ? 'Account erstellen' : 'Einloggen';
@@ -324,6 +326,7 @@ import '../core/api.js';
     try {
       globalUser = await window.api.updateProfile(newName);
       window.globalUser = globalUser;
+      localStorage.setItem('lightning_user_name', globalUser.name);
       window.globalUsersList = await window.api.getUsers(); // refresh list
       
       const accInfo = document.getElementById('account-info');
