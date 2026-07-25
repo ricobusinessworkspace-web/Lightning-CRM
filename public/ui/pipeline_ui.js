@@ -2029,6 +2029,70 @@ if (typeof window.renderDashboard === 'function') {
         };
       }
       
+      // --- Manual KPIs Section ---
+      const todayStr = new Date().toISOString().split('T')[0];
+      const lsKey = `dashboard_manual_kpis_${todayStr}`;
+      
+      let manualData = { split: '0 / 0', offers: '0', revenue: '0 € / 2500 €' };
+      try {
+        const stored = localStorage.getItem(lsKey);
+        if (stored) manualData = { ...manualData, ...JSON.parse(stored) };
+      } catch(e) {}
+      
+      window.updateManualKpi = (field) => {
+        const el = document.getElementById(`manual-kpi-${field}`);
+        if (!el) return;
+        const currentVal = el.innerText;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = currentVal;
+        input.className = 'modern-input-small';
+        input.style.width = '100%';
+        input.style.maxWidth = '150px';
+        input.style.textAlign = 'center';
+        input.style.fontSize = '20px';
+        input.style.fontWeight = '800';
+        input.style.padding = '2px';
+        input.style.background = 'rgba(0,0,0,0.4)';
+        input.style.color = '#fff';
+        input.style.border = '1px solid var(--accent)';
+        
+        input.onblur = () => {
+          manualData[field] = input.value || '0';
+          localStorage.setItem(lsKey, JSON.stringify(manualData));
+          window.renderDashboard();
+        };
+        input.onkeydown = (e) => {
+          if (e.key === 'Enter') input.blur();
+        };
+        
+        el.parentNode.replaceChild(input, el);
+        input.focus();
+      };
+
+      const manualSection = document.createElement('div');
+      manualSection.style.marginBottom = '24px';
+      manualSection.innerHTML = `
+        <div style="margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+          <h2 style="font-size: 18px; font-weight: 700; color: #fff; margin: 0;">Daily KPIs (Manual)</h2>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 16px; border-radius: 12px; text-align: center;">
+            <div id="manual-kpi-split" style="font-size: 20px; font-weight: 800; color: #fff; cursor: pointer; transition: 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='#fff'" onclick="window.updateManualKpi('split')">${manualData.split}</div>
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-top: 8px;">Tarif / Großkunden Calls Split</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 16px; border-radius: 12px; text-align: center;">
+            <div id="manual-kpi-offers" style="font-size: 20px; font-weight: 800; color: #fff; cursor: pointer; transition: 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='#fff'" onclick="window.updateManualKpi('offers')">${manualData.offers}</div>
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-top: 8px;">Angebote versendet</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 16px; border-radius: 12px; text-align: center;">
+            <div id="manual-kpi-revenue" style="font-size: 20px; font-weight: 800; color: #fff; cursor: pointer; transition: 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='#fff'" onclick="window.updateManualKpi('revenue')">${manualData.revenue}</div>
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-top: 8px;">Monatliches Umsatzziel</div>
+          </div>
+        </div>
+      `;
+      container.appendChild(manualSection);
+      
       const teamSection = document.createElement('div');
       teamSection.innerHTML = `
         <div style="margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">

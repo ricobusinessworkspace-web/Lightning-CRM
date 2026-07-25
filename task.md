@@ -7,3 +7,4 @@
 - [x] Push filtering logic to Supabase query in getLeads.
 - [x] Keep JS sorting and specialized JS filtering intact.
 - [x] RP-Level-System (Backend & Frontend HUD)
+- [x] Command Center (Dashboard) Phase 2
