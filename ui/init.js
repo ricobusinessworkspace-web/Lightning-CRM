@@ -49,6 +49,69 @@ import '../core/api.js';
 
 
 
+  const STUFEN = [
+    { name: 'Vertriebsassistent', rp: 0 },
+    { name: 'Berater', rp: 20 },
+    { name: 'Fachberater', rp: 50 },
+    { name: 'Gruppenleiter', rp: 100 },
+    { name: 'Organisationsleiter', rp: 300 },
+    { name: 'Verkaufsleiter', rp: 1200 },
+    { name: 'Bezirksleiter', rp: 3600 },
+    { name: 'Bezirksdirektor', rp: 10000 },
+    { name: 'Distriktdirektor', rp: 25000 },
+    { name: 'Regionaldirektor', rp: 50000 },
+    { name: 'Landesdirektor', rp: 80000 }
+  ];
+
+  window.updateRPUI = async () => {
+    if (!globalUser) return;
+    try {
+      const rp = await window.api.getUserRP(globalUser.id);
+      let currentLevel = STUFEN[0];
+      let nextLevel = STUFEN[1];
+      
+      for (let i = 0; i < STUFEN.length; i++) {
+        if (rp >= STUFEN[i].rp) {
+          currentLevel = STUFEN[i];
+          nextLevel = STUFEN[i + 1] || null;
+        } else {
+          break;
+        }
+      }
+      
+      const nameEl = document.getElementById('rp-level-name');
+      const progEl = document.getElementById('rp-level-progress');
+      const circle = document.getElementById('rp-progress-circle');
+      
+      if (nameEl) nameEl.innerText = currentLevel.name;
+      
+      if (nextLevel) {
+        if (progEl) progEl.innerText = `${rp} / ${nextLevel.rp} RP`;
+        if (circle) {
+          const radius = circle.r.baseVal.value; // should be 20
+          const circumference = radius * 2 * Math.PI;
+          circle.style.strokeDasharray = `${circumference} ${circumference}`;
+          
+          const currentTierRP = rp - currentLevel.rp;
+          const requiredTierRP = nextLevel.rp - currentLevel.rp;
+          const percent = Math.min(Math.max(currentTierRP / requiredTierRP, 0), 1);
+          const offset = circumference - percent * circumference;
+          circle.style.strokeDashoffset = offset;
+        }
+      } else {
+        if (progEl) progEl.innerText = `${rp} RP (Max)`;
+        if (circle) {
+          const radius = circle.r.baseVal.value;
+          const circumference = radius * 2 * Math.PI;
+          circle.style.strokeDasharray = `${circumference} ${circumference}`;
+          circle.style.strokeDashoffset = 0;
+        }
+      }
+    } catch(e) {
+      console.error("Error updating RP UI:", e);
+    }
+  };
+
   function executeLoginSuccess() {
     document.getElementById('login-modal').style.display = 'none';
     const accInfo = document.getElementById('account-info');
@@ -68,6 +131,7 @@ import '../core/api.js';
     if(typeof loadUi === 'function') loadUi();
     if(typeof autoGeocode === 'function') autoGeocode();
     if (window.updateTrayCount) window.updateTrayCount();
+    if (window.updateRPUI) window.updateRPUI();
     if (window.fetchNotifications) {
       window.fetchNotifications();
       if (window.api.subscribeToNotifications) {
@@ -114,6 +178,7 @@ import '../core/api.js';
         if(typeof loadUi === 'function') loadUi();
         if(typeof autoGeocode === 'function') autoGeocode();
         if (window.updateTrayCount) window.updateTrayCount();
+        if (window.updateRPUI) window.updateRPUI();
         if (window.fetchNotifications) {
           window.fetchNotifications();
           if (window.api.subscribeToNotifications) {
@@ -356,5 +421,6 @@ import '../core/api.js';
       // Auto-refresh the current tab and the call tracker badge
       if (typeof loadUi === 'function') loadUi();
       if (typeof updateTrayCount === 'function') updateTrayCount();
+      if (typeof updateRPUI === 'function') updateRPUI();
     });
   }

@@ -741,6 +741,21 @@ export const db = {
     return Object.values(stats);
   },
 
+  // ── getUserRP ──────────────────────────────────────────────────────────────
+  getUserRP: async (userId) => {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('size')
+      .eq('claimed_by', userId)
+      .eq('status', 'Kunde');
+    if (error) throw new Error(error.message);
+    let rp = 0;
+    (data || []).forEach(lead => {
+      rp += (lead.size === 'Großkunde') ? 5 : 1;
+    });
+    return rp;
+  },
+
   // ── Notifications ───────────────────────────────────────────────────────────
   getNotifications: async () => {
     if (!currentUser) return [];

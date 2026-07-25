@@ -1319,6 +1319,14 @@ if (typeof window.renderDashboard === 'function') {
               <div id="seg-4" class="pipe-seg ${isKunde ? 'active-success' : ''}" onclick="setPipeline('k')">Kunde</div>
             </div>
 
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 24px;">
+              <label style="font-size:12px; color:var(--text-muted); margin-bottom:8px; display:block; font-weight:600;">Kundengröße (RP-Punkte)</label>
+              <select id="m-size" class="modern-input-small" style="width: 100%; box-sizing: border-box;">
+                <option value="Tarifkunde" ${l.size === 'Tarifkunde' || !l.size ? 'selected' : ''}>Tarifkunde (Energie - 1 RP)</option>
+                <option value="Großkunde" ${l.size === 'Großkunde' ? 'selected' : ''}>Großkunde (RLM - 5 RP)</option>
+              </select>
+            </div>
+
             <!-- The textarea is given flex:1 to stretch to the bottom -->
             <textarea id="note-input" class="modern-input" placeholder="Notizen..." style="width: 100%; box-sizing: border-box; min-height: 120px; flex: 1; margin-bottom:24px; resize: none;">${escapeHtml(l.notes || '')}</textarea>
             <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 24px;">

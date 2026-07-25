@@ -151,8 +151,20 @@
         </div>
       </div>
       
-      <div class="profile-icon-container" onclick="openProfileModal()" style="cursor:pointer; display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%; background:var(--surface); border:1px solid var(--border); overflow:hidden; transition: 0.2s;" onmouseover="this.style.borderColor='var(--text-main)'" onmouseout="this.style.borderColor='var(--border)'" title="Account & Profil">
-        <span id="header-profile-initial" style="color:var(--text-main); font-weight:700; font-size:14px;">?</span>
+      <div style="display:flex; align-items:center; cursor:pointer;" onclick="openProfileModal()" title="Account & Profil">
+        <div class="profile-icon-wrapper" style="position:relative; width:44px; height:44px; display:flex; align-items:center; justify-content:center;">
+          <svg class="rp-progress-ring" width="44" height="44" style="position:absolute; top:0; left:0; transform: rotate(-90deg);">
+            <circle cx="22" cy="22" r="20" fill="transparent" stroke="var(--border)" stroke-width="2" />
+            <circle id="rp-progress-circle" cx="22" cy="22" r="20" fill="transparent" stroke="var(--accent)" stroke-width="2" stroke-dasharray="125.66" stroke-dashoffset="125.66" style="transition: stroke-dashoffset 0.8s ease-in-out;" />
+          </svg>
+          <div class="profile-icon-container" style="display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%; background:var(--surface); overflow:hidden; z-index:1; border:1px solid var(--border); transition: 0.2s;" onmouseover="this.style.borderColor='var(--text-main)'" onmouseout="this.style.borderColor='var(--border)'">
+            <span id="header-profile-initial" style="color:var(--text-main); font-weight:700; font-size:14px;">?</span>
+          </div>
+        </div>
+        <div id="rp-level-display" style="display:flex; flex-direction:column; justify-content:center; margin-left:8px; margin-right:8px;">
+           <span id="rp-level-name" style="font-size:12px; font-weight:700; color:var(--text-main); line-height:1.2;">Lade...</span>
+           <span id="rp-level-progress" style="font-size:10px; color:var(--text-muted); line-height:1.2;">0 / 0 RP</span>
+        </div>
       </div>
       
       <button class="action-btn-small" onclick="toggleSettings()">Einstellungen</button>

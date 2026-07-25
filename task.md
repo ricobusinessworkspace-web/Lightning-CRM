@@ -6,3 +6,4 @@
 # Phase 2: DB Filtering Refactoring
 - [x] Push filtering logic to Supabase query in getLeads.
 - [x] Keep JS sorting and specialized JS filtering intact.
+- [x] RP-Level-System (Backend & Frontend HUD)
