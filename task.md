@@ -8,3 +8,6 @@
 - [x] Keep JS sorting and specialized JS filtering intact.
 - [x] RP-Level-System (Backend & Frontend HUD)
 - [x] Command Center (Dashboard) Phase 2
+
+# Phase 3: Gamification
+- [x] Implement the Gamification 'Mission System' UI in the Lead Sidebar/Modal

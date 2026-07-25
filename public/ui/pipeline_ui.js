@@ -1312,6 +1312,7 @@ if (typeof window.renderDashboard === 'function') {
             <input type="hidden" id="sys-lng" value="${l.lng||''}">
             <input type="hidden" id="sys-city" value="${escapeHtml(l.maps_city||'')}">
 
+            <div style="font-size:12px; color:var(--text-main); margin-bottom:8px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Main Quest: Close Deal</div>
             <div class="pipeline-bar">
               <div id="seg-1" class="pipe-seg ${e || t || r || isKunde ? 'active-blue' : ''}" onclick="setPipeline('e')">Entscheider</div>
               <div id="seg-2" class="pipe-seg ${t || isKunde ? 'active-orange' : ''}" onclick="setPipeline('t')">Kontakt</div>
@@ -1330,7 +1331,7 @@ if (typeof window.renderDashboard === 'function') {
             <!-- The textarea is given flex:1 to stretch to the bottom -->
             <textarea id="note-input" class="modern-input" placeholder="Notizen..." style="width: 100%; box-sizing: border-box; min-height: 120px; flex: 1; margin-bottom:24px; resize: none;">${escapeHtml(l.notes || '')}</textarea>
             <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 24px;">
-              <label style="font-size:12px; color:var(--text-muted); margin-bottom:12px; display:block; font-weight:600;">Aufgaben</label>
+              <label style="font-size:12px; color:var(--text-muted); margin-bottom:12px; display:block; font-weight:600;">Mission Briefing</label>
               <div id="tasks-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;"></div>
               <input type="text" id="new-task-input-rem" class="modern-input-small" style="width:100%; box-sizing:border-box; border:none; border-bottom:1px solid var(--border); border-radius:0; padding:8px 0; background:transparent;" placeholder="Aufgabe hinzufügen..." onkeypress="handleNewTaskKeyPress(event)" />
             </div>

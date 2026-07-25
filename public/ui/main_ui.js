@@ -416,6 +416,7 @@ window.setPipeline = async (type) => {
       html += `
         <div class="task-item">
           <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask(${t.id}, this.checked)" style="flex-shrink:0; margin-top:2px; cursor:pointer; accent-color:var(--success); transform:scale(1.2);" />
+          <span style="font-size:11px; color:var(--accent); font-weight:700; margin-left:4px; margin-right:4px;">[Side Quest]</span>
           <div style="flex:1; font-size:13px; font-weight:500; color:var(--text-main); outline:none; border-bottom:1px solid transparent; transition:0.2s; padding:2px 4px; border-radius:4px; ${textStyle}" contenteditable="${t.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateTaskText(${t.id}, this.innerText)">${escapeHtml(t.text)}</div>
           ${deadlineBadge}
           <div style="position:relative; display:flex; align-items:center;">
@@ -457,6 +458,42 @@ window.setPipeline = async (type) => {
     const t = window.currentTasks.find(x => x.id === id);
     if (t) t.done = done;
     renderTasksList();
+    
+    if (done && window.currentTasks.length > 0 && window.currentTasks.every(task => task.done)) {
+      if (typeof window.triggerMissionPassed === 'function') {
+        window.triggerMissionPassed();
+      }
+    }
+  };
+
+  window.triggerMissionPassed = () => {
+    const overlay = document.createElement('div');
+    overlay.className = 'mission-passed-overlay';
+    overlay.innerHTML = `<h1 class="mission-passed-text">MISSION PASSED</h1>`;
+    document.body.appendChild(overlay);
+    
+    overlay.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.4); z-index: 9999;
+      pointer-events: none;
+    `;
+    const text = overlay.querySelector('.mission-passed-text');
+    text.style.cssText = `
+      color: #ffcc00; font-size: 5rem; font-weight: 900; font-family: Impact, sans-serif;
+      text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 4px 4px 8px rgba(0,0,0,0.8);
+      transform: scale(0.5); opacity: 0; transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s ease;
+    `;
+    
+    requestAnimationFrame(() => {
+      text.style.transform = 'scale(1)';
+      text.style.opacity = '1';
+    });
+    
+    setTimeout(() => {
+      text.style.opacity = '0';
+      setTimeout(() => overlay.remove(), 500);
+    }, 2000);
   };
 
   window.deleteTask = (id) => {
