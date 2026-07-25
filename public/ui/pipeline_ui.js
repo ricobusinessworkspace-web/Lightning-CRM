@@ -1333,7 +1333,9 @@ if (typeof window.renderDashboard === 'function') {
             <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 24px;">
               <label style="font-size:12px; color:var(--text-muted); margin-bottom:12px; display:block; font-weight:600;">Mission Briefing</label>
               <div id="tasks-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;"></div>
-              <input type="text" id="new-task-input-rem" class="modern-input-small" style="width:100%; box-sizing:border-box; border:none; border-bottom:1px solid var(--border); border-radius:0; padding:8px 0; background:transparent;" placeholder="Aufgabe hinzufügen..." onkeypress="handleNewTaskKeyPress(event)" />
+              <form onsubmit="window.handleNewTaskSubmit(event)" style="margin:0; padding:0; width:100%;">
+                <input type="text" id="new-task-input-rem" class="modern-input-small" style="width:100%; box-sizing:border-box; border:none; border-bottom:1px solid var(--border); border-radius:0; padding:8px 0; background:transparent;" placeholder="Aufgabe hinzufügen..." enterkeyhint="done" onkeypress="handleNewTaskKeyPress(event)" />
+              </form>
             </div>
             
             ${snoozeHtml}
@@ -1346,7 +1348,7 @@ if (typeof window.renderDashboard === 'function') {
           </div>
         </div>
         
-        <div class="sidebar-footer" style="padding: 16px 24px 24px 24px; flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg-sidebar);">
+        <div class="sidebar-footer" style="padding: 16px 24px max(24px, env(safe-area-inset-bottom)) 24px; flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg-sidebar);">
           <button class="action-btn" id="main-save-btn" style="width:100%; padding: 14px; font-size:14px; font-weight:600; background:var(--text-main); color:var(--bg-sidebar); border:none;" onclick="saveLeadMain(${l.id})">Speichern</button>
         </div>
       </div>

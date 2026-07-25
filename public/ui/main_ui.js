@@ -453,6 +453,18 @@ window.setPipeline = async (type) => {
     }
   };
 
+  window.handleNewTaskSubmit = (e) => {
+    e.preventDefault();
+    const input = e.target.querySelector('input');
+    if (!input) return;
+    const txt = input.value.trim();
+    if (!txt) return;
+    if (!window.currentTasks) window.currentTasks = [];
+    window.currentTasks.push({ id: Date.now(), text: txt, done: false, deadline: '' });
+    input.value = '';
+    renderTasksList();
+  };
+
   window.toggleTask = (id, done) => {
     if (!window.currentTasks) return;
     const t = window.currentTasks.find(x => x.id === id);
@@ -473,9 +485,9 @@ window.setPipeline = async (type) => {
     document.body.appendChild(overlay);
     
     overlay.style.cssText = `
-      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh;
       display: flex; align-items: center; justify-content: center;
-      background: rgba(0,0,0,0.4); z-index: 9999;
+      background: rgba(0,0,0,0.4); z-index: var(--z-splash);
       pointer-events: none;
     `;
     const text = overlay.querySelector('.mission-passed-text');
@@ -873,7 +885,7 @@ window.setPipeline = async (type) => {
   const showUnsavedChangesDialog = (callback, changedAreas = []) => {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
-    overlay.style = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 99999;';
+    overlay.style = 'position: fixed; top: 0; left: 0; width: 100dvw; height: 100dvh; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: var(--z-modal);';
     
     let changesHtml = '';
     if (changedAreas.length > 0) {

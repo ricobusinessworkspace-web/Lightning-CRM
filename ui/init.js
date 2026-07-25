@@ -1,5 +1,13 @@
 import '../core/api.js';
 
+// Offline/Online Network State Handling
+window.addEventListener('offline', () => {
+  if (typeof showToast === 'function') showToast("Netzwerkverbindung unterbrochen. Du bist offline.", true);
+});
+window.addEventListener('online', () => {
+  if (typeof showToast === 'function') showToast("Netzwerkverbindung wiederhergestellt. Du bist wieder online.");
+});
+
 // Global Keyboard Navigation
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
