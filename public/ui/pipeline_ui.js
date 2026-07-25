@@ -8,11 +8,11 @@ const escapeHtml = (unsafe) => {
 };
 
   window.toggleBulkMode = () => {
-      isBulkMode = !isBulkMode;
-      selectedBulkIds.clear();
+      window.store.state.isBulkMode = !window.store.state.isBulkMode;
+      window.store.state.selectedBulkIds.clear();
       const btn = document.getElementById('bulk-mode-btn');
       if (btn) {
-          if (isBulkMode) {
+          if (window.store.state.isBulkMode) {
               btn.innerText = 'Auswahl abbrechen';
               btn.style.borderColor = 'var(--text-main)';
               btn.style.color = 'var(--text-main)';
@@ -31,11 +31,11 @@ const escapeHtml = (unsafe) => {
   };
 
   window.handleLeadClick = (id) => {
-      if (isBulkMode) {
-          if (selectedBulkIds.has(id)) {
-              selectedBulkIds.delete(id);
+      if (window.store.state.isBulkMode) {
+          if (window.store.state.selectedBulkIds.has(id)) {
+              window.store.state.selectedBulkIds.delete(id);
           } else {
-              selectedBulkIds.add(id);
+              window.store.state.selectedBulkIds.add(id);
           }
           updateBulkUI();
           loadUi();
@@ -49,12 +49,12 @@ const escapeHtml = (unsafe) => {
       if(!bar) return;
       const uncalledBtn = document.getElementById('bulk-uncalled-btn');
       
-      if (isBulkMode) {
+      if (window.store.state.isBulkMode) {
           bar.style.display = 'flex';
           const cnt = document.getElementById('bulk-count');
-          if(cnt) cnt.innerText = `${selectedBulkIds.size} Leads ausgewählt`;
+          if(cnt) cnt.innerText = `${window.store.state.selectedBulkIds.size} Leads ausgewählt`;
           
-          if (window.currentTab === 'cold' && uncalledBtn) {
+          if (window.store.state.currentTab === 'cold' && uncalledBtn) {
               uncalledBtn.style.display = 'inline-block';
           } else if (uncalledBtn) {
               uncalledBtn.style.display = 'none';
@@ -64,13 +64,13 @@ const escapeHtml = (unsafe) => {
       }
   };
   window.executeBulkDelete = async () => {
-      if (selectedBulkIds.size === 0) return;
+      if (window.store.state.selectedBulkIds.size === 0) return;
       showConfirmDialog(
         'Leads in Bulk löschen?',
-        `Wirklich ${selectedBulkIds.size} Leads unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`,
-        `${selectedBulkIds.size} Leads löschen`,
+        `Wirklich ${window.store.state.selectedBulkIds.size} Leads unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`,
+        `${window.store.state.selectedBulkIds.size} Leads löschen`,
         async () => {
-          await window.api.deleteLeads(Array.from(selectedBulkIds));
+          await window.api.deleteLeads(Array.from(window.store.state.selectedBulkIds));
           toggleBulkMode(); // exits bulk mode and reloads
           if (typeof window.renderEmptySidebar === 'function') {
             window.renderEmptySidebar();
@@ -83,7 +83,7 @@ const escapeHtml = (unsafe) => {
   };
 
   window.executeBulkDeleteUncalled = async () => {
-      if (window.currentTab !== 'cold') return;
+      if (window.store.state.currentTab !== 'cold') return;
       
       const leads = await window.api.getLeads({ tab: 'cold' });
       const uncalled = leads.filter(l => (l.call_status || 'never') === 'never');
@@ -245,11 +245,11 @@ const escapeHtml = (unsafe) => {
     return m;
   }
 
-  window.currentMapStatusFilter = 'all';
-  window.currentMapUserFilter = 'all';
+  window.store.state.currentMapStatusFilter = 'all';
+  window.store.state.currentMapUserFilter = 'all';
 
   window.setMapStatusFilter = (val, btnElem) => {
-    window.currentMapStatusFilter = val;
+    window.store.state.currentMapStatusFilter = val;
     if (btnElem && btnElem.parentElement) {
       btnElem.parentElement.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
       btnElem.classList.add('active');
@@ -258,7 +258,7 @@ const escapeHtml = (unsafe) => {
   };
 
   window.setMapUserFilter = (val, btnElem) => {
-    window.currentMapUserFilter = val;
+    window.store.state.currentMapUserFilter = val;
     if (btnElem && btnElem.parentElement) {
       btnElem.parentElement.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
       btnElem.classList.add('active');
@@ -273,8 +273,8 @@ const escapeHtml = (unsafe) => {
     mapMarkers = [];
     let count = 0;
     
-    const mapStatusFilter = window.currentMapStatusFilter;
-    const mapUserFilter = window.currentMapUserFilter;
+    const mapStatusFilter = window.store.state.currentMapStatusFilter;
+    const mapUserFilter = window.store.state.currentMapUserFilter;
 
     leads.forEach(l => {
       const sMap = getLeadStatusMap(l);
@@ -355,11 +355,11 @@ const escapeHtml = (unsafe) => {
     const contentArea = document.getElementById('queue-container');
     if (contentArea) contentArea.classList.add('content-fade-out');
 
-    currentTab = tab;
+    window.store.state.currentTab = tab;
     hideMapHoverCard();
     
     // Fix Lead Selection State Bug: clear selection globally
-    window._currentSelectedLeadId = null;
+    window.store.state.currentSelectedLeadId = null;
     
     document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
     if(document.getElementById(`nav-${tab}`)) document.getElementById(`nav-${tab}`).classList.add('active');
@@ -390,21 +390,21 @@ const escapeHtml = (unsafe) => {
       sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
     }
     
-    isBulkMode = false;
-    selectedBulkIds.clear();
+    window.store.state.isBulkMode = false;
+    window.store.state.selectedBulkIds.clear();
     const bulkBar = document.getElementById('bulk-action-bar');
     if (bulkBar) bulkBar.style.display = 'none';
 
-    currentFilter1 = 'all';
-    currentFilter2 = 'all';
+    window.store.state.currentFilter1 = 'all';
+    window.store.state.currentFilter2 = 'all';
     
     if (tab === 'dashboard') {
 if (typeof window.renderDashboard === 'function') {
         window.renderDashboard();
       }
     } else {
-      currentSearch = ''; 
-      currentColdCallFilter = 'all';
+      window.store.state.currentSearch = ''; 
+      window.store.state.currentColdCallFilter = 'all';
 
       // --- LAZY LOADING SETUP ---
       window._lazyLoadQueue = [];
@@ -471,23 +471,23 @@ if (typeof window.renderDashboard === 'function') {
     if (typeof window.updateExcludedCount === 'function') {
       window.updateExcludedCount();
     }
-    if (currentTab === 'scout') return;
+    if (window.store.state.currentTab === 'scout') return;
 
     // Projects tab has its own renderer
-    if (currentTab === 'projects') {
+    if (window.store.state.currentTab === 'projects') {
       if (typeof window.renderProjectsTab === 'function') await window.renderProjectsTab();
       return;
     }
 
     renderFilterButtons();
     const filters = { 
-      tab: currentTab, 
-      search: currentSearch,
-      filter1: currentFilter1,
-      filter2: currentFilter2
+      tab: window.store.state.currentTab, 
+      search: window.store.state.currentSearch,
+      filter1: window.store.state.currentFilter1,
+      filter2: window.store.state.currentFilter2
     };
 
-    if (currentTab === 'map') {
+    if (window.store.state.currentTab === 'map') {
       await loadMapData(filters);
     } else {
       let leads = await window.api.getLeads(filters);
@@ -496,7 +496,7 @@ if (typeof window.renderDashboard === 'function') {
       renderQueue(leads);
     }
     
-    if (!window._currentSelectedLeadId) {
+    if (!window.store.state.currentSelectedLeadId) {
       if (typeof window.renderEmptySidebar === 'function') {
         window.renderEmptySidebar();
       }
@@ -519,7 +519,7 @@ if (typeof window.renderDashboard === 'function') {
       }
 
       group2.innerHTML = opts2.map(o => `
-        <button class="chip ${currentFilter2 === o.id ? 'active' : ''}" onclick="setFilter(2, '${o.id}')">${o.label}</button>
+        <button class="chip ${window.store.state.currentFilter2 === o.id ? 'active' : ''}" onclick="setFilter(2, '${o.id}')">${o.label}</button>
       `).join('');
 
       // Also render map filters
@@ -528,14 +528,14 @@ if (typeof window.renderDashboard === 'function') {
       if (mapUserRow && mapUserBtns) {
         mapUserRow.style.display = 'flex';
         mapUserBtns.innerHTML = opts2.map(o => `
-          <button class="chip ${window.currentMapUserFilter === o.id ? 'active' : ''}" onclick="setMapUserFilter('${o.id}', this)">${o.label}</button>
+          <button class="chip ${window.store.state.currentMapUserFilter === o.id ? 'active' : ''}" onclick="setMapUserFilter('${o.id}', this)">${o.label}</button>
         `).join('');
       }
 
     } else {
       group2.style.display = 'none';
       group2.innerHTML = '';
-      currentFilter2 = 'all';
+      window.store.state.currentFilter2 = 'all';
 
       const mapUserRow = document.getElementById('map-user-filter-row');
       if (mapUserRow) mapUserRow.style.display = 'none';
@@ -543,14 +543,14 @@ if (typeof window.renderDashboard === 'function') {
   }
 
   window.setFilter = (group, filterName) => {
-    if (group === 1) currentFilter1 = filterName;
-    else currentFilter2 = filterName;
+    if (group === 1) window.store.state.currentFilter1 = filterName;
+    else window.store.state.currentFilter2 = filterName;
     loadUi();
   };
 
   let _searchDebounceTimer = null;
   window.handleSearch = (e) => {
-    currentSearch = e.target.value.trim();
+    window.store.state.currentSearch = e.target.value.trim();
     if (_searchDebounceTimer) clearTimeout(_searchDebounceTimer);
     _searchDebounceTimer = setTimeout(() => loadUi(), 250);
   };
@@ -575,16 +575,16 @@ if (typeof window.renderDashboard === 'function') {
     if(!leads || leads.length === 0) {
       let icon = '📞';
       let stateMsg = 'Pick up the phone and start dialing.';
-      if (currentSearch) {
+      if (window.store.state.currentSearch) {
         icon = '🔍';
-        stateMsg = `Kein Lead für "${escapeHtml(currentSearch)}" gefunden.`;
-      } else if (currentTab === 'tasks') {
+        stateMsg = `Kein Lead für "${escapeHtml(window.store.state.currentSearch)}" gefunden.`;
+      } else if (window.store.state.currentTab === 'tasks') {
         icon = '🎉';
         stateMsg = 'Zero Inbox! Keine offenen Aufgaben.';
-      } else if (currentTab === 'customers') {
+      } else if (window.store.state.currentTab === 'customers') {
         icon = '👥';
         stateMsg = 'Noch keine Kunden. Weiter so!';
-      } else if (currentTab === 'cold') {
+      } else if (window.store.state.currentTab === 'cold') {
         icon = '❄️';
         stateMsg = 'Keine Leads in der Kaltakquise.';
       }
@@ -592,8 +592,8 @@ if (typeof window.renderDashboard === 'function') {
       return;
     }
     
-    let tabTitle = currentTab === 'queue' ? 'Pipeline' : (currentTab === 'cold' ? 'Kaltakquise' : (currentTab === 'tasks' ? 'Aufgaben' : (currentTab === 'customers' ? 'Kunden' : 'Radar')));
-    if (currentSearch) tabTitle = `Globale Suche: "${currentSearch}"`;
+    let tabTitle = window.store.state.currentTab === 'queue' ? 'Pipeline' : (window.store.state.currentTab === 'cold' ? 'Kaltakquise' : (window.store.state.currentTab === 'tasks' ? 'Aufgaben' : (window.store.state.currentTab === 'customers' ? 'Kunden' : 'Radar')));
+    if (window.store.state.currentSearch) tabTitle = `Globale Suche: "${window.store.state.currentSearch}"`;
 
     // Reset lazy load queue for this render cycle
     window._lazyLoadQueue = [];
@@ -664,15 +664,15 @@ if (typeof window.renderDashboard === 'function') {
            }
         }
 
-        let opacityStyle = (isSnoozed && currentTab !== 'cold') ? 'opacity: 0.55;' : '';
-        let bulkStyle = (isBulkMode && selectedBulkIds.has(l.id)) ? 'outline: 2px solid var(--accent);' : '';
-        let cboxHtml = isBulkMode ? `<input type="checkbox" style="position:absolute; top:12px; right:12px; pointer-events:none; transform:scale(1.2);" ${selectedBulkIds.has(l.id) ? 'checked' : ''}>` : '';
+        let opacityStyle = (isSnoozed && window.store.state.currentTab !== 'cold') ? 'opacity: 0.55;' : '';
+        let bulkStyle = (window.store.state.isBulkMode && window.store.state.selectedBulkIds.has(l.id)) ? 'outline: 2px solid var(--accent);' : '';
+        let cboxHtml = window.store.state.isBulkMode ? `<input type="checkbox" style="position:absolute; top:12px; right:12px; pointer-events:none; transform:scale(1.2);" ${window.store.state.selectedBulkIds.has(l.id) ? 'checked' : ''}>` : '';
         let starHtml = l.starred ? `<span style="color: #ffcc00; font-size: 14px; margin-left: 8px;" title="Priorisierter Lead">★</span>` : '';
 
         let isStarredClass = l.starred ? 'is-starred' : '';
 
         return `
-        <div class="lead-card ${window._currentSelectedLeadId === l.id ? 'active-lead-card' : ''} ${isStarredClass}" style="${opacityStyle} ${bulkStyle} position: relative;" onclick="handleLeadClick(${l.id})" id="lead-card-${l.id}">
+        <div class="lead-card ${window.store.state.currentSelectedLeadId === l.id ? 'active-lead-card' : ''} ${isStarredClass}" style="${opacityStyle} ${bulkStyle} position: relative;" onclick="handleLeadClick(${l.id})" id="lead-card-${l.id}">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
             <div class="lead-prio ${titleColor}" style="margin-bottom:0;">${milestone}</div>
             <div style="display:flex; align-items:center; gap:6px;">
@@ -709,7 +709,7 @@ if (typeof window.renderDashboard === 'function') {
         return html;
     };
 
-    if (currentTab === 'queue' && !currentSearch) {
+    if (window.store.state.currentTab === 'queue' && !window.store.state.currentSearch) {
       // KANBAN VIEW (CRM)
       
       const sortKanban = (list) => {
@@ -754,8 +754,8 @@ if (typeof window.renderDashboard === 'function') {
       qList.innerHTML = `
         <div class="list-header" style="display:flex; align-items:center; justify-content:space-between; width:100%;">
           <span>${tabTitle} (Pipeline)</span>
-          <button id="bulk-mode-btn" class="action-btn-small ${isBulkMode ? 'outline' : ''}" onclick="toggleBulkMode()">
-            ${isBulkMode ? 'Auswahl abbrechen' : 'Mehrfachauswahl'}
+          <button id="bulk-mode-btn" class="action-btn-small ${window.store.state.isBulkMode ? 'outline' : ''}" onclick="toggleBulkMode()">
+            ${window.store.state.isBulkMode ? 'Auswahl abbrechen' : 'Mehrfachauswahl'}
           </button>
         </div>
         <div class="kanban-board">
@@ -764,14 +764,14 @@ if (typeof window.renderDashboard === 'function') {
           ${colHtml('Rechnung', rechnung)}
         </div>
       `;
-    } else if (currentTab === 'cold' && !currentSearch) {
+    } else if (window.store.state.currentTab === 'cold' && !window.store.state.currentSearch) {
       // COLD CALLING STATION VIEW
       let coldLeads = leads.filter(l => !l.entscheider && !l.termin && !l.rechnung && l.status === 'Lead');
 
       // F6: Apply call status filter
       let filteredByStatus = coldLeads;
-      if (currentColdCallFilter !== 'all') {
-        filteredByStatus = coldLeads.filter(l => (l.call_status || 'never') === currentColdCallFilter);
+      if (window.store.state.currentColdCallFilter !== 'all') {
+        filteredByStatus = coldLeads.filter(l => (l.call_status || 'never') === window.store.state.currentColdCallFilter);
       }
 
       let activeLeads = filteredByStatus.filter(l => (l.snooze_until_ms || 0) <= Date.now());
@@ -842,8 +842,8 @@ if (typeof window.renderDashboard === 'function') {
       qList.innerHTML = `
         <div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom:12px;">
           <div class="list-header" style="margin-bottom:0;">${tabTitle} (${activeLeads.length} Leads)</div>
-          <button id="bulk-mode-btn" class="action-btn-small ${isBulkMode ? 'outline' : ''}" onclick="toggleBulkMode()">
-            ${isBulkMode ? 'Auswahl abbrechen' : 'Mehrfachauswahl'}
+          <button id="bulk-mode-btn" class="action-btn-small ${window.store.state.isBulkMode ? 'outline' : ''}" onclick="toggleBulkMode()">
+            ${window.store.state.isBulkMode ? 'Auswahl abbrechen' : 'Mehrfachauswahl'}
           </button>
         </div>
         ${groupedHtml}
@@ -855,7 +855,7 @@ if (typeof window.renderDashboard === 'function') {
           </div>
         ` : ''}
       `;
-    } else if (currentTab === 'tasks' && !currentSearch) {
+    } else if (window.store.state.currentTab === 'tasks' && !window.store.state.currentSearch) {
       // TASKS DASHBOARD VIEW
       let leadsWithTasks = leads.filter(l => {
          if (window.globalUser && window.globalUser.role !== 'admin' && l.claimed_by !== window.globalUser.id) return false;
@@ -965,14 +965,14 @@ if (typeof window.renderDashboard === 'function') {
       qList.innerHTML = html;
 
 
-    } else if (currentTab === 'customers' && !currentSearch) {
+    } else if (window.store.state.currentTab === 'customers' && !window.store.state.currentSearch) {
       // CUSTOMERS VIEW
       let customerLeads = leads.filter(l => l.status === 'Kunde');
       qList.innerHTML = `
         <div class="list-header" style="display:flex; align-items:center; justify-content:space-between; width:100%;">
           <span>${tabTitle} (${customerLeads.length} Kunden)</span>
-          <button id="bulk-mode-btn" class="action-btn-small ${isBulkMode ? 'outline' : ''}" onclick="toggleBulkMode()">
-            ${isBulkMode ? 'Auswahl abbrechen' : 'Mehrfachauswahl'}
+          <button id="bulk-mode-btn" class="action-btn-small ${window.store.state.isBulkMode ? 'outline' : ''}" onclick="toggleBulkMode()">
+            ${window.store.state.isBulkMode ? 'Auswahl abbrechen' : 'Mehrfachauswahl'}
           </button>
         </div>
         <div class="leads-grid">
@@ -986,10 +986,10 @@ if (typeof window.renderDashboard === 'function') {
       let snoozedLeads = [];
 
       qList.innerHTML = `
-        <div class="list-header" style="display:flex; align-items:center; justify-content:space-between; width:100%; ${currentSearch ? 'color: var(--accent);' : ''}">
+        <div class="list-header" style="display:flex; align-items:center; justify-content:space-between; width:100%; ${window.store.state.currentSearch ? 'color: var(--accent);' : ''}">
           <span>${tabTitle} (${activeLeads.length})</span>
-          <button id="bulk-mode-btn" class="action-btn-small ${isBulkMode ? 'outline' : ''}" onclick="toggleBulkMode()">
-            ${isBulkMode ? 'Auswahl abbrechen' : 'Mehrfachauswahl'}
+          <button id="bulk-mode-btn" class="action-btn-small ${window.store.state.isBulkMode ? 'outline' : ''}" onclick="toggleBulkMode()">
+            ${window.store.state.isBulkMode ? 'Auswahl abbrechen' : 'Mehrfachauswahl'}
           </button>
         </div>
         <div class="leads-grid">
@@ -1006,9 +1006,9 @@ if (typeof window.renderDashboard === 'function') {
   }
 
   window.openLead = async (id, keepForceLocationSearch = false) => {
-    if (window._currentSelectedLeadId && window._currentSelectedLeadId !== id) {
+    if (window.store.state.currentSelectedLeadId && window.store.state.currentSelectedLeadId !== id) {
       if (typeof window.checkUnsavedChangesBeforeClose === 'function') {
-        window.checkUnsavedChangesBeforeClose(window._currentSelectedLeadId, () => {
+        window.checkUnsavedChangesBeforeClose(window.store.state.currentSelectedLeadId, () => {
           window.openLeadDirectly(id, keepForceLocationSearch);
         });
         return;
@@ -1021,7 +1021,7 @@ if (typeof window.renderDashboard === 'function') {
 
   window.openLeadDirectly = async (id, keepForceLocationSearch = false) => {
     if (!keepForceLocationSearch) window._forceLocationSearch = false;
-    window._currentSelectedLeadId = id;
+    window.store.state.currentSelectedLeadId = id;
     
     const sidebarEl = document.getElementById('main-sidebar');
     if (sidebarEl) {
@@ -1040,10 +1040,10 @@ if (typeof window.renderDashboard === 'function') {
     let l = null;
     try {
       const leads = await window.api.getLeads({ 
-        search: currentSearch || '', 
-        tab: currentTab, 
-        filter1: currentFilter1, 
-        filter2: currentFilter2 
+        search: window.store.state.currentSearch || '', 
+        tab: window.store.state.currentTab, 
+        filter1: window.store.state.currentFilter1, 
+        filter2: window.store.state.currentFilter2 
       }); 
       l = leads.find(x => x.id === id);
     } catch (e) {}
@@ -1054,12 +1054,12 @@ if (typeof window.renderDashboard === 'function') {
     }
     if(!l) return;
 
-    currentSnoozeOffset = 0;
-    currentSnoozeTargetMs = 0;
-    window._clearSnooze = false;
+    window.store.state.currentSnoozeOffset = 0;
+    window.store.state.currentSnoozeTargetMs = 0;
+    window.store.state.clearSnooze = false;
     window._pendingCallLog = false;
-    isTaskMode = false;
-    isKundeMode = false;
+    window.store.state.isTaskMode = false;
+    window.store.state.isKundeMode = false;
 
     let actionButtons = '';
     const isKunde = l.status === 'Kunde';
@@ -1088,12 +1088,12 @@ if (typeof window.renderDashboard === 'function') {
         <label style="font-size:12px; color:var(--text-muted); margin-bottom:8px; display:block; font-weight:600;">Follow-Up (Snooze)</label>
         <div class="snooze-grid" id="snooze-group" style="display: flex; gap: 8px; flex-wrap: wrap;">
           <div style="flex: 1; min-width: 120px; display: flex; align-items: stretch;">
-            <input type="number" id="snooze-hours-input" value="${(currentSnoozeOffset > 0 && currentSnoozeOffset <= 24) ? currentSnoozeOffset : 24}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;" onchange="if(currentSnoozeOffset > 0 && currentSnoozeOffset <= 24) selectCustomSnoozeHours()">
-            <button class="action-btn snooze-opt ${(currentSnoozeOffset > 0 && currentSnoozeOffset <= 24) ? 'outline' : ''}" id="snz-hours" onclick="selectCustomSnoozeHours()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Std.</button>
+            <input type="number" id="snooze-hours-input" value="${(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) ? window.store.state.currentSnoozeOffset : 24}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;" onchange="if(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) selectCustomSnoozeHours()">
+            <button class="action-btn snooze-opt ${(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) ? 'outline' : ''}" id="snz-hours" onclick="selectCustomSnoozeHours()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Std.</button>
           </div>
           <div style="flex: 1; min-width: 120px; display: flex; align-items: stretch;">
-            <input type="number" id="snooze-days-input" value="${currentSnoozeOffset > 24 ? currentSnoozeOffset / 24 : 7}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;" onchange="if(currentSnoozeOffset > 24) selectCustomSnooze()">
-            <button class="action-btn snooze-opt ${currentSnoozeOffset > 24 ? 'outline' : ''}" id="snz-custom" onclick="selectCustomSnooze()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Tage</button>
+            <input type="number" id="snooze-days-input" value="${window.store.state.currentSnoozeOffset > 24 ? window.store.state.currentSnoozeOffset / 24 : 7}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;" onchange="if(window.store.state.currentSnoozeOffset > 24) selectCustomSnooze()">
+            <button class="action-btn snooze-opt ${window.store.state.currentSnoozeOffset > 24 ? 'outline' : ''}" id="snz-custom" onclick="selectCustomSnooze()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Tage</button>
           </div>
         </div>
         ${isSnoozed ? `<div id="cancel-snooze-container" style="margin-top: 12px; text-align: center;"><button type="button" class="action-btn-small" style="border:1px dashed #ff453a; color:#ff453a; background:transparent; width:100%; padding: 8px;" onclick="cancelSnooze()">Snooze aufheben</button></div>` : ''}
@@ -1349,10 +1349,10 @@ if (typeof window.renderDashboard === 'function') {
   // --- NEW FEATURES: Pin Click, Call Tracking & Calendar ---
   
   window.closeLeadSidebar = () => {
-    if (window._currentSelectedLeadId) {
+    if (window.store.state.currentSelectedLeadId) {
       if (typeof window.checkUnsavedChangesBeforeClose === 'function') {
-        window.checkUnsavedChangesBeforeClose(window._currentSelectedLeadId, () => {
-          window._currentSelectedLeadId = null;
+        window.checkUnsavedChangesBeforeClose(window.store.state.currentSelectedLeadId, () => {
+          window.store.state.currentSelectedLeadId = null;
           document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
           if (typeof window.renderEmptySidebar === 'function') {
             window.renderEmptySidebar();
@@ -1364,7 +1364,7 @@ if (typeof window.renderDashboard === 'function') {
       }
     }
     
-    window._currentSelectedLeadId = null;
+    window.store.state.currentSelectedLeadId = null;
     document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
     if (typeof window.renderEmptySidebar === 'function') {
       window.renderEmptySidebar();
@@ -1536,7 +1536,7 @@ if (typeof window.renderDashboard === 'function') {
         await window.api.saveLead(l);
         showToast("Standort (Places-Verknüpfung) entfernt.");
         
-        if (window.currentTab === 'map') {
+        if (window.store.state.currentTab === 'map') {
           if (typeof window.loadMapData === 'function') {
             await window.loadMapData();
           }

@@ -57,16 +57,16 @@ window.setPipeline = async (type) => {
   };
 
   window.selectSnooze = (hrs) => {
-    window._clearSnooze = false;
+    window.store.state.clearSnooze = false;
     const btnHours = document.getElementById('snz-hours');
     const btnCustom = document.getElementById('snz-custom');
     
-    if (currentSnoozeOffset === hrs) {
-      currentSnoozeOffset = 0;
+    if (window.store.state.currentSnoozeOffset === hrs) {
+      window.store.state.currentSnoozeOffset = 0;
       if (btnHours) btnHours.classList.remove('outline');
       if (btnCustom) btnCustom.classList.remove('outline');
     } else {
-      currentSnoozeOffset = hrs;
+      window.store.state.currentSnoozeOffset = hrs;
       if (btnHours) btnHours.classList.remove('outline');
       if (btnCustom) btnCustom.classList.remove('outline');
       
@@ -217,7 +217,7 @@ window.setPipeline = async (type) => {
 
   // Remove confirmEnrich, autoEnrich, cancelEnrich, etc. (deprecated)
   window.saveLeadMain = async (id, noClose = false) => {
-    if (window._currentSelectedLeadId !== id) {
+    if (window.store.state.currentSelectedLeadId !== id) {
         console.warn('saveLeadMain aborted: Lead ID mismatch or no lead selected.');
         return false;
     }
@@ -279,18 +279,18 @@ window.setPipeline = async (type) => {
 
       let snoozeMs = lData ? lData.snooze_until_ms : 0;
     
-      if (window._clearSnooze) {
+      if (window.store.state.clearSnooze) {
         snoozeMs = 0;
-      } else if (currentSnoozeTargetMs > 0) {
-        snoozeMs = currentSnoozeTargetMs;
-      } else if (currentSnoozeOffset > 0) {
-        snoozeMs = Date.now() + (currentSnoozeOffset * 60 * 60 * 1000);
+      } else if (window.store.state.currentSnoozeTargetMs > 0) {
+        snoozeMs = window.store.state.currentSnoozeTargetMs;
+      } else if (window.store.state.currentSnoozeOffset > 0) {
+        snoozeMs = Date.now() + (window.store.state.currentSnoozeOffset * 60 * 60 * 1000);
       }
     
       // Reset snooze state flags after reading
-      window._clearSnooze = false;
-      currentSnoozeOffset = 0;
-      currentSnoozeTargetMs = 0;
+      window.store.state.clearSnooze = false;
+      window.store.state.currentSnoozeOffset = 0;
+      window.store.state.currentSnoozeTargetMs = 0;
 
       const latVal = document.getElementById('sys-lat')?.value;
       const lngVal = document.getElementById('sys-lng')?.value;
@@ -327,7 +327,7 @@ window.setPipeline = async (type) => {
       // IMPORTANT: Only call loadUi() here — NOT loadMapData() directly.
       // Calling loadMapData() from here causes a Leaflet crash when the user is NOT on the
       // map tab because initMap() tries to mount onto the hidden/absent #map-container element.
-      // loadUi() already calls loadMapData() internally when currentTab === 'map'.
+      // loadUi() already calls loadMapData() internally when window.store.state.currentTab === 'map'.
       try { await loadUi(); } catch (e) { console.warn('Non-critical loadUi error after save:', e); }
       
       if (saveBtn) {
@@ -343,7 +343,7 @@ window.setPipeline = async (type) => {
           if (typeof window.closeLeadSidebar === 'function') {
             window.closeLeadSidebar();
           } else {
-            window._currentSelectedLeadId = null;
+            window.store.state.currentSelectedLeadId = null;
             document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
             if (typeof window.renderEmptySidebar === 'function') {
               window.renderEmptySidebar();
@@ -375,9 +375,9 @@ window.setPipeline = async (type) => {
   };
 
   window.cancelSnooze = () => {
-    window._clearSnooze = true;
-    currentSnoozeOffset = 0;
-    currentSnoozeTargetMs = 0;
+    window.store.state.clearSnooze = true;
+    window.store.state.currentSnoozeOffset = 0;
+    window.store.state.currentSnoozeTargetMs = 0;
     
     const btnHours = document.getElementById('snz-hours');
     const btnCustom = document.getElementById('snz-custom');
@@ -475,7 +475,7 @@ window.setPipeline = async (type) => {
 
   window.updateTrayCount = async () => {
     try {
-      if (window.currentTab === 'dashboard' && typeof window.renderDashboard === 'function') {
+      if (window.store.state.currentTab === 'dashboard' && typeof window.renderDashboard === 'function') {
         window.renderDashboard();
       }
     } catch(e) {
@@ -563,7 +563,7 @@ window.setPipeline = async (type) => {
       showToast('Anruf als nicht erreicht markiert. 15min Snooze.');
       await window.updateTrayCount();
       if (window.loadUi) await window.loadUi();
-      if (window._currentSelectedLeadId === leadId) {
+      if (window.store.state.currentSelectedLeadId === leadId) {
         if (window.openLeadDirectly) await window.openLeadDirectly(leadId);
         else if (window.openLead) await window.openLead(leadId);
       }
@@ -893,7 +893,7 @@ window.setPipeline = async (type) => {
     
     sidebarEl.classList.add('collapsed');
 
-    if (window.currentTab === 'map') {
+    if (window.store.state.currentTab === 'map') {
       sidebarEl.classList.remove('collapsed');
       sidebarEl.innerHTML = `
         <div style="padding: 24px; display: flex; flex-direction: column; height: 100%; box-sizing: border-box;">
