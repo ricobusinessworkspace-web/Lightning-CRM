@@ -91,8 +91,8 @@ function normalizeRow(row) {
   };
 }
 
-// ─── Internal: apply in-memory filtering + sorting ───────────────────────────
-function applyFiltersAndSort(rows, filters = {}) {
+// ─── Internal: JS Post-Processing & Sorting ───────────────────────────
+function postProcessAndSort(rows, filters = {}) {
   const now = Date.now();
   let results = rows.map(normalizeRow);
 
@@ -110,14 +110,7 @@ function applyFiltersAndSort(rows, filters = {}) {
     }
   });
 
-  // 1. Excluded filter
-  if (filters.tab === 'excluded') {
-    results = results.filter(r => r.status === 'Uninteressant');
-  } else if (!filters.all && !filters.includeExcluded) {
-    results = results.filter(r => r.status !== 'Uninteressant');
-  }
-
-  // 2. Tab-specific filtering (skip when doing a global search)
+  // 1. Post-process tabs that need JS logic (like parsing task_text)
   if (!(filters.search && filters.search.length > 0)) {
     if (filters.tab === 'tasks') {
       results = results.filter(r => {
@@ -127,11 +120,8 @@ function applyFiltersAndSort(rows, filters = {}) {
           return Array.isArray(tasks) && tasks.some(t => !t.done);
         } catch (e) { return r.task_text.trim() !== ''; }
       });
-    } else if (filters.tab === 'queue') {
-      if (filters.filter1 !== 'kunden') {
-        results = results.filter(r => r.status === 'Lead');
-      }
-      // Email snooze: exclude leads with active email tasks from queue
+    } else if (filters.tab === 'queue' || filters.tab === 'cold') {
+      // Email snooze: exclude leads with active email tasks
       results = results.filter(r => {
         const snoozedByEmail = hasActiveEmailTask(r.task_text);
         if (snoozedByEmail) {
@@ -140,43 +130,10 @@ function applyFiltersAndSort(rows, filters = {}) {
         }
         return true;
       });
-    } else if (filters.tab === 'cold') {
-      results = results.filter(r => r.status === 'Lead');
-      // Email snooze: exclude leads with active email tasks from cold queue
-      results = results.filter(r => {
-        const snoozedByEmail = hasActiveEmailTask(r.task_text);
-        if (snoozedByEmail) {
-          r._emailSnoozed = true;
-          return false;
-        }
-        return true;
-      });
-    } else if (filters.tab === 'customers') {
-      results = results.filter(r => r.status === 'Kunde');
-    }
-
-    // Filter Group 1 — pipeline status
-    if (filters.filter1 && filters.filter1 !== 'all') {
-      if (filters.filter1 === 'kalt') {
-        results = results.filter(r => r.status === 'Lead' && !r.entscheider && !r.termin && !r.rechnung);
-      } else if (filters.filter1 === 'entscheider') {
-        results = results.filter(r => r.entscheider === 1 && !r.termin && !r.rechnung && r.status === 'Lead');
-      } else if (filters.filter1 === 'termin') {
-        results = results.filter(r => r.termin === 1 && !r.rechnung && r.status === 'Lead');
-      } else if (filters.filter1 === 'rechnung') {
-        results = results.filter(r => r.rechnung === 1 && r.status === 'Lead');
-      } else if (filters.filter1 === 'kunden') {
-        results = results.filter(r => r.status === 'Kunde');
-      }
-    }
-
-    // Filter Group 2 — User (Mitarbeiter)
-    if (filters.filter2 && filters.filter2 !== 'all') {
-      results = results.filter(r => r.claimed_by === filters.filter2);
     }
   }
 
-  // 3. Sorting — unified global relevance sort
+  // 2. Sorting — unified global relevance sort
   results.sort((a, b) => {
     const snoozedA = (a.snooze_until_ms && a.snooze_until_ms > now) ? 1 : 0;
     const snoozedB = (b.snooze_until_ms && b.snooze_until_ms > now) ? 1 : 0;
@@ -211,32 +168,73 @@ export const db = {
 
   // ── getLeads ───────────────────────────────────────────────────────────────
   getLeads: async (filters = {}) => {
-    let query = supabase.from(TABLE).select('*, crm_calls(*)').order('ts', { foreignTable: 'crm_calls', ascending: true });
+    let query = supabase.from(TABLE).select('*, crm_calls(*)');
+    
+    // 1. Excluded Filter
+    if (filters.tab === 'excluded') {
+      query = query.eq('status', 'Uninteressant');
+    } else if (!filters.all && !filters.includeExcluded) {
+      query = query.neq('status', 'Uninteressant');
+    }
 
+    // 2. Tab & Filter logic (Only if not globally searching)
+    if (!(filters.search && filters.search.length > 0)) {
+      // Filter Group 1: Pipeline Status
+      if (filters.filter1 && filters.filter1 !== 'all') {
+        if (filters.filter1 === 'kalt') {
+          query = query.eq('status', 'Lead').eq('entscheider', 0).eq('termin', 0).eq('rechnung', 0);
+        } else if (filters.filter1 === 'entscheider') {
+          query = query.eq('status', 'Lead').eq('entscheider', 1).eq('termin', 0).eq('rechnung', 0);
+        } else if (filters.filter1 === 'termin') {
+          query = query.eq('status', 'Lead').eq('termin', 1).eq('rechnung', 0);
+        } else if (filters.filter1 === 'rechnung') {
+          query = query.eq('status', 'Lead').eq('rechnung', 1);
+        } else if (filters.filter1 === 'kunden') {
+          query = query.eq('status', 'Kunde');
+        }
+      }
+
+      // Tab specific base status
+      if (filters.tab === 'queue') {
+        if (filters.filter1 !== 'kunden') {
+          query = query.eq('status', 'Lead');
+        }
+      } else if (filters.tab === 'cold') {
+        query = query.eq('status', 'Lead');
+      } else if (filters.tab === 'customers') {
+        query = query.eq('status', 'Kunde');
+      }
+
+      // Filter Group 2: Claimed By (Mitarbeiter)
+      if (filters.filter2 && filters.filter2 !== 'all') {
+        if (filters.filter2 === 'unassigned') {
+           query = query.is('claimed_by', null);
+        } else {
+           query = query.eq('claimed_by', filters.filter2);
+        }
+      }
+    }
+
+    // Search
     if (filters.search && filters.search.length > 0) {
       query = query.ilike('name', `%${filters.search}%`);
     }
+
+    // Minion Access Control
+    if (currentUser && currentUser.role !== 'admin' && !filters.all) {
+      // Agent sieht alle Kalten (unassigned), aber NUR seine EIGENEN in der Pipeline
+      query = query.or(`and(status.eq.Lead,entscheider.eq.0,termin.eq.0,rechnung.eq.0),claimed_by.eq.${currentUser.id}`);
+    }
+
+    // Since we need relational sorting for crm_calls, keep this:
+    query = query.order('ts', { foreignTable: 'crm_calls', ascending: true });
 
     const { data, error } = await query;
     if (error) throw new Error(error.message || error.details || JSON.stringify(error));
 
     let leads = data || [];
 
-    // Minion Access Control:
-    // - Admin sieht alles
-    // - Agent sieht alle Kalten (unassigned), aber NUR seine EIGENEN in der Pipeline
-    // Except when filters.all is true (used by scraper to globally deduplicate)
-    if (currentUser && currentUser.role !== 'admin' && !filters.all) {
-      leads = leads.filter(l => {
-        // Kalte Leads haben status 'Lead' und noch keine Pipeline-Marker
-        const isKalt = l.status === 'Lead' && !l.entscheider && !l.termin && !l.rechnung;
-        if (isKalt) return true; // Für alle sichtbar
-        // Wenn es in der Pipeline oder beim Kunden ist, nur anzeigen wenn es dem Agenten gehört
-        return l.claimed_by === currentUser.id;
-      });
-    }
-
-    return applyFiltersAndSort(leads, filters);
+    return postProcessAndSort(leads, filters);
   },
 
   // ── saveLead ───────────────────────────────────────────────────────────────
