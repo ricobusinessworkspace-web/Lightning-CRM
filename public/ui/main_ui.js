@@ -1031,37 +1031,17 @@ window.setPipeline = async (type) => {
     sidebarEl.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
   };
 
-  window.openNewLeadForm = () => {
-    const sidebarEl = document.getElementById('main-sidebar');
-    if (!sidebarEl) return;
+  window.openNewLeadForm = async () => {
+    const res = await window.api.saveLead({ name: "Neuer Lead" });
+    await loadUi();
+    openLead(res.id);
     
-    sidebarEl.classList.remove('collapsed');
-    sidebarEl.innerHTML = `
-      <div style="padding: 24px; display: flex; flex-direction: column; height: 100%; box-sizing: border-box;">
-        <h3 style="margin-top:0; color:var(--text-main); font-size: 18px;">Neuen Lead erstellen</h3>
-        <p style="font-size:12px; color:var(--text-muted); margin-bottom: 24px;">Bitte fülle die grundlegenden Daten aus.</p>
-        
-        <form onsubmit="event.preventDefault(); window.quickAdd();" style="display: flex; flex-direction: column; gap: 16px;">
-          <div>
-            <label style="font-size:12px; color:var(--text-muted); margin-bottom:6px; display:block; font-weight: 500;">Firmenname / Ansprechpartner</label>
-            <input type="text" id="qa-name" class="modern-input-small" style="width:100%; box-sizing: border-box;" placeholder="Firma / Name..." required />
-          </div>
-          <div>
-            <label style="font-size:12px; color:var(--text-muted); margin-bottom:6px; display:block; font-weight: 500;">Telefonnummer</label>
-            <input type="text" id="qa-phone" class="modern-input-small" style="width:100%; box-sizing: border-box;" placeholder="+49..." />
-          </div>
-          
-          <div style="margin-top: 16px; display: flex; gap: 12px;">
-            <button type="button" class="action-btn-small outline" style="flex:1;" onclick="renderEmptySidebar()">Abbrechen</button>
-            <button type="submit" class="action-btn success-bold" style="flex:1;">Speichern</button>
-          </div>
-        </form>
-      </div>
-    `;
-    
-    // Focus the name input automatically
+    // Focus the name input automatically so user can directly start typing
     setTimeout(() => {
-      const nameInput = document.getElementById('qa-name');
-      if (nameInput) nameInput.focus();
-    }, 100);
+      const nameEl = document.getElementById('sys-name');
+      if (nameEl) {
+        nameEl.focus();
+        document.execCommand('selectAll', false, null);
+      }
+    }, 300);
   };

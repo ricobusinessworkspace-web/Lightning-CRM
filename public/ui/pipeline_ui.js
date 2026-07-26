@@ -1123,19 +1123,19 @@ if (typeof window.renderDashboard === 'function') {
     const gCalUrl = `https://calendar.google.com/calendar/r/eventedit?text=${gCalText}&details=${gCalDetails}`;
 
     let snoozeHtml = `
-      <div style="margin-top: 16px;">
-        <label style="font-size:12px; color:var(--text-muted); margin-bottom:8px; display:block; font-weight:600;">Follow-Up (Snooze)</label>
+      <div class="apple-section">
+        <h4 class="apple-section-title">Follow-Up (Snooze)</h4>
         <div class="snooze-grid" id="snooze-group" style="display: flex; gap: 8px; flex-wrap: wrap;">
           <div style="flex: 1; min-width: 120px; display: flex; align-items: stretch;">
-            <input type="number" id="snooze-hours-input" value="${(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) ? window.store.state.currentSnoozeOffset : 24}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;" onchange="if(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) selectCustomSnoozeHours()">
-            <button class="action-btn snooze-opt ${(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) ? 'outline' : ''}" id="snz-hours" onclick="selectCustomSnoozeHours()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Std.</button>
+            <input type="number" id="snooze-hours-input" value="\${(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) ? window.store.state.currentSnoozeOffset : 24}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;" onchange="if(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) selectCustomSnoozeHours()">
+            <button class="action-btn snooze-opt \${(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) ? 'outline' : ''}" id="snz-hours" onclick="selectCustomSnoozeHours()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Std.</button>
           </div>
           <div style="flex: 1; min-width: 120px; display: flex; align-items: stretch;">
-            <input type="number" id="snooze-days-input" value="${window.store.state.currentSnoozeOffset > 24 ? window.store.state.currentSnoozeOffset / 24 : 7}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;" onchange="if(window.store.state.currentSnoozeOffset > 24) selectCustomSnooze()">
-            <button class="action-btn snooze-opt ${window.store.state.currentSnoozeOffset > 24 ? 'outline' : ''}" id="snz-custom" onclick="selectCustomSnooze()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Tage</button>
+            <input type="number" id="snooze-days-input" value="\${window.store.state.currentSnoozeOffset > 24 ? window.store.state.currentSnoozeOffset / 24 : 7}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;" onchange="if(window.store.state.currentSnoozeOffset > 24) selectCustomSnooze()">
+            <button class="action-btn snooze-opt \${window.store.state.currentSnoozeOffset > 24 ? 'outline' : ''}" id="snz-custom" onclick="selectCustomSnooze()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Tage</button>
           </div>
         </div>
-        ${isSnoozed ? `<div id="cancel-snooze-container" style="margin-top: 12px; text-align: center;"><button type="button" class="action-btn-small" style="border:1px dashed #ff453a; color:#ff453a; background:transparent; width:100%; padding: 8px;" onclick="cancelSnooze()">Snooze aufheben</button></div>` : ''}
+        \${isSnoozed ? \`<div id="cancel-snooze-container" style="margin-top: 12px; text-align: center;"><button type="button" class="action-btn-small" style="border:1px dashed #ff453a; color:#ff453a; background:transparent; width:100%; padding: 8px;" onclick="cancelSnooze()">Snooze aufheben</button></div>\` : ''}
       </div>
     `;
 
@@ -1195,67 +1195,59 @@ if (typeof window.renderDashboard === 'function') {
 
     sidebar.innerHTML = `
       <div class="focused-lead" style="display:flex; flex-direction:column; height:100%;">
-        <!-- HEADER ROW: Unternehmen + Pin -->
-        <div class="sidebar-header" style="padding: 24px 24px 0 24px; flex-shrink: 0;">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 4px;">
-             <div id="sys-name" class="focused-name truncate-1" contenteditable="true" style="outline:none; padding:4px 0; max-width:75%; border-bottom:1px solid transparent; transition:0.2s;" onfocus="this.style.borderBottom='1px solid var(--accent)';" onblur="this.style.borderBottom='1px solid transparent';">${escapeHtml(l.name)}</div>
-             <div style="display:flex; gap:8px; align-items: center;">
-               <button id="sidebar-star-btn" data-starred="${l.starred ? 1 : 0}" class="action-btn-small" style="background:transparent; border:none; font-size:20px; cursor:pointer; padding:0; color: ${l.starred ? '#ffcc00' : 'var(--text-muted)'};" onclick="toggleLeadStar(${l.id})" title="Priorisieren (Stern)">${l.starred ? '★' : '☆'}</button>
-               <button class="action-btn-small" style="background:transparent; border:none; font-size:16px; cursor:pointer; padding:0; color:var(--text-muted);" onclick="closeLeadSidebar()" title="Lead abwählen">✕</button>
+        
+        <!-- HEADER ROW: Unternehmen -->
+        <div class="sidebar-header" style="padding: 24px 24px 16px 24px; flex-shrink: 0; background: var(--color-bg-panel, #0d0d0f); border-bottom: 1px solid var(--color-border-base, #2c2c2e); z-index: 10;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px;">
+             <div id="sys-name" class="focused-name truncate-1" contenteditable="true" style="outline:none; padding:4px 0; max-width:75%; border-bottom:1px solid transparent; transition:0.2s; font-size: 22px; font-weight: 800; color: var(--color-text-primary, #f2f2f7);" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">${escapeHtml(l.name)}</div>
+             <div style="display:flex; gap:12px; align-items: center;">
+               <button id="sidebar-star-btn" data-starred="${l.starred ? 1 : 0}" style="background:transparent; border:none; font-size:22px; cursor:pointer; padding:0; color: ${l.starred ? '#ffcc00' : 'var(--color-text-secondary, #8e8e93)'}; transition: transform 0.2s;" onclick="toggleLeadStar(${l.id})" title="Priorisieren (Stern)">${l.starred ? '★' : '☆'}</button>
+               <button style="background:transparent; border:none; font-size:18px; cursor:pointer; padding:0; color:var(--color-text-secondary, #8e8e93); transition: color 0.2s;" onclick="closeLeadSidebar()" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" title="Lead abwählen">✕</button>
              </div>
           </div>
-          <div style="display:flex; flex-direction:column; gap:8px; margin-bottom: 16px; min-height: 32px;">
-             <div style="display:flex; justify-content:space-between; align-items:center;">
-               <input type="text" id="sys-phone" style="font-family:ui-monospace, monospace; font-size:15px; font-weight:500; padding:4px 0; background:transparent; border:none; border-bottom:1px solid transparent; outline:none; transition:0.2s; color:var(--text-muted); flex: 1; margin-right: 16px;" value="${escapeHtml(l.phone || '')}" placeholder="Keine Nummer" onfocus="this.style.borderBottom='1px solid var(--accent)';" onblur="this.style.borderBottom='1px solid transparent';">
-               <button style="background:transparent; border:none; padding:4px 8px; font-size:11px; color:var(--accent); font-weight:600; cursor:pointer;" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')">Copy & Track</button>
-             </div>
-             <div style="display:flex; justify-content:space-between; align-items:center;">
-               <input type="text" id="sys-email" style="font-family:ui-monospace, monospace; font-size:15px; font-weight:500; padding:4px 0; background:transparent; border:none; border-bottom:1px solid transparent; outline:none; transition:0.2s; color:var(--text-muted); flex: 1; margin-right: 16px;" value="${escapeHtml(l.email || '')}" placeholder="Keine E-Mail" onfocus="this.style.borderBottom='1px solid var(--accent)';" onblur="this.style.borderBottom='1px solid transparent';">
-               <button style="background:transparent; border:none; padding:4px 8px; font-size:11px; color:var(--accent); font-weight:600; cursor:pointer;" onclick="copyEmail(event, ${l.id}, '${escapeHtml(l.email || '')}')">Copy & Track</button>
-             </div>
+          <div class="pipeline-bar" style="margin-top: 12px;">
+            <div id="seg-1" class="pipe-seg ${e || t || r || isKunde ? 'active-blue' : ''}" onclick="setPipeline('e')">Entscheider</div>
+            <div id="seg-2" class="pipe-seg ${t || isKunde ? 'active-orange' : ''}" onclick="setPipeline('t')">Kontakt</div>
+            <div id="seg-3" class="pipe-seg ${r || isKunde ? 'active-red' : ''}" onclick="setPipeline('r')">Rechnung</div>
+            <div id="seg-4" class="pipe-seg ${isKunde ? 'active-success' : ''}" onclick="setPipeline('k')">Kunde</div>
           </div>
-          ${(() => {
-             let lastCall = null;
-             let lastEmail = null;
-             if (l.call_history && l.call_history.length > 0) {
-               for (let i = l.call_history.length - 1; i >= 0; i--) {
-                 const entry = l.call_history[i];
-                 if (typeof entry === 'number') {
-                   if (!lastCall) lastCall = { ts: entry };
-                   continue;
-                 }
-                 const type = entry.type || 'call';
-                 if (type === 'call' && !lastCall) lastCall = entry;
-                 if (type === 'email' && !lastEmail) lastEmail = entry;
-                 if (lastCall && lastEmail) break;
-               }
-             }
-             
-             let html = '<div style="display:flex; flex-direction:column; gap:4px; margin-bottom: 16px;">';
-             
-             if (lastCall && lastCall.ts > 0) {
-               const dateStr = new Date(lastCall.ts).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-               html += `<div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px;"><span>📞 Letzter Anruf:</span> <strong style="color:var(--text-main); font-weight:600;">${dateStr} Uhr</strong></div>`;
-             } else {
-               html += `<div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px;"><span>📞 Letzter Anruf:</span> <span style="font-style:italic; color:var(--text-muted);">Keine Daten</span></div>`;
-             }
-
-             if (lastEmail && lastEmail.ts > 0) {
-               const dateStr = new Date(lastEmail.ts).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-               html += `<div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px;"><span>✉️ Letzte E-Mail:</span> <strong style="color:var(--text-main); font-weight:600;">${dateStr} Uhr</strong></div>`;
-             } else {
-               html += `<div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px;"><span>✉️ Letzte E-Mail:</span> <span style="font-style:italic; color:var(--text-muted);">Keine Daten</span></div>`;
-             }
-             
-             html += '</div>';
-             return html;
-          })()}
         </div>
 
-        <div class="sidebar-body" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 0 24px;">
-          ${historyHtml}
-          <!-- Divider removed since history is gone -->
+        <!-- SCROLLABLE BODY -->
+        <div class="sidebar-body" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 24px; gap: 20px;">
+          
+          <!-- Kontakt-Informationen -->
+          <div class="apple-section">
+            <h4 class="apple-section-title">Kontakt</h4>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+               <div style="display:flex; justify-content:space-between; align-items:center;">
+                 <input type="text" id="sys-phone" style="font-family:ui-monospace, monospace; font-size:14px; padding:4px 0; background:transparent; border:none; border-bottom:1px solid transparent; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; margin-right: 16px;" value="${escapeHtml(l.phone || '')}" placeholder="Keine Nummer" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
+                 <button style="background:transparent; border:none; padding:4px 8px; font-size:11px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 6px;" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')">Copy</button>
+               </div>
+               <div style="border-bottom: 1px solid var(--color-border-base, #2c2c2e); margin: 4px 0;"></div>
+               <div style="display:flex; justify-content:space-between; align-items:center;">
+                 <input type="text" id="sys-email" style="font-family:ui-monospace, monospace; font-size:14px; padding:4px 0; background:transparent; border:none; border-bottom:1px solid transparent; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; margin-right: 16px;" value="${escapeHtml(l.email || '')}" placeholder="Keine E-Mail" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
+                 <button style="background:transparent; border:none; padding:4px 8px; font-size:11px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 6px;" onclick="copyEmail(event, ${l.id}, '${escapeHtml(l.email || '')}')">Copy</button>
+               </div>
+            </div>
+          </div>
 
+          <!-- Notizen -->
+          <div class="apple-section" style="display: flex; flex-direction: column;">
+            <h4 class="apple-section-title">Notizen</h4>
+            <textarea id="note-input" class="modern-input" placeholder="Notizen hier eintragen..." style="width: 100%; box-sizing: border-box; min-height: 120px; flex: 1; resize: vertical; margin-bottom: 0; background: transparent; border: none; padding: 8px 0; color: var(--color-text-primary, #f2f2f7); font-size: 14px;">${escapeHtml(l.notes || '')}</textarea>
+          </div>
+
+          <!-- Mission Briefing (Aufgaben) -->
+          <div class="apple-section">
+            <h4 class="apple-section-title">Aufgaben</h4>
+            <div id="tasks-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;"></div>
+            <form onsubmit="window.handleNewTaskSubmit(event)" style="margin:0; padding:0; width:100%;">
+              <input type="text" id="new-task-input-rem" style="width:100%; box-sizing:border-box; border:none; background:transparent; font-size:14px; color:var(--color-text-primary, #f2f2f7); padding:8px 0; outline:none;" placeholder="+ Neue Aufgabe..." enterkeyhint="done" onkeypress="handleNewTaskKeyPress(event)" />
+            </form>
+          </div>
+
+          <!-- Admin Zuweisung -->
           ${(() => {
             if (window.globalUser && window.globalUser.role === 'admin') {
                const users = window.globalUsersList || [];
@@ -1264,9 +1256,9 @@ if (typeof window.renderDashboard === 'function') {
                   optionsHtml += `<option value="${u.id}" ${l.claimed_by === u.id ? 'selected' : ''}>${escapeHtml(u.name || 'Unknown')} (${u.role})</option>`;
                });
                return `
-                 <div style="margin-bottom: 24px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 12px; border-radius: 8px;">
-                   <label style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase; margin-bottom:6px; display:block;">Admin: Zuweisung</label>
-                   <select id="admin-assign-select" class="modern-input-small" style="width:100%; padding: 8px; font-size: 13px;" onchange="window.saveAdminAssignment(${l.id}, this.value)">
+                 <div class="apple-section">
+                   <h4 class="apple-section-title">Zuweisung (Admin)</h4>
+                   <select id="admin-assign-select" class="modern-input-small" style="width:100%; padding: 8px 0; font-size: 14px; background: transparent; border: none;" onchange="window.saveAdminAssignment(${l.id}, this.value)">
                      ${optionsHtml}
                    </select>
                  </div>
@@ -1275,6 +1267,7 @@ if (typeof window.renderDashboard === 'function') {
             return '';
           })()}
 
+          <!-- Location & Opening Hours -->
           ${(() => {
             let openingHoursHtml = '';
             let ohArray = null;
@@ -1293,9 +1286,9 @@ if (typeof window.renderDashboard === 'function') {
               const todayIdx = (new Date().getDay() + 6) % 7;
               let todayStr = ohArray[todayIdx] || '';
               openingHoursHtml = `
-                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-                  <span style="font-size: 16px;">🕒</span>
-                  <div style="font-size: 12px; color: var(--text-main); font-weight: 500;">
+                <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 14px;">🕒</span>
+                  <div style="font-size: 12px; color: var(--color-text-primary, #f2f2f7); font-weight: 500;">
                     ${escapeHtml(todayStr)}
                   </div>
                 </div>
@@ -1303,16 +1296,27 @@ if (typeof window.renderDashboard === 'function') {
             } else if (ohArray && Array.isArray(ohArray)) {
               let ohStr = ohArray.map(day => escapeHtml(day)).join('<br>');
               openingHoursHtml = `
-                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-                  <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display:block;">Öffnungszeiten</label>
-                  <div style="font-size: 11px; color: var(--text-main); line-height: 1.5;">${ohStr}</div>
+                <div style="margin-top: 12px;">
+                  <label style="font-size: 11px; font-weight: 600; color: var(--color-text-secondary, #8e8e93); margin-bottom: 4px; display:block;">Öffnungszeiten</label>
+                  <div style="font-size: 11px; color: var(--color-text-primary, #f2f2f7); line-height: 1.5;">${ohStr}</div>
                 </div>
               `;
             }
             return openingHoursHtml;
           })()}
 
-          ${locationMatchingHtml}
+          <div class="apple-section">
+            <h4 class="apple-section-title">Standort</h4>
+            ${locListHtml}
+            ${openingHoursHtml}
+            <div id="loc-search-container" style="display:${window._forceLocationSearch ? 'block' : 'none'}; margin-top:12px;">
+              <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input type="text" id="loc-search-input" class="modern-input-small" style="font-size: 12px; padding: 8px; flex:1; background: rgba(0,0,0,0.2);" value="${escapeHtml(l.name)}" placeholder="Firma, Ort..." />
+                <button class="action-btn-small" style="background: var(--color-brand-accent, #0a84ff); color: white; border-color: var(--color-brand-accent, #0a84ff); font-weight: 600; padding: 0 12px;" onclick="searchLeadLocation(${l.id})">Suchen</button>
+              </div>
+              <div id="loc-search-results" style="max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+          </div>
 
           ${(function(){
             let assignmentHtml = '';
@@ -1321,9 +1325,9 @@ if (typeof window.renderDashboard === 'function') {
               const optsHtml = usersOpts.map(u => `<option value="${u.id}" ${l.claimed_by === u.id || (!l.claimed_by && u.id === 'unassigned') ? 'selected' : ''}>${escapeHtml(u.name)}</option>`).join('');
               
               assignmentHtml = `
-                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-                  <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display:block;">Lead Zuweisung</label>
-                  <select id="sys-claimed-by" class="modern-input-small" style="width: 100%; box-sizing: border-box; margin-bottom: 8px;" onchange="handleLeadAssignmentChange(this.value)">
+                <div class="apple-section">
+                  <h4 class="apple-section-title">Zuweisung</h4>
+                  <select id="sys-claimed-by" class="modern-input-small" style="width: 100%; box-sizing: border-box; background: transparent; border: none; padding: 8px 0;" onchange="handleLeadAssignmentChange(this.value)">
                     ${optsHtml}
                   </select>
                 </div>
@@ -1334,56 +1338,29 @@ if (typeof window.renderDashboard === 'function') {
             return assignmentHtml;
           })()}
 
-          <div class="actions">
-            <!-- PIPELINE -->
-            <input type="hidden" id="sys-e" value="${e}">
-            <input type="hidden" id="sys-t" value="${t}">
-            <input type="hidden" id="sys-r" value="${r}">
-            <input type="hidden" id="sys-k" value="${isKunde ? 1 : 0}">
-            
-            <input type="hidden" id="sys-web" value="${escapeHtml(l.website_url||'')}">
-            <input type="hidden" id="sys-placeid" value="${l.google_place_id||''}">
-            <input type="hidden" id="sys-lat" value="${l.lat||''}">
-            <input type="hidden" id="sys-lng" value="${l.lng||''}">
-            <input type="hidden" id="sys-city" value="${escapeHtml(l.maps_city||'')}">
+          <!-- Snooze and Advanced settings -->
+          ${snoozeHtml.replace('margin-top: 16px;', '').replace('label', 'h4 class="apple-section-title"').replace('<div class="snooze-grid"', '<div class="apple-section"><h4 class="apple-section-title">Follow-Up (Snooze)</h4><div class="snooze-grid"')}</div>
 
-            <div class="pipeline-bar">
-              <div id="seg-1" class="pipe-seg ${e || t || r || isKunde ? 'active-blue' : ''}" onclick="setPipeline('e')">Entscheider</div>
-              <div id="seg-2" class="pipe-seg ${t || isKunde ? 'active-orange' : ''}" onclick="setPipeline('t')">Kontakt</div>
-              <div id="seg-3" class="pipe-seg ${r || isKunde ? 'active-red' : ''}" onclick="setPipeline('r')">Rechnung</div>
-              <div id="seg-4" class="pipe-seg ${isKunde ? 'active-success' : ''}" onclick="setPipeline('k')">Kunde</div>
-            </div>
-
-            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 24px;">
-              <label style="font-size:12px; color:var(--text-muted); margin-bottom:8px; display:block; font-weight:600;">Kundengröße (RP-Punkte)</label>
-              <select id="m-size" class="modern-input-small" style="width: 100%; box-sizing: border-box;">
-                <option value="Tarifkunde" ${l.size === 'Tarifkunde' || !l.size ? 'selected' : ''}>Tarifkunde (Energie - 1 RP)</option>
-                <option value="Großkunde" ${l.size === 'Großkunde' ? 'selected' : ''}>Großkunde (RLM - 5 RP)</option>
-              </select>
-            </div>
-
-            <!-- The textarea is given flex:1 to stretch to the bottom -->
-            <textarea id="note-input" class="modern-input" placeholder="Notizen..." style="width: 100%; box-sizing: border-box; min-height: 120px; flex: 1; margin-bottom:24px; resize: none;">${escapeHtml(l.notes || '')}</textarea>
-            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 24px;">
-              <label style="font-size:12px; color:var(--text-muted); margin-bottom:12px; display:block; font-weight:600;">Mission Briefing</label>
-              <div id="tasks-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;"></div>
-              <form onsubmit="window.handleNewTaskSubmit(event)" style="margin:0; padding:0; width:100%;">
-                <input type="text" id="new-task-input-rem" style="width:100%; box-sizing:border-box; border:none; background:transparent; font-size:14px; color:var(--text-main); padding:8px 12px; outline:none;" placeholder="+ Neue Hauptaufgabe..." enterkeyhint="done" onkeypress="handleNewTaskKeyPress(event)" />
-              </form>
-            </div>
-            
-            ${snoozeHtml}
-            ${calendarHtml}
-            
-            <div style="display: flex; justify-content: center; gap: 24px; margin-top: 16px; margin-bottom: 16px;">
-              <button class="action-btn-small" style="border:none; color:var(--text-muted); background:transparent; font-size: 11px; padding: 4px; cursor:pointer;" onclick="markLeadUninteresting(${l.id})">Uninteressant</button>
-              <button class="action-btn-small" style="border:none; color:var(--text-muted); background:transparent; font-size: 11px; padding: 4px; cursor:pointer;" onclick="deleteLead(${l.id})">Löschen</button>
-            </div>
+          <div style="display: flex; justify-content: center; gap: 24px; margin-top: 8px; margin-bottom: 24px;">
+            <button class="action-btn-small" style="border:none; color:var(--color-text-secondary, #8e8e93); background:transparent; font-size: 12px; padding: 4px; cursor:pointer; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" onclick="markLeadUninteresting(${l.id})">Uninteressant</button>
+            <button class="action-btn-small" style="border:none; color:var(--color-text-secondary, #8e8e93); background:transparent; font-size: 12px; padding: 4px; cursor:pointer; transition: color 0.2s;" onmouseover="this.style.color='#ff453a'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" onclick="deleteLead(${l.id})">Löschen</button>
           </div>
+
+          <!-- Hidden System Fields -->
+          <input type="hidden" id="sys-e" value="${e}">
+          <input type="hidden" id="sys-t" value="${t}">
+          <input type="hidden" id="sys-r" value="${r}">
+          <input type="hidden" id="sys-k" value="${isKunde ? 1 : 0}">
+          <input type="hidden" id="sys-web" value="${escapeHtml(l.website_url||'')}">
+          <input type="hidden" id="sys-placeid" value="${l.google_place_id||''}">
+          <input type="hidden" id="sys-lat" value="${l.lat||''}">
+          <input type="hidden" id="sys-lng" value="${l.lng||''}">
+          <input type="hidden" id="sys-city" value="${escapeHtml(l.maps_city||'')}">
+
         </div>
         
-        <div class="sidebar-footer" style="padding: 16px 24px max(24px, env(safe-area-inset-bottom)) 24px; flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg-sidebar);">
-          <button class="action-btn" id="main-save-btn" style="width:100%; padding: 14px; font-size:14px; font-weight:600; background:var(--text-main); color:var(--bg-sidebar); border:none;" onclick="saveLeadMain(${l.id}, true)">Speichern</button>
+        <div class="sidebar-footer" style="padding: 16px 24px max(24px, env(safe-area-inset-bottom)) 24px; flex-shrink: 0; border-top: 1px solid var(--color-border-base, #2c2c2e); background: var(--color-bg-panel, #0d0d0f); z-index: 10;">
+          <button class="action-btn success-bold" id="main-save-btn" style="width:100%; padding: 14px; font-size:15px; font-weight:600; border-radius: var(--radius-lg, 12px);" onclick="saveLeadMain(${l.id}, true)">Speichern</button>
         </div>
       </div>
     `;
