@@ -722,6 +722,7 @@ if (typeof window.renderDashboard === 'function') {
            if (callHtml || emailHtml) {
              activityLog = `<div style="margin-top: 6px; display: flex; flex-direction: column; gap: 2px;">${callHtml}${emailHtml}</div>`;
            }
+         }
         }
         
         if (window.store.state.currentTab === 'cold') {
