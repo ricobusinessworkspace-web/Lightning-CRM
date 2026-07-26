@@ -2052,11 +2052,20 @@ if (typeof window.renderDashboard === 'function') {
     container.style.flexDirection = 'column';
     container.style.gap = '32px';
     
-    container.innerHTML = '<div class="empty-state" style="width: 100%;">Lade Metriken...</div>';
-    
     try {
-      const stats = await window.api.getAgentStats();
       const currentUser = await window.api.getCurrentUser();
+      
+      if (currentUser.role !== 'developer') {
+        container.innerHTML = `
+          <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #000; border-radius: var(--radius-lg, 12px); min-height: 400px; width: 100%;">
+            <h1 style="color: #fff; font-size: 24px; font-weight: 700; letter-spacing: 1px;">COMING SOON</h1>
+          </div>
+        `;
+        return;
+      }
+      
+      container.innerHTML = '<div class="empty-state" style="width: 100%;">Lade Metriken...</div>';
+      const stats = await window.api.getAgentStats();
       
       if (!stats || stats.length === 0) {
         container.innerHTML = '<div class="empty-state" style="width: 100%;">Noch keine Metriken verfügbar.</div>';
