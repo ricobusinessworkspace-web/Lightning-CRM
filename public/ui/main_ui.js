@@ -482,7 +482,7 @@ window.setPipeline = async (type) => {
               <input type="date" value="${t.deadline || ''}" title="Deadline" 
                 onchange="setTaskDeadline(${t.id}, this.value)"
                 style="width:24px; height:24px; opacity:0; cursor:pointer; position:absolute; right:0; z-index:2;">
-              <span class="task-deadline-trigger" title="Deadline setzen">Termin</span>
+              <span class="task-deadline-trigger" title="Deadline setzen">Deadline</span>
             </div>
             <button onclick="deleteTask(${t.id})" class="task-delete-btn" style="margin-top:1px;">✕</button>
           </div>
@@ -515,7 +515,13 @@ window.setPipeline = async (type) => {
   window.setTaskDeadline = (id, dateStr) => {
     if (!window.currentTasks) return;
     const t = window.currentTasks.find(x => x.id === id);
-    if (t) { t.deadline = dateStr; renderTasksList(); }
+    if (t) { 
+      t.deadline = dateStr; 
+      renderTasksList(); 
+      if (window.store && window.store.state && window.store.state.currentSelectedLeadId) {
+        window.saveLeadMain(window.store.state.currentSelectedLeadId, true);
+      }
+    }
   };
 
   window.handleNewTaskKeyPress = (e) => {
