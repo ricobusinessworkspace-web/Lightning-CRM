@@ -124,6 +124,12 @@ window.addEventListener('online', () => {
     document.getElementById('login-modal').style.display = 'none';
     const accInfo = document.getElementById('account-info');
     const displayRole = (globalUser.role === 'minion' || globalUser.role === 'agent') ? 'Agent' : globalUser.role;
+    
+    const profileNameInput = document.getElementById('profile-name-input');
+    const profileEmailInput = document.getElementById('profile-email-input');
+    if (profileNameInput) profileNameInput.value = globalUser.name || '';
+    if (profileEmailInput) profileEmailInput.value = globalUser.email || '';
+    
     if (accInfo) accInfo.innerText = `Eingeloggt als ${globalUser.name || globalUser.email || 'Unknown'} (${displayRole})`;
     
     const headerInitial = document.getElementById('header-profile-initial');
@@ -158,6 +164,13 @@ window.addEventListener('online', () => {
         
         const accInfo = document.getElementById('account-info');
         const displayRole = (globalUser.role === 'minion' || globalUser.role === 'agent') ? 'Agent' : globalUser.role;
+        
+        // Ensure inputs are pre-filled in index.html profile modal
+        const profileNameInput = document.getElementById('profile-name-input');
+        const profileEmailInput = document.getElementById('profile-email-input');
+        if (profileNameInput) profileNameInput.value = globalUser.name || '';
+        if (profileEmailInput) profileEmailInput.value = globalUser.email || '';
+        
         if (accInfo) accInfo.innerText = `Eingeloggt als ${globalUser.name || globalUser.email || 'Unknown'} (${displayRole})`;
         
         const headerInitial = document.getElementById('header-profile-initial');
@@ -374,6 +387,9 @@ window.addEventListener('online', () => {
 
   window.saveProfile = async () => {
     const newName = document.getElementById('profile-name-input').value.trim();
+    const newEmailInput = document.getElementById('profile-email-input');
+    const newEmail = newEmailInput ? newEmailInput.value.trim() : '';
+    
     if (!newName) return;
     
     const btn = document.getElementById('profile-save-btn');
@@ -381,6 +397,11 @@ window.addEventListener('online', () => {
     
     try {
       globalUser = await window.api.updateProfile(newName);
+      
+      if (newEmail && newEmail !== globalUser.email) {
+        globalUser = await window.api.updateEmail(newEmail);
+      }
+      
       window.globalUser = globalUser;
       localStorage.setItem('lightning_user_name', globalUser.name);
       window.globalUsersList = await window.api.getUsers(); // refresh list
