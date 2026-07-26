@@ -381,7 +381,8 @@ const escapeHtml = (unsafe) => {
     }
     
     const hiddenTabs = ['scout', 'projects', 'dashboard'];
-    document.getElementById('qa-container').style.display = hiddenTabs.includes(tab) ? 'none' : 'flex';
+    const qaContainer = document.getElementById('qa-container');
+    if (qaContainer) qaContainer.style.display = hiddenTabs.includes(tab) ? 'none' : 'flex';
     document.getElementById('filters-container').style.display = hiddenTabs.includes(tab) ? 'none' : 'flex';
     
     if (typeof window.renderEmptySidebar === 'function') {
