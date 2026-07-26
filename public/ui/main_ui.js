@@ -388,7 +388,7 @@ window.setPipeline = async (type) => {
             saveBtn.classList.remove('btn-success-flash');
             saveBtn.textContent = 'Speichern';
           }
-        }, 1200);
+        }, 2000);
         if (window.openLeadDirectly) window.openLeadDirectly(id);
         else if (window.openLead) window.openLead(id);
       }
