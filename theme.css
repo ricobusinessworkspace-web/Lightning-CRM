@@ -9,21 +9,21 @@
 :root {
 
   /* ── 1. PRIMITIVES (Raw Hex Colors — Do not use directly in components) ── */
-  --primitive-black:        #000000;
-  --primitive-black-soft:   #0a0a0c;
-  --primitive-gray-900:     #141416;
-  --primitive-gray-800:     #1c1c1e;
-  --primitive-gray-700:     #222225;
-  --primitive-gray-600:     #3a3a3e;
-  --primitive-gray-400:     #86868b;
-  --primitive-gray-100:     #f5f5f7;
-
-  --primitive-blue-400:     #0a84ff;
-  --primitive-blue-600:     #0066cc;
-  --primitive-green-400:    #30d158;
-  --primitive-orange-400:   #ff9f0a;
-  --primitive-red-400:      #ff453a;
-  --primitive-red-500:      #ff3b30;
+    --primitive-black: #000000;
+    --primitive-black-soft: #0d0d0f;
+    --primitive-gray-900: #161618;
+    --primitive-gray-800: #1e1e20;
+    --primitive-gray-700: #2c2c2e;
+    --primitive-gray-600: #48484a;
+    --primitive-gray-400: #8e8e93;
+    --primitive-gray-100: #f2f2f7;
+    
+    --primitive-blue-400: #0a84ff;
+    --primitive-blue-600: #007AFF;
+    --primitive-green-400: #30d158;
+    --primitive-orange-400: #ff9f0a;
+    --primitive-red-400: #ff453a;
+    --primitive-red-500: #ff3b30;
 
 
   /* ── 2. GLOBAL SEMANTICS (Used across Jarvis OS, Tracker & CRM) ──────── */
@@ -113,14 +113,25 @@
 
 
   /* ── SHADOWS & TRANSITIONS ────────────────────────────────────────────── */
-  --shadow-sm:              0 2px 8px rgba(0, 0, 0, 0.50);
-  --shadow-md:              0 8px 24px rgba(0, 0, 0, 0.60);
-  --shadow-glow-success:    0 0 10px rgba(48, 209, 88, 0.50);
-  --shadow-glow-brand:      0 0 20px rgba(10, 132, 255, 0.20);
+    /* Blur */
+    --blur-base: blur(20px);
+    --blur-heavy: blur(40px);
 
-  --transition-fast:        0.15s ease;
-  --transition-base:        0.20s ease;
-  --transition-bounce:      0.40s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    /* Refined shadows */
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.15);
+    --shadow-card-hover: 0 2px 8px rgba(0,0,0,0.4), 0 8px 24px rgba(0,0,0,0.2);
+    --shadow-modal: 0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
+    
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.4);
+    --shadow-md: 0 8px 24px rgba(0,0,0,0.4);
+    --shadow-glow-success: 0 0 16px rgba(48, 209, 88, 0.15);
+    --shadow-glow-brand: 0 0 16px rgba(0, 102, 204, 0.2);
+
+    /* Transitions */
+    --transition-fast: 0.15s ease;
+    --transition-base: 0.2s ease;
+    --transition-slow: 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+    --transition-bounce: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 
   /* ── Z-INDEX SCALE ──────────────────────────────────────────────────────── */
   --z-dropdown:   100;
