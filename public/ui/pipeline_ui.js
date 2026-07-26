@@ -634,8 +634,60 @@ if (typeof window.renderDashboard === 'function') {
         // F6 removed: no call_status badge on lead cards
         let callStatusBadge = '';
 
-        let activityLog = '';
-        if (l.call_history && l.call_history.length > 0) {
+         let activityLog = '';
+         
+         if (window.store.state.currentTab === 'cold') {
+            // STRICT 3 ROWS FOR KALTAKQUISE
+            
+            // 1. Call Data
+            let lastCall = null;
+            if (l.call_history && l.call_history.length > 0) {
+              for (let i = l.call_history.length - 1; i >= 0; i--) {
+                const entry = l.call_history[i];
+                if (typeof entry === 'number') {
+                  if (!lastCall) lastCall = { ts: entry, by_user_name: 'Unbekannt' };
+                  continue;
+                }
+                const type = entry.type || 'call';
+                if (type === 'call' && !lastCall) { lastCall = entry; break; }
+              }
+            }
+            let callHtml = '<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px;">📞 Kein Anruf getrackt</div>';
+            if (lastCall && (lastCall.by_user_name || typeof lastCall.ts === 'number')) {
+              const uname = lastCall.by_user_name || 'Unbekannt';
+              const dateStr = new Date(lastCall.ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+              callHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📞 Anruf: ${uname} (${dateStr})</div>`;
+            }
+            
+            // 2. Location Data
+            let cityHtml = '<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px;">📍 Keine Adresse getrackt</div>';
+            const city = l.maps_city || (l.locations && l.locations.length > 0 && l.locations[0].maps_city) || '';
+            if (city) {
+              cityHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📍 ${city}</div>`;
+            }
+            
+            // 3. Opening Hours Data
+            let ohHtml = '<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px;">🕒 Keine Öffnungszeiten</div>';
+            let ohRaw = '';
+            if (l.opening_hours) {
+              try {
+                const parsed = JSON.parse(l.opening_hours);
+                if (parsed.weekdayDescriptions) ohRaw = parsed.weekdayDescriptions[0];
+                else if (Array.isArray(parsed) && parsed.length > 0) ohRaw = parsed[0];
+              } catch(e) {}
+            } 
+            if (!ohRaw && l.locations && l.locations.length > 0 && l.locations[0].opening_hours) {
+              ohRaw = Array.isArray(l.locations[0].opening_hours) ? l.locations[0].opening_hours[0] : '';
+            }
+            if (ohRaw) {
+              const shortOh = ohRaw.split(':').slice(1).join(':').trim() || ohRaw;
+              ohHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">🕒 ${shortOh}</div>`;
+            }
+            
+            activityLog = `<div style="margin-top: 2px; display: flex; flex-direction: column; gap: 3px;">${callHtml}${cityHtml}${ohHtml}</div>`;
+            
+         } else {
+           if (l.call_history && l.call_history.length > 0) {
            let lastCall = null;
            let lastEmail = null;
            
@@ -727,7 +779,7 @@ if (typeof window.renderDashboard === 'function') {
             </div>
           </div>
           
-          <div class="lead-name truncate-1" style="margin-bottom: 12px; font-weight: 600; color: var(--color-text-primary, #f2f2f7); padding-right: 20px; width: 100%;">
+          <div class="lead-name truncate-2" style="margin-bottom: 12px; font-weight: 600; color: var(--color-text-primary, #f2f2f7); padding-right: 20px; width: 100%;">
             <span>${l.name}</span>
           </div>
           
