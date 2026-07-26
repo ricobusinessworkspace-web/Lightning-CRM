@@ -1054,12 +1054,13 @@ if (typeof window.renderDashboard === 'function') {
                 </div>
                 ${avatarHtml}
               </div>
-              <div style="display:flex; align-items:flex-start; gap: 12px; flex: 1;">
+              <div style="display:flex; align-items:flex-start; gap: 12px;">
                 ${appleCheckbox(t.done, `toggleTaskFast(${lead.id}, ${t.id}, ${!t.done})`)}
                 <div style="flex:1; font-size:15px; font-weight:500; color:var(--color-text-primary, #f2f2f7); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}">${escapeHtml(t.text)}</div>
                 ${deadlineBadge}
               </div>
               ${subtasksHtml}
+              <div style="flex: 1;"></div>
             </div>
           `;
         });
