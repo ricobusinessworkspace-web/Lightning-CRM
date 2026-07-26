@@ -132,6 +132,11 @@ window.addEventListener('online', () => {
     
     if (accInfo) accInfo.innerText = `Eingeloggt als ${globalUser.name || globalUser.email || 'Unknown'} (${displayRole})`;
     
+    const settingsGearBtn = document.getElementById('settings-gear-btn');
+    if (settingsGearBtn && globalUser.role === 'developer') {
+      settingsGearBtn.style.display = 'block';
+    }
+    
     const headerInitial = document.getElementById('header-profile-initial');
     if (headerInitial) {
        const dispName = globalUser.name || globalUser.email || '?';
@@ -172,6 +177,11 @@ window.addEventListener('online', () => {
         if (profileEmailInput) profileEmailInput.value = globalUser.email || '';
         
         if (accInfo) accInfo.innerText = `Eingeloggt als ${globalUser.name || globalUser.email || 'Unknown'} (${displayRole})`;
+        
+        const settingsGearBtn = document.getElementById('settings-gear-btn');
+        if (settingsGearBtn && globalUser.role === 'developer') {
+          settingsGearBtn.style.display = 'block';
+        }
         
         const headerInitial = document.getElementById('header-profile-initial');
         if (headerInitial) {
