@@ -689,20 +689,28 @@ if (typeof window.renderDashboard === 'function') {
         let isStarredClass = l.starred ? 'is-starred' : '';
 
         return `
-        <div class="lead-card ${window.store.state.currentSelectedLeadId === l.id ? 'active-lead-card' : ''} ${isStarredClass}" style="${opacityStyle} ${bulkStyle} position: relative;" onclick="handleLeadClick(${l.id})" id="lead-card-${l.id}">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+        <div class="lead-card ${window.store.state.currentSelectedLeadId === l.id ? 'active-lead-card' : ''} ${isStarredClass}" style="${opacityStyle} ${bulkStyle}" onclick="handleLeadClick(${l.id})" id="lead-card-${l.id}">
+          
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
             <div class="lead-prio ${titleColor}" style="margin-bottom:0;">${milestone}</div>
             <div style="display:flex; align-items:center; gap:6px;">
               ${starHtml}
             </div>
           </div>
-          <div class="lead-name truncate-1" style="margin-bottom:0; padding-right: 24px; width: 100%;">
+          
+          <div class="lead-name truncate-1" style="margin-bottom: 12px; font-weight: 600; color: var(--color-text-primary, #f2f2f7); padding-right: 20px; width: 100%;">
             <span>${l.name}</span>
           </div>
-          ${activityLog}
-          ${snoozeBadge}
+          
+          <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+            <div style="flex: 1;">
+              ${activityLog}
+              ${snoozeBadge}
+            </div>
+            ${avatarHtml}
+          </div>
+          
           ${cboxHtml}
-          ${avatarHtml}
         </div>
         `;
     };
@@ -922,9 +930,9 @@ if (typeof window.renderDashboard === 'function') {
       const now = new Date();
       now.setHours(0,0,0,0);
 
-      const checkSvg = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+      const checkSvg = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
       const appleCheckbox = (done, onclickParams) => `
-        <div onclick="${onclickParams}" style="width: 18px; height: 18px; border-radius: 50%; border: 1px solid ${done ? 'var(--success)' : 'rgba(255,255,255,0.3)'}; background: ${done ? 'var(--success)' : 'transparent'}; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: 0.2s; margin-top:2px;">
+        <div onclick="${onclickParams}" style="width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid ${done ? 'var(--color-brand-accent, #0a84ff)' : 'var(--color-border-base, #2c2c2e)'}; background: ${done ? 'var(--color-brand-accent, #0a84ff)' : 'transparent'}; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.2s;">
           ${done ? checkSvg : ''}
         </div>
       `;
@@ -949,14 +957,14 @@ if (typeof window.renderDashboard === 'function') {
         let subtasksHtml = '';
         const subs = t.subtasks || [];
         if (subs.length > 0) {
-          subtasksHtml = `<div style="margin-top: 12px; padding-left: 28px; display:flex; flex-direction:column; gap:0;">`;
+          subtasksHtml = `<div style="margin-top: 12px; padding-left: 34px; display:flex; flex-direction:column; gap:0;">`;
           subs.forEach((st, idx) => {
             let stStyle = st.done ? 'text-decoration: line-through; opacity: 0.45;' : '';
-            let borderBottom = idx < subs.length - 1 ? 'border-bottom: 1px solid rgba(255,255,255,0.05);' : '';
+            let borderBottom = idx < subs.length - 1 ? 'border-bottom: 1px solid var(--color-border-base, #2c2c2e);' : '';
             subtasksHtml += `
-              <div class="task-item" style="padding: 8px 0; ${borderBottom} display:flex; align-items:flex-start; gap:8px;">
+              <div class="task-item" style="padding: 10px 0; ${borderBottom} display:flex; align-items:flex-start; gap:12px;">
                 ${appleCheckbox(st.done, `toggleTaskFast(${lead.id}, ${t.id}, ${!st.done}, ${st.id})`)}
-                <div style="flex:1; font-size:12px; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:2px; ${stStyle}">${escapeHtml(st.text)}</div>
+                <div style="flex:1; font-size:13px; color:var(--color-text-primary, #f2f2f7); outline:none; transition:0.2s; line-height:1.4; padding-top:2px; ${stStyle}">${escapeHtml(st.text)}</div>
               </div>
             `;
           });
@@ -968,22 +976,22 @@ if (typeof window.renderDashboard === 'function') {
            const assignedUser = window.globalUsersList.find(u => u.id === lead.claimed_by);
            if (assignedUser && assignedUser.name) {
              const initial = assignedUser.name.charAt(0).toUpperCase();
-             avatarHtml = `<div style="width: 20px; height: 20px; border-radius: 50%; border: 1px solid #bf5af2; color: #bf5af2; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; background: transparent; flex-shrink: 0;" title="Zugewiesen an: ${assignedUser.name}">${initial}</div>`;
+             avatarHtml = `<div style="width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--color-border-base, #2c2c2e); color: var(--color-text-secondary, #8e8e93); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; background: var(--color-surface-hover, #1e1e20); flex-shrink: 0;" title="Zugewiesen an: ${assignedUser.name}">${initial}</div>`;
            }
         }
 
         html += `
-          <div class="task-item" style="flex-direction:column; align-items: stretch; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid var(--border); padding: 12px; position: relative;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
-              <div style="font-size: 11px; color: var(--accent); font-weight: 600; cursor: pointer; display:flex; align-items:center; gap: 4px;" onclick="openLead(${lead.id})">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          <div class="task-item" style="flex-direction:column; align-items: stretch; background: var(--color-surface-base, #161618); border-radius: var(--radius-lg, 12px); padding: 16px; position: relative; box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.3));">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border-base, #2c2c2e);">
+              <div style="font-size: 12px; color: var(--color-brand-accent, #0a84ff); font-weight: 600; cursor: pointer; display:flex; align-items:center; gap: 6px;" onclick="openLead(${lead.id})">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                 ${lead.starred ? '★ ' : ''}${escapeHtml(lead.name)}
               </div>
               ${avatarHtml}
             </div>
-            <div style="display:flex; align-items:flex-start; gap: 10px;">
+            <div style="display:flex; align-items:flex-start; gap: 12px;">
               ${appleCheckbox(t.done, `toggleTaskFast(${lead.id}, ${t.id}, ${!t.done})`)}
-              <div style="flex:1; font-size:14px; font-weight:600; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}">${escapeHtml(t.text)}</div>
+              <div style="flex:1; font-size:15px; font-weight:500; color:var(--color-text-primary, #f2f2f7); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}">${escapeHtml(t.text)}</div>
               ${deadlineBadge}
             </div>
             ${subtasksHtml}
