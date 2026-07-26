@@ -997,7 +997,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: var(--z-toast);
+  z-index: 9999;
   animation: modalFadeIn 0.2s ease-out;
 }
 .confirm-dialog {
@@ -1119,7 +1119,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   border-radius: 30px;
   font-size: 14px;
   font-weight: 600;
-  z-index: var(--z-toast);
+  z-index: 9999;
   box-shadow: 0 10px 30px rgba(0,0,0,0.6);
   pointer-events: none;
   backdrop-filter: blur(12px);
@@ -1382,7 +1382,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
     padding: 6px 16px;
     font-size: 13px;
     font-weight: 600;
-    z-index: var(--z-toast);
+    z-index: 9999;
     box-shadow: 0 4px 12px rgba(0,0,0,0.5);
     cursor: pointer;
     align-items: center;
