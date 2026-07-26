@@ -306,12 +306,15 @@ window.addEventListener('online', () => {
         const div = document.createElement('div');
         div.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:12px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px;';
         
+        const isBanned = u.daily_call_goal === -1;
         let selectHtml = `
-          <select class="modern-input-small" style="padding:4px 8px; font-size:12px; width:120px;" onchange="changeUserRole('${u.id}', this.value)" ${isMe ? 'disabled' : ''}>
+          <select class="modern-input-small" style="padding:4px 8px; font-size:12px; width:120px;" onchange="changeUserRole('${u.id}', this.value)" ${isMe || isBanned ? 'disabled' : ''}>
             <option value="agent" ${u.role === 'agent' ? 'selected' : ''}>Agent</option>
             <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
             <option value="developer" ${u.role === 'developer' ? 'selected' : ''}>Developer</option>
           </select>
+          ${!isMe && !isBanned ? `<button class="action-btn-small outline" style="border-color: rgba(255,69,58,0.5); color: #ff453a; padding: 4px 8px;" onclick="deactivateUser('${u.id}')">Sperren</button>` : ''}
+          ${isBanned ? `<span style="color: #ff453a; font-size: 12px; font-weight: 700; padding: 4px;">Gesperrt</span>` : ''}
         `;
         
         // Use a simple helper to escape HTML securely
@@ -413,11 +416,21 @@ window.addEventListener('online', () => {
       if (headerInitial) headerInitial.innerText = (globalUser.name || globalUser.email || '?').charAt(0).toUpperCase();
       
       document.getElementById('profile-modal').classList.add('hidden');
-    } catch(e) {
-      console.error(e);
-      alert('Fehler beim Speichern: ' + e.message);
+    } catch(err) {
+      console.error(err);
+      alert('Fehler: ' + err.message);
     } finally {
       btn.innerText = 'Profil speichern';
+    }
+  };
+
+  window.deactivateUser = async (userId) => {
+    if (!confirm('Diesen Nutzer wirklich sperren? Er kann sich danach nicht mehr einloggen.')) return;
+    try {
+      await window.api.deactivateUser(userId);
+      window.openUserManagement();
+    } catch(err) {
+      alert('Fehler beim Sperren: ' + err.message);
     }
   };
 

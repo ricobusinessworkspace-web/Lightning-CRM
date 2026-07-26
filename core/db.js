@@ -554,6 +554,10 @@ export const db = {
     // Fetch profile
     const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single();
     if (profile) {
+      if (profile.daily_call_goal === -1) {
+        await supabase.auth.signOut();
+        return null; // Blocked user
+      }
       currentUser = { id: session.user.id, email: session.user.email, name: profile.name, role: profile.role, daily_call_goal: profile.daily_call_goal || 100 };
     }
     return currentUser;
@@ -565,6 +569,10 @@ export const db = {
     
     // Fetch profile
     const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', data.session.user.id).single();
+    if (profile && profile.daily_call_goal === -1) {
+      await supabase.auth.signOut();
+      throw new Error('Dein Account wurde vom Administrator deaktiviert.');
+    }
     currentUser = { 
       id: data.session.user.id, 
       email: data.session.user.email, 
@@ -629,7 +637,7 @@ export const db = {
   },
 
   getUsers: async () => {
-    const { data, error } = await supabase.from('user_profiles').select('id, name, role');
+    const { data, error } = await supabase.from('user_profiles').select('id, name, role, daily_call_goal');
     if (error) throw new Error(error.message);
     return data || [];
   },
@@ -640,6 +648,22 @@ export const db = {
     }
     const { data, error } = await supabase.from('user_profiles')
       .update({ role: newRole })
+      .eq('id', userId)
+      .select();
+    
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) {
+      throw new Error("Fehler: Update durch Supabase RLS blockiert.");
+    }
+    return true;
+  },
+
+  deactivateUser: async (userId) => {
+    if (!currentUser || (currentUser.role !== 'developer' && currentUser.role !== 'admin')) {
+      throw new Error("Keine Berechtigung");
+    }
+    const { data, error } = await supabase.from('user_profiles')
+      .update({ daily_call_goal: -1 })
       .eq('id', userId)
       .select();
     

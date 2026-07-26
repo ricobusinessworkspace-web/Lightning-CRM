@@ -26,6 +26,7 @@ window.api = {
   getUsers: () => db.getUsers(),
   inviteUser: (email) => db.inviteUser(email),
   updateUserRole: (userId, newRole) => db.updateUserRole(userId, newRole),
+  deactivateUser: (userId) => db.deactivateUser(userId),
   makeMeDeveloper: () => db.makeMeDeveloper(),
   getAgentStats: () => db.getAgentStats(),
 

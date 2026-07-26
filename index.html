@@ -169,7 +169,7 @@
             Daten-Import
           </h3>
           <p style="margin: 0 0 16px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">Importiere Leads im CSV-Format direkt in deine Kaltakquise-Warteschlange.</p>
-          <button class="action-btn success-bold" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 600; font-size: 13px;" onclick="triggerCSVImport()">
+          <button class="action-btn-small outline" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; font-weight: 600; font-size: 12px; border-color: var(--border); color: var(--text-main);" onclick="triggerCSVImport()">
             CSV-Datei auswählen
           </button>
         </div>
@@ -181,7 +181,7 @@
           </h3>
           <p style="margin: 0 0 16px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">Pflege-Tools für das CRM: Vervollständigt alle Leads im Hintergrund (Telefonnummer, E-Mail, Öffnungszeiten, GPS) ohne bestehende Daten zu überschreiben.</p>
           <div style="display: flex; gap: 8px; flex-direction: column;">
-            <button id="btn-run-enrich" class="action-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 600; font-size: 13px; background: rgba(10,132,255,0.1); color: var(--accent); border: 1px solid var(--accent);" onclick="executeUniversalEnrichment()">
+            <button id="btn-run-enrich" class="action-btn-small outline" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; font-weight: 600; font-size: 12px; border-color: var(--border); color: var(--text-main);" onclick="executeUniversalEnrichment()">
               Data Enrichment (Alle fehlenden Daten laden)
             </button>
           </div>
@@ -206,7 +206,9 @@
             🔔 Sales Bell (Beta)
           </h3>
           <p style="margin: 0 0 12px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">Erhalte sofort eine Push-Benachrichtigung auf dein Gerät, wenn ein Deal gewonnen wurde.</p>
-          <button id="push-subscribe-btn" class="action-btn-small" style="width: 100%; background: var(--color-brand-accent, #0a84ff); color: #fff; font-weight: 600; padding: 10px; border-radius: 8px;" onclick="subscribeToSalesBell()">Push aktivieren</button>
+          <button id="push-subscribe-btn" class="action-btn-small outline" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; font-weight: 600; font-size: 12px; border-color: var(--border); color: var(--text-main);" onclick="subscribeToSalesBell()">
+            Push aktivieren
+          </button>
         </div>
         
       </div>
