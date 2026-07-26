@@ -998,73 +998,89 @@ if (typeof window.renderDashboard === 'function') {
       `;
 
       let html = `<div class="list-header" style="margin-bottom:24px;">Missionen (${allTasks.length} offene Aufgaben)</div>`;
-      html += `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:16px; align-items: stretch; max-width: 100%;">`;
+      const renderTaskGrid = (tasksList) => {
+        let gridHtml = `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:16px; align-items: stretch; max-width: 100%; margin-bottom: 32px;">`;
+        tasksList.forEach(item => {
+          const { lead, task: t } = item;
+          let textStyle = t.done ? 'text-decoration: line-through; opacity: 0.45;' : '';
+          
+          let deadlineBadge = '';
+          if (t.deadline && !t.done) {
+            const d = new Date(t.deadline + 'T00:00:00');
+            const diff = Math.floor((d - now) / (1000*60*60*24));
+            if (diff < 0)  deadlineBadge = `<span class="deadline-badge deadline-overdue">${Math.abs(diff)}d überfällig</span>`;
+            else if (diff === 0) deadlineBadge = `<span class="deadline-badge deadline-today">Heute</span>`;
+            else if (diff <= 3)  deadlineBadge = `<span class="deadline-badge deadline-soon">in ${diff}d</span>`;
+            else deadlineBadge = `<span class="deadline-badge deadline-ok">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span>`;
+          }
 
-      allTasks.forEach(item => {
-        const { lead, task: t } = item;
-        let textStyle = t.done ? 'text-decoration: line-through; opacity: 0.45;' : '';
-        
-        let deadlineBadge = '';
-        if (t.deadline && !t.done) {
-          const d = new Date(t.deadline + 'T00:00:00');
-          const diff = Math.floor((d - now) / (1000*60*60*24));
-          if (diff < 0)  deadlineBadge = `<span class="deadline-badge deadline-overdue">${Math.abs(diff)}d überfällig</span>`;
-          else if (diff === 0) deadlineBadge = `<span class="deadline-badge deadline-today">Heute</span>`;
-          else if (diff <= 3)  deadlineBadge = `<span class="deadline-badge deadline-soon">in ${diff}d</span>`;
-          else deadlineBadge = `<span class="deadline-badge deadline-ok">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span>`;
-        }
+          let subtasksHtml = '';
+          const subs = t.subtasks || [];
+          if (subs.length > 0) {
+            subtasksHtml = `<div style="margin-top: 12px; padding-left: 34px; display:flex; flex-direction:column; gap:0;">`;
+            subs.forEach((st, idx) => {
+              let stStyle = st.done ? 'text-decoration: line-through; opacity: 0.45;' : '';
+              let borderBottom = idx < subs.length - 1 ? 'border-bottom: 1px solid var(--color-border-base, #2c2c2e);' : '';
+              subtasksHtml += `
+                <div class="task-item" style="padding: 10px 0; ${borderBottom} display:flex; align-items:flex-start; gap:12px;">
+                  ${appleCheckbox(st.done, `toggleTaskFast(${lead.id}, ${t.id}, ${!st.done}, ${st.id})`)}
+                  <div style="flex:1; font-size:13px; color:var(--color-text-primary, #f2f2f7); outline:none; transition:0.2s; line-height:1.4; padding-top:2px; ${stStyle}">${escapeHtml(st.text)}</div>
+                </div>
+              `;
+            });
+            subtasksHtml += `</div>`;
+          }
+          
+          let avatarHtml = '';
+          if (lead.claimed_by && window.globalUsersList) {
+             const assignedUser = window.globalUsersList.find(u => u.id === lead.claimed_by);
+             if (assignedUser && assignedUser.name) {
+               const initial = assignedUser.name.charAt(0).toUpperCase();
+               avatarHtml = `<div style="width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--color-border-base, #2c2c2e); color: var(--color-text-secondary, #8e8e93); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; background: var(--color-surface-hover, #1e1e20); flex-shrink: 0;" title="Zugewiesen an: ${assignedUser.name}">${initial}</div>`;
+             }
+          }
 
-        let subtasksHtml = '';
-        const subs = t.subtasks || [];
-        if (subs.length > 0) {
-          subtasksHtml = `<div style="margin-top: 12px; padding-left: 34px; display:flex; flex-direction:column; gap:0;">`;
-          subs.forEach((st, idx) => {
-            let stStyle = st.done ? 'text-decoration: line-through; opacity: 0.45;' : '';
-            let borderBottom = idx < subs.length - 1 ? 'border-bottom: 1px solid var(--color-border-base, #2c2c2e);' : '';
-            subtasksHtml += `
-              <div class="task-item" style="padding: 10px 0; ${borderBottom} display:flex; align-items:flex-start; gap:12px;">
-                ${appleCheckbox(st.done, `toggleTaskFast(${lead.id}, ${t.id}, ${!st.done}, ${st.id})`)}
-                <div style="flex:1; font-size:13px; color:var(--color-text-primary, #f2f2f7); outline:none; transition:0.2s; line-height:1.4; padding-top:2px; ${stStyle}">${escapeHtml(st.text)}</div>
+          let leadColor = 'var(--text-main)';
+          if (lead.status === 'Kunde') leadColor = 'var(--color-crm-customer, #30d158)';
+          else if (lead.rechnung) leadColor = 'var(--color-crm-invoice, #ff453a)';
+          else if (lead.termin) leadColor = 'var(--color-crm-contact, #ff9f0a)';
+          else if (lead.entscheider) leadColor = 'var(--color-crm-decision, #0a84ff)';
+
+          gridHtml += `
+            <div class="task-item" style="display:flex; flex-direction:column; align-items: stretch; background: var(--color-surface-base, #161618); border-radius: var(--radius-lg, 12px); padding: 16px; position: relative; box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.3)); height: 100%; box-sizing: border-box; cursor: pointer;" onclick="openLead(${lead.id})">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border-base, #2c2c2e); min-height: 42px;">
+                <div class="truncate-2" style="font-size: 13px; color: ${leadColor}; font-weight: 700; cursor: pointer; display:flex; align-items:flex-start; gap: 6px; line-height: 1.4; padding-right: 8px;">
+                  <span>${lead.starred ? '★ ' : ''}${escapeHtml(lead.name)}</span>
+                </div>
+                ${avatarHtml}
               </div>
-            `;
-          });
-          subtasksHtml += `</div>`;
-        }
-        
-        let avatarHtml = '';
-        if (lead.claimed_by && window.globalUsersList) {
-           const assignedUser = window.globalUsersList.find(u => u.id === lead.claimed_by);
-           if (assignedUser && assignedUser.name) {
-             const initial = assignedUser.name.charAt(0).toUpperCase();
-             avatarHtml = `<div style="width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--color-border-base, #2c2c2e); color: var(--color-text-secondary, #8e8e93); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; background: var(--color-surface-hover, #1e1e20); flex-shrink: 0;" title="Zugewiesen an: ${assignedUser.name}">${initial}</div>`;
-           }
-        }
-
-        let leadColor = 'var(--text-main)';
-        if (lead.status === 'Kunde') leadColor = 'var(--color-crm-customer, #30d158)';
-        else if (lead.rechnung) leadColor = 'var(--color-crm-invoice, #ff453a)';
-        else if (lead.termin) leadColor = 'var(--color-crm-contact, #ff9f0a)';
-        else if (lead.entscheider) leadColor = 'var(--color-crm-decision, #0a84ff)';
-
-        html += `
-          <div class="task-item" style="display:flex; flex-direction:column; align-items: stretch; background: var(--color-surface-base, #161618); border-radius: var(--radius-lg, 12px); padding: 16px; position: relative; box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.3)); height: 100%; box-sizing: border-box; cursor: pointer;" onclick="openLead(${lead.id})">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border-base, #2c2c2e); min-height: 42px;">
-              <div class="truncate-2" style="font-size: 13px; color: ${leadColor}; font-weight: 700; cursor: pointer; display:flex; align-items:flex-start; gap: 6px; line-height: 1.4; padding-right: 8px;">
-                <span>${lead.starred ? '★ ' : ''}${escapeHtml(lead.name)}</span>
+              <div style="display:flex; align-items:flex-start; gap: 12px; flex: 1;">
+                ${appleCheckbox(t.done, `toggleTaskFast(${lead.id}, ${t.id}, ${!t.done})`)}
+                <div style="flex:1; font-size:15px; font-weight:500; color:var(--color-text-primary, #f2f2f7); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}">${escapeHtml(t.text)}</div>
+                ${deadlineBadge}
               </div>
-              ${avatarHtml}
+              ${subtasksHtml}
             </div>
-            <div style="display:flex; align-items:flex-start; gap: 12px; flex: 1;">
-              ${appleCheckbox(t.done, `toggleTaskFast(${lead.id}, ${t.id}, ${!t.done})`)}
-              <div style="flex:1; font-size:15px; font-weight:500; color:var(--color-text-primary, #f2f2f7); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}">${escapeHtml(t.text)}</div>
-              ${deadlineBadge}
-            </div>
-            ${subtasksHtml}
-          </div>
-        `;
-      });
+          `;
+        });
+        gridHtml += `</div>`;
+        return gridHtml;
+      };
 
-      html += `</div>`;
+      const emailTasks = allTasks.filter(t => t.isEmail);
+      const regularTasks = allTasks.filter(t => !t.isEmail);
+
+      if (emailTasks.length > 0) {
+        html += `<div style="font-size:13px; font-weight:700; color:var(--color-text-secondary, #8e8e93); margin: 0 0 16px 0; text-transform:uppercase; letter-spacing:1px;">📧 E-Mail & Kommunikation</div>`;
+        html += renderTaskGrid(emailTasks);
+      }
+
+      if (regularTasks.length > 0) {
+        if (emailTasks.length > 0) {
+          html += `<div style="font-size:13px; font-weight:700; color:var(--color-text-secondary, #8e8e93); margin: 8px 0 16px 0; text-transform:uppercase; letter-spacing:1px;">📋 Hauptaufgaben</div>`;
+        }
+        html += renderTaskGrid(regularTasks);
+      }
       qList.innerHTML = html;
 
 

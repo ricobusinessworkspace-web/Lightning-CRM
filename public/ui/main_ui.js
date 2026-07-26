@@ -447,7 +447,7 @@ window.setPipeline = async (type) => {
     now.setHours(0,0,0,0);
     
     let html = '';
-    (window.currentTasks || []).forEach(t => {
+    const renderTaskItem = (t) => {
       let textStyle = t.done ? 'text-decoration: line-through; opacity: 0.45;' : '';
       
       // Deadline badge
@@ -488,7 +488,7 @@ window.setPipeline = async (type) => {
         subtasksHtml += `</div>`;
       }
       
-      html += `
+      return `
         <div class="task-item" style="flex-direction:column; align-items: stretch; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 16px; border: 1px solid var(--border); padding: 12px;">
           <div style="display:flex; align-items:flex-start; gap: 10px;">
             ${appleCheckbox(t.done, `toggleTask(${t.id}, ${!t.done})`)}
@@ -508,7 +508,22 @@ window.setPipeline = async (type) => {
           </div>
         </div>
       `;
-    });
+    };
+
+    const isEmailTask = (t) => t.text.toLowerCase().includes('email') || t.text.toLowerCase().includes('mail');
+    const emailTasks = (window.currentTasks || []).filter(isEmailTask);
+    const regularTasks = (window.currentTasks || []).filter(t => !isEmailTask(t));
+
+    if (emailTasks.length > 0) {
+      html += '<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: 0 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">📧 E-Mail & Kommunikation</div>';
+      emailTasks.forEach(t => { html += renderTaskItem(t); });
+    }
+    if (regularTasks.length > 0) {
+      if (emailTasks.length > 0) {
+         html += '<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: 24px 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">📋 Hauptaufgaben</div>';
+      }
+      regularTasks.forEach(t => { html += renderTaskItem(t); });
+    }
     
     if (!window.currentTasks || window.currentTasks.length === 0) {
       html = '<div style="font-size:12px; color:var(--text-muted); font-style:italic; padding:4px 0; margin-bottom: 12px;">Keine Aufgaben.</div>';
