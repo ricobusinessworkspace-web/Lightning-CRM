@@ -481,7 +481,7 @@ window.setPipeline = async (type) => {
             <div style="position:relative; display:flex; align-items:center;">
               <input type="date" value="${t.deadline || ''}" title="Deadline" 
                 onchange="setTaskDeadline(${t.id}, this.value)"
-                style="width:24px; height:24px; opacity:0; cursor:pointer; position:absolute; right:0; z-index:2;">
+                style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; z-index:2;">
               <span class="task-deadline-trigger" title="Deadline setzen">Deadline</span>
             </div>
             <button onclick="deleteTask(${t.id})" class="task-delete-btn" style="margin-top:1px;">✕</button>
