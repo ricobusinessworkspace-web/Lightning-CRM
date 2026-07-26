@@ -92,7 +92,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: 160px;
+  min-height: 110px;
   box-sizing: border-box;
   overflow: hidden;
 }
