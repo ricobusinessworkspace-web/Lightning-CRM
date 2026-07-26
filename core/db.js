@@ -283,6 +283,7 @@ export const db = {
       director_name:      lead.director_name       ?? '',
       phone_source:       lead.phone_source        ?? '',
       estimated_kwh:      lead.estimated_kwh       ?? 0,
+      opening_hours:      lead.opening_hours       ? (typeof lead.opening_hours === 'string' ? JSON.parse(lead.opening_hours) : lead.opening_hours) : null,
     };
 
     if (lead.last_contact_ms !== undefined) {

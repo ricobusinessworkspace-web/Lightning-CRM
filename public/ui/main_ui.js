@@ -338,7 +338,15 @@ window.setPipeline = async (type) => {
         closed_gas: lData ? lData.closed_gas : 0,
         zaehlernummern: zaehlernummern,
         abschlussdatum: abschlussdatum,
-        provi_umsatz: lData ? (lData.provi_umsatz || 0) : 0
+        provi_umsatz: lData ? (lData.provi_umsatz || 0) : 0,
+        opening_hours: lData ? lData.opening_hours : null,
+        email: lData ? lData.email : '',
+        impressum_phone: lData ? lData.impressum_phone : '',
+        legal_company_name: lData ? lData.legal_company_name : '',
+        director_name: lData ? lData.director_name : '',
+        phone_source: lData ? lData.phone_source : '',
+        estimated_kwh: lData ? (lData.estimated_kwh || 0) : 0,
+        locations: lData ? lData.locations : []
       });
 
       // SALES BELL TRIGGER
@@ -383,10 +391,11 @@ window.setPipeline = async (type) => {
           }
         }, 2000);
       } else {
-        if (window.openLeadDirectly) window.openLeadDirectly(id);
-        else if (window.openLead) window.openLead(id);
+        if (window.openLeadDirectly) await window.openLeadDirectly(id);
+        else if (window.openLead) await window.openLead(id);
         
-        setTimeout(() => {
+        // Use requestAnimationFrame to ensure the DOM has updated after the async function
+        requestAnimationFrame(() => {
           const newSaveBtn = document.getElementById('main-save-btn');
           if (newSaveBtn) {
             newSaveBtn.classList.add('btn-success-flash');
@@ -396,7 +405,7 @@ window.setPipeline = async (type) => {
               newSaveBtn.textContent = 'Speichern';
             }, 2000);
           }
-        }, 50);
+        });
       }
       
       return true;
