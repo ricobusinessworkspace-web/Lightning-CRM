@@ -84,6 +84,15 @@
         <input type="text" id="profile-name-input" class="modern-input-small" style="width: 100%; box-sizing: border-box;" placeholder="z.B. Max Mustermann" />
         <p style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">Dieser Name wird im Activity Log der Leads angezeigt.</p>
       </div>
+
+      <div style="margin-bottom: 24px; padding: 16px; border-radius: 12px; background: rgba(10, 132, 255, 0.05); border: 1px solid rgba(10, 132, 255, 0.2); text-align: left;">
+        <h4 style="margin: 0 0 6px 0; font-size: 13px; font-weight: 700; color: var(--color-brand-accent, #0a84ff); display: flex; align-items: center; gap: 8px;">
+          🔔 Sales Bell (Beta)
+        </h4>
+        <p style="margin: 0 0 12px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">Erhalte sofort eine Push-Benachrichtigung auf dein Gerät, wenn ein Deal gewonnen wurde.</p>
+        <button id="push-subscribe-btn" class="action-btn-small" style="width: 100%; background: var(--color-brand-accent, #0a84ff); color: #fff; font-weight: 600; padding: 10px; border-radius: 8px;" onclick="subscribeToSalesBell()">Push aktivieren</button>
+      </div>
+
       
       <button id="profile-save-btn" class="action-btn success-bold" style="width: 100%; display: flex; align-items: center; justify-content: center; padding: 12px; font-weight: 600; font-size: 14px; margin-bottom: 8px;" onclick="saveProfile()">
         Profil speichern

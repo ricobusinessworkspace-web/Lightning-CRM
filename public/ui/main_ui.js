@@ -308,7 +308,7 @@ window.setPipeline = async (type) => {
       const claimedByNode = document.getElementById('sys-claimed-by');
       const claimedByVal = claimedByNode ? claimedByNode.value : undefined;
 
-      // --- ACTUAL DATABASE SAVE ---
+      // ACTUAL DATABASE SAVE ---
       await window.api.saveLead({ 
         id, name: sName, phone: sPhone, website_url: sWeb, google_maps_url: '', 
         notes, entscheider, termin, rechnung, size, snooze_until_ms: snoozeMs, 
@@ -323,6 +323,21 @@ window.setPipeline = async (type) => {
         abschlussdatum: abschlussdatum,
         provi_umsatz: lData ? (lData.provi_umsatz || 0) : 0
       });
+
+      // SALES BELL TRIGGER
+      if (isKundeVal && lData && lData.status !== 'Kunde') {
+        try {
+          fetch('/api/push_sales_bell', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: '🔔 Deal gewonnen!',
+              message: `${window.currentUser?.name || window.currentUser?.email?.split('@')[0] || 'Ein Agent'} hat gerade "${sName}" abgeschlossen!`,
+              excludeUserId: window.currentUser?.id
+            })
+          }).catch(err => console.error('Sales bell fetch error', err));
+        } catch(e) { console.error('Sales Bell Error:', e); }
+      }
 
       // IMPORTANT: Only call loadUi() here — NOT loadMapData() directly.
       // Calling loadMapData() from here causes a Leaflet crash when the user is NOT on the
@@ -1044,4 +1059,74 @@ window.setPipeline = async (type) => {
         document.execCommand('selectAll', false, null);
       }
     }, 300);
+  };
+
+  // --- WEB PUSH LOGIC (SALES BELL) ---
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  window.subscribeToSalesBell = async () => {
+    const btn = document.getElementById('push-subscribe-btn');
+    if (btn) {
+      btn.textContent = 'Aktivieren...';
+      btn.disabled = true;
+    }
+
+    try {
+      if (!('serviceWorker' in navigator)) throw new Error('Service Worker not supported');
+      if (!('PushManager' in window)) throw new Error('Push Manager not supported');
+
+      const registration = await navigator.serviceWorker.ready;
+      if (!registration) throw new Error('Service Worker not ready');
+
+      // Request Permission
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        throw new Error('Benachrichtigungen blockiert');
+      }
+
+      // Hardcoded Public VAPID key
+      const vapidPublicKey = 'BHyEIPrHyhQCvVghKL1_mMGsoAU7mdprcWHxzMpXA8txelYBkjE0c4XLzDtwrOapXTbsCpaL9Zg3nI9Nh4YO4hI';
+      const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertedVapidKey
+      });
+
+      // Send to Backend
+      const res = await fetch('/api/push_subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscription: subscription,
+          userId: window.currentUser.id
+        })
+      });
+
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Fehler beim Speichern');
+
+      if (btn) {
+        btn.textContent = 'Aktiviert ✓';
+        btn.style.background = 'var(--success)';
+        btn.disabled = true;
+      }
+      showToast('Push-Benachrichtigungen aktiviert!');
+    } catch (err) {
+      console.error('Push error:', err);
+      if (btn) {
+        btn.textContent = 'Push aktivieren';
+        btn.disabled = false;
+      }
+      showToast(`Fehler: ${err.message}`, true);
+    }
   };
