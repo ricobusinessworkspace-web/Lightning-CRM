@@ -413,18 +413,27 @@ window.setPipeline = async (type) => {
         else deadlineBadge = `<span class="deadline-badge deadline-ok">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span>`;
       }
 
+      // Apple Checkbox SVG
+      const checkSvg = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+      const appleCheckbox = (done, onclickParams) => `
+        <div onclick="${onclickParams}" style="width: 18px; height: 18px; border-radius: 50%; border: 1px solid ${done ? 'var(--success)' : 'rgba(255,255,255,0.3)'}; background: ${done ? 'var(--success)' : 'transparent'}; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: 0.2s; margin-top:2px;">
+          ${done ? checkSvg : ''}
+        </div>
+      `;
+
       // Subtasks
       let subtasksHtml = '';
       const subs = t.subtasks || [];
       if (subs.length > 0) {
-        subtasksHtml = `<div style="margin-top: 6px; padding-left: 24px; display:flex; flex-direction:column; gap:4px;">`;
-        subs.forEach(st => {
+        subtasksHtml = `<div style="margin-top: 12px; padding-left: 28px; display:flex; flex-direction:column; gap:0;">`;
+        subs.forEach((st, idx) => {
           let stStyle = st.done ? 'text-decoration: line-through; opacity: 0.45;' : '';
+          let borderBottom = idx < subs.length - 1 ? 'border-bottom: 1px solid rgba(255,255,255,0.05);' : '';
           subtasksHtml += `
-            <div class="task-item" style="padding: 2px 0;">
-              <input type="checkbox" ${st.done ? 'checked' : ''} onchange="toggleTask(${t.id}, this.checked, ${st.id})" style="flex-shrink:0; cursor:pointer; accent-color:var(--success); transform:scale(1.0);" />
-              <div style="flex:1; font-size:12px; color:var(--text-main); padding-left: 6px; outline:none; transition:0.2s; ${stStyle}" contenteditable="${st.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateSubtaskText(${t.id}, ${st.id}, this.innerText)">${escapeHtml(st.text)}</div>
-              <button onclick="deleteSubtask(${t.id}, ${st.id})" class="task-delete-btn" style="font-size: 10px;">✕</button>
+            <div class="task-item" style="padding: 8px 0; ${borderBottom} display:flex; align-items:flex-start; gap:8px;">
+              ${appleCheckbox(st.done, `toggleTask(${t.id}, ${!st.done}, ${st.id})`)}
+              <div style="flex:1; font-size:12px; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:2px; ${stStyle}" contenteditable="${st.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateSubtaskText(${t.id}, ${st.id}, this.innerText)">${escapeHtml(st.text)}</div>
+              <button onclick="deleteSubtask(${t.id}, ${st.id})" class="task-delete-btn" style="font-size: 10px; margin-top:2px;">✕</button>
             </div>
           `;
         });
@@ -432,10 +441,10 @@ window.setPipeline = async (type) => {
       }
       
       html += `
-        <div class="task-item" style="flex-direction:column; align-items: stretch; border: 1px solid rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; margin-bottom: 6px; background: rgba(0,0,0,0.1);">
-          <div style="display:flex; align-items:center; gap: 8px;">
-            <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask(${t.id}, this.checked)" style="flex-shrink:0; cursor:pointer; accent-color:var(--success); transform:scale(1.2);" />
-            <div style="flex:1; font-size:13px; font-weight:600; color:var(--text-main); outline:none; transition:0.2s; ${textStyle}" contenteditable="${t.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateTaskText(${t.id}, this.innerText)">${escapeHtml(t.text)}</div>
+        <div class="task-item" style="flex-direction:column; align-items: stretch; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 16px; border: 1px solid var(--border); padding: 12px;">
+          <div style="display:flex; align-items:flex-start; gap: 10px;">
+            ${appleCheckbox(t.done, `toggleTask(${t.id}, ${!t.done})`)}
+            <div style="flex:1; font-size:14px; font-weight:600; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}" contenteditable="${t.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateTaskText(${t.id}, this.innerText)">${escapeHtml(t.text)}</div>
             ${deadlineBadge}
             <div style="position:relative; display:flex; align-items:center;">
               <input type="date" value="${t.deadline || ''}" title="Deadline" 
@@ -443,19 +452,18 @@ window.setPipeline = async (type) => {
                 style="width:24px; height:24px; opacity:0; cursor:pointer; position:absolute; right:0; z-index:2;">
               <span class="task-deadline-trigger" title="Deadline setzen">Termin</span>
             </div>
-            <button onclick="deleteTask(${t.id})" class="task-delete-btn">✕</button>
+            <button onclick="deleteTask(${t.id})" class="task-delete-btn" style="margin-top:1px;">✕</button>
           </div>
           ${subtasksHtml}
-          <div style="margin-top: 8px; padding-left: 24px; display: flex; align-items: center; gap: 6px;">
-            <input type="text" class="modern-input-small" placeholder="Subtask hinzufügen..." style="flex: 1; padding: 4px 8px; font-size: 11px; background: transparent; border: 1px dashed rgba(255,255,255,0.1);" onkeypress="if(event.key==='Enter'){handleAddSubtask(${t.id}, this.value); this.value='';}">
-            <button class="action-btn-small outline" style="padding: 4px 8px; font-size: 11px;" onclick="const inp = this.previousElementSibling; handleAddSubtask(${t.id}, inp.value); inp.value='';">Hinzufügen</button>
+          <div style="margin-top: 8px; padding-left: 28px; display: flex; align-items: center; border-top: ${subs.length > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none'}; padding-top: 8px;">
+            <input type="text" placeholder="+ Neue Teilaufgabe..." style="flex: 1; padding: 4px 0; font-size: 12px; background: transparent; border: none; color: var(--text-main); outline: none;" onkeypress="if(event.key==='Enter'){handleAddSubtask(${t.id}, this.value); this.value='';}">
           </div>
         </div>
       `;
     });
     
     if (!window.currentTasks || window.currentTasks.length === 0) {
-      html = '<div style="font-size:12px; color:var(--text-muted); font-style:italic; padding:4px 0;">Keine Aufgaben.</div>';
+      html = '<div style="font-size:12px; color:var(--text-muted); font-style:italic; padding:4px 0; margin-bottom: 12px;">Keine Aufgaben.</div>';
     }
     listDiv.innerHTML = html;
   };

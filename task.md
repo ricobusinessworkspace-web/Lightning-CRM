@@ -12,3 +12,4 @@
 # Phase 3: Gamification
 - [x] Implement the Gamification 'Mission System' UI in the Lead Sidebar/Modal
 - [x] Hierarchical Task System
+- [x] Visual Task UI Overhaul

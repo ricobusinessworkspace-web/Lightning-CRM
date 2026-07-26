@@ -1333,7 +1333,7 @@ if (typeof window.renderDashboard === 'function') {
               <label style="font-size:12px; color:var(--text-muted); margin-bottom:12px; display:block; font-weight:600;">Mission Briefing</label>
               <div id="tasks-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;"></div>
               <form onsubmit="window.handleNewTaskSubmit(event)" style="margin:0; padding:0; width:100%;">
-                <input type="text" id="new-task-input-rem" class="modern-input-small" style="width:100%; box-sizing:border-box; border:none; border-bottom:1px solid var(--border); border-radius:0; padding:8px 0; background:transparent;" placeholder="Aufgabe hinzufügen..." enterkeyhint="done" onkeypress="handleNewTaskKeyPress(event)" />
+                <input type="text" id="new-task-input-rem" style="width:100%; box-sizing:border-box; border:none; background:transparent; font-size:14px; color:var(--text-main); padding:8px 12px; outline:none;" placeholder="+ Neue Hauptaufgabe..." enterkeyhint="done" onkeypress="handleNewTaskKeyPress(event)" />
               </form>
             </div>
             
