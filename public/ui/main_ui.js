@@ -514,15 +514,17 @@ window.setPipeline = async (type) => {
     const emailTasks = (window.currentTasks || []).filter(isEmailTask);
     const regularTasks = (window.currentTasks || []).filter(t => !isEmailTask(t));
 
-    if (emailTasks.length > 0) {
-      html += '<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: 0 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">📧 E-Mail & Kommunikation</div>';
-      emailTasks.forEach(t => { html += renderTaskItem(t); });
-    }
     if (regularTasks.length > 0) {
-      if (emailTasks.length > 0) {
-         html += '<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: 24px 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">📋 Hauptaufgaben</div>';
-      }
+      html += '<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: 0 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">Hauptaufgaben</div>';
       regularTasks.forEach(t => { html += renderTaskItem(t); });
+    }
+    if (emailTasks.length > 0) {
+      if (regularTasks.length > 0) {
+         html += '<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: 24px 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">E-Mail & Kommunikation</div>';
+      } else {
+         html += '<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: 0 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">E-Mail & Kommunikation</div>';
+      }
+      emailTasks.forEach(t => { html += renderTaskItem(t); });
     }
     
     if (!window.currentTasks || window.currentTasks.length === 0) {
