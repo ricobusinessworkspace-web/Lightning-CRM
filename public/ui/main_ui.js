@@ -412,20 +412,44 @@ window.setPipeline = async (type) => {
         else if (diff <= 3)  deadlineBadge = `<span class="deadline-badge deadline-soon">in ${diff}d</span>`;
         else deadlineBadge = `<span class="deadline-badge deadline-ok">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span>`;
       }
+
+      // Subtasks
+      let subtasksHtml = '';
+      const subs = t.subtasks || [];
+      if (subs.length > 0) {
+        subtasksHtml = `<div style="margin-top: 6px; padding-left: 24px; display:flex; flex-direction:column; gap:4px;">`;
+        subs.forEach(st => {
+          let stStyle = st.done ? 'text-decoration: line-through; opacity: 0.45;' : '';
+          subtasksHtml += `
+            <div class="task-item" style="padding: 2px 0;">
+              <input type="checkbox" ${st.done ? 'checked' : ''} onchange="toggleTask(${t.id}, this.checked, ${st.id})" style="flex-shrink:0; cursor:pointer; accent-color:var(--success); transform:scale(1.0);" />
+              <div style="flex:1; font-size:12px; color:var(--text-main); padding-left: 6px; outline:none; transition:0.2s; ${stStyle}" contenteditable="${st.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateSubtaskText(${t.id}, ${st.id}, this.innerText)">${escapeHtml(st.text)}</div>
+              <button onclick="deleteSubtask(${t.id}, ${st.id})" class="task-delete-btn" style="font-size: 10px;">✕</button>
+            </div>
+          `;
+        });
+        subtasksHtml += `</div>`;
+      }
       
       html += `
-        <div class="task-item">
-          <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask(${t.id}, this.checked)" style="flex-shrink:0; margin-top:2px; cursor:pointer; accent-color:var(--success); transform:scale(1.2);" />
-          <span style="font-size:11px; color:var(--accent); font-weight:700; margin-left:4px; margin-right:4px;">[Side Quest]</span>
-          <div style="flex:1; font-size:13px; font-weight:500; color:var(--text-main); outline:none; border-bottom:1px solid transparent; transition:0.2s; padding:2px 4px; border-radius:4px; ${textStyle}" contenteditable="${t.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateTaskText(${t.id}, this.innerText)">${escapeHtml(t.text)}</div>
-          ${deadlineBadge}
-          <div style="position:relative; display:flex; align-items:center;">
-            <input type="date" value="${t.deadline || ''}" title="Deadline" 
-              onchange="setTaskDeadline(${t.id}, this.value)"
-              style="width:24px; height:24px; opacity:0; cursor:pointer; position:absolute; right:0; z-index:2;">
-            <span class="task-deadline-trigger" title="Deadline setzen">Termin</span>
+        <div class="task-item" style="flex-direction:column; align-items: stretch; border: 1px solid rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; margin-bottom: 6px; background: rgba(0,0,0,0.1);">
+          <div style="display:flex; align-items:center; gap: 8px;">
+            <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask(${t.id}, this.checked)" style="flex-shrink:0; cursor:pointer; accent-color:var(--success); transform:scale(1.2);" />
+            <div style="flex:1; font-size:13px; font-weight:600; color:var(--text-main); outline:none; transition:0.2s; ${textStyle}" contenteditable="${t.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateTaskText(${t.id}, this.innerText)">${escapeHtml(t.text)}</div>
+            ${deadlineBadge}
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="date" value="${t.deadline || ''}" title="Deadline" 
+                onchange="setTaskDeadline(${t.id}, this.value)"
+                style="width:24px; height:24px; opacity:0; cursor:pointer; position:absolute; right:0; z-index:2;">
+              <span class="task-deadline-trigger" title="Deadline setzen">Termin</span>
+            </div>
+            <button onclick="deleteTask(${t.id})" class="task-delete-btn">✕</button>
           </div>
-          <button onclick="deleteTask(${t.id})" class="task-delete-btn">✕</button>
+          ${subtasksHtml}
+          <div style="margin-top: 8px; padding-left: 24px; display: flex; align-items: center; gap: 6px;">
+            <input type="text" class="modern-input-small" placeholder="Subtask hinzufügen..." style="flex: 1; padding: 4px 8px; font-size: 11px; background: transparent; border: 1px dashed rgba(255,255,255,0.1);" onkeypress="if(event.key==='Enter'){handleAddSubtask(${t.id}, this.value); this.value='';}">
+            <button class="action-btn-small outline" style="padding: 4px 8px; font-size: 11px;" onclick="const inp = this.previousElementSibling; handleAddSubtask(${t.id}, inp.value); inp.value='';">Hinzufügen</button>
+          </div>
         </div>
       `;
     });
@@ -434,6 +458,18 @@ window.setPipeline = async (type) => {
       html = '<div style="font-size:12px; color:var(--text-muted); font-style:italic; padding:4px 0;">Keine Aufgaben.</div>';
     }
     listDiv.innerHTML = html;
+  };
+
+  window.handleAddSubtask = (parentTaskId, text) => {
+    const txt = text.trim();
+    if (!txt) return;
+    if (!window.currentTasks) return;
+    const pt = window.currentTasks.find(x => x.id === parentTaskId);
+    if (!pt) return;
+    if (!pt.subtasks) pt.subtasks = [];
+    pt.subtasks.push({ id: Date.now(), text: txt, done: false });
+    pt.done = false; // Add new subtask opens the main task
+    renderTasksList();
   };
 
   window.setTaskDeadline = (id, dateStr) => {
@@ -447,7 +483,7 @@ window.setPipeline = async (type) => {
       const txt = e.target.value.trim();
       if (!txt) return;
       if (!window.currentTasks) window.currentTasks = [];
-      window.currentTasks.push({ id: Date.now(), text: txt, done: false, deadline: '' });
+      window.currentTasks.push({ id: Date.now(), text: txt, done: false, deadline: '', subtasks: [] });
       e.target.value = '';
       renderTasksList();
     }
@@ -460,17 +496,38 @@ window.setPipeline = async (type) => {
     const txt = input.value.trim();
     if (!txt) return;
     if (!window.currentTasks) window.currentTasks = [];
-    window.currentTasks.push({ id: Date.now(), text: txt, done: false, deadline: '' });
+    window.currentTasks.push({ id: Date.now(), text: txt, done: false, deadline: '', subtasks: [] });
     input.value = '';
     renderTasksList();
   };
 
-  window.toggleTask = (id, done) => {
+  window.toggleTask = (parentId, done, subtaskId = null) => {
     if (!window.currentTasks) return;
-    const t = window.currentTasks.find(x => x.id === id);
-    if (t) t.done = done;
+    const pt = window.currentTasks.find(x => x.id === parentId);
+    if (!pt) return;
+
+    if (subtaskId) {
+      // Toggle a subtask
+      const st = pt.subtasks?.find(x => x.id === subtaskId);
+      if (st) st.done = done;
+      // If a subtask is checked, evaluate if all subtasks are checked
+      if (pt.subtasks && pt.subtasks.every(s => s.done)) {
+        pt.done = true;
+      } else {
+        pt.done = false;
+      }
+    } else {
+      // Toggle the main task
+      pt.done = done;
+      // If a Main Task is checked, check ALL its subtasks. If unchecked, uncheck all.
+      if (pt.subtasks) {
+        pt.subtasks.forEach(s => s.done = done);
+      }
+    }
+
     renderTasksList();
     
+    // Check if ALL tasks in the pipeline are done
     if (done && window.currentTasks.length > 0 && window.currentTasks.every(task => task.done)) {
       if (typeof window.triggerMissionPassed === 'function') {
         window.triggerMissionPassed();
@@ -481,31 +538,31 @@ window.setPipeline = async (type) => {
   window.triggerMissionPassed = () => {
     const overlay = document.createElement('div');
     overlay.className = 'mission-passed-overlay';
-    overlay.innerHTML = `<h1 class="mission-passed-text">MISSION PASSED</h1>`;
+    // Clean, Apple-minimalist success animation
+    overlay.innerHTML = `
+      <div style="background: rgba(48,209,88,0.15); border: 1px solid rgba(48,209,88,0.3); backdrop-filter: blur(8px); padding: 16px 24px; border-radius: 12px; display: flex; align-items: center; gap: 12px; box-shadow: 0 8px 32px rgba(48,209,88,0.2);">
+        <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--success); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px;">✓</div>
+        <div style="color: var(--success); font-weight: 600; font-size: 14px; letter-spacing: 0.5px;">Alle Aufgaben erledigt</div>
+      </div>
+    `;
     document.body.appendChild(overlay);
     
     overlay.style.cssText = `
-      position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(0,0,0,0.4); z-index: var(--z-splash);
-      pointer-events: none;
-    `;
-    const text = overlay.querySelector('.mission-passed-text');
-    text.style.cssText = `
-      color: #ffcc00; font-size: 5rem; font-weight: 900; font-family: Impact, sans-serif;
-      text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 4px 4px 8px rgba(0,0,0,0.8);
-      transform: scale(0.5); opacity: 0; transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s ease;
+      position: fixed; top: 40px; left: 50%; transform: translateX(-50%) translateY(-20px);
+      z-index: var(--z-splash); pointer-events: none; opacity: 0;
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease;
     `;
     
     requestAnimationFrame(() => {
-      text.style.transform = 'scale(1)';
-      text.style.opacity = '1';
+      overlay.style.transform = 'translateX(-50%) translateY(0)';
+      overlay.style.opacity = '1';
     });
     
     setTimeout(() => {
-      text.style.opacity = '0';
-      setTimeout(() => overlay.remove(), 500);
-    }, 2000);
+      overlay.style.opacity = '0';
+      overlay.style.transform = 'translateX(-50%) translateY(-20px)';
+      setTimeout(() => overlay.remove(), 400);
+    }, 2500);
   };
 
   window.deleteTask = (id) => {
@@ -514,10 +571,28 @@ window.setPipeline = async (type) => {
     renderTasksList();
   };
 
+  window.deleteSubtask = (parentId, subtaskId) => {
+    if (!window.currentTasks) return;
+    const pt = window.currentTasks.find(x => x.id === parentId);
+    if (pt && pt.subtasks) {
+      pt.subtasks = pt.subtasks.filter(x => x.id !== subtaskId);
+      renderTasksList();
+    }
+  };
+
   window.updateTaskText = (id, text) => {
     if (!window.currentTasks) return;
     const t = window.currentTasks.find(x => x.id === id);
     if (t) t.text = text.trim();
+  };
+
+  window.updateSubtaskText = (parentId, subtaskId, text) => {
+    if (!window.currentTasks) return;
+    const pt = window.currentTasks.find(x => x.id === parentId);
+    if (pt && pt.subtasks) {
+      const st = pt.subtasks.find(x => x.id === subtaskId);
+      if (st) st.text = text.trim();
+    }
   };
 
   // Legacy UI logic handlers removed in favor of simple Pipeline "Kunde" toggle

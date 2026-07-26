@@ -1312,7 +1312,6 @@ if (typeof window.renderDashboard === 'function') {
             <input type="hidden" id="sys-lng" value="${l.lng||''}">
             <input type="hidden" id="sys-city" value="${escapeHtml(l.maps_city||'')}">
 
-            <div style="font-size:12px; color:var(--text-main); margin-bottom:8px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Main Quest: Close Deal</div>
             <div class="pipeline-bar">
               <div id="seg-1" class="pipe-seg ${e || t || r || isKunde ? 'active-blue' : ''}" onclick="setPipeline('e')">Entscheider</div>
               <div id="seg-2" class="pipe-seg ${t || isKunde ? 'active-orange' : ''}" onclick="setPipeline('t')">Kontakt</div>
