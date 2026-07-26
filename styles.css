@@ -106,8 +106,21 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 .truncate-2 { 
   white-space: nowrap; 
   overflow: hidden; 
-  mask-image: linear-gradient(to right, black 80%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, black 80%, transparent 100%);
+  position: relative;
+  display: block;
+}
+.truncate-2::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 24px;
+  height: 100%;
+  background: linear-gradient(to right, transparent, var(--color-surface-base, #161618));
+}
+.active-lead-card .truncate-2::after,
+.lead-card:hover .truncate-2::after {
+  background: linear-gradient(to right, transparent, var(--color-surface-hover, #1e1e20));
 }
 .active-lead-card {
   background: var(--color-surface-hover, #1e1e20);
@@ -262,6 +275,8 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   border: 1px solid var(--color-border-base, #2c2c2e);
   border-radius: var(--radius-lg, 12px);
   padding: var(--space-4, 16px) var(--space-6, 24px);
+  width: 100%;
+  box-sizing: border-box;
 }
 .apple-section-title {
   font-size: var(--text-sm, 12px); font-weight: var(--weight-bold, 700); color: var(--color-text-secondary, #8e8e93);

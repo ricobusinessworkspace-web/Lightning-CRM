@@ -745,7 +745,7 @@ if (typeof window.renderDashboard === 'function') {
         return `
         <div class="lead-card ${window.store.state.currentSelectedLeadId === l.id ? 'active-lead-card' : ''} ${isStarredClass}" style="${opacityStyle} ${bulkStyle}" onclick="handleLeadClick(${l.id})" id="lead-card-${l.id}">
           
-          <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-start;">
+          <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-start; min-width: 0;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
               <div class="lead-prio ${titleColor}" style="margin-bottom:0;">${milestone}</div>
               <div style="display:flex; align-items:center; gap:6px;">
@@ -758,15 +758,13 @@ if (typeof window.renderDashboard === 'function') {
             </div>
           </div>
           
-          ${!isCustomerTab ? `
           <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto;">
-            <div style="flex: 1;">
+            <div style="flex: 1; min-width: 0;">
               ${activityLog}
               ${snoozeBadge}
             </div>
             ${avatarHtml}
           </div>
-          ` : ''}
           
           ${cboxHtml}
         </div>
@@ -1291,7 +1289,7 @@ if (typeof window.renderDashboard === 'function') {
         <!-- HEADER ROW: Unternehmen -->
         <div class="sidebar-header" style="padding: 24px 24px 16px 24px; flex-shrink: 0; background: var(--color-bg-panel, #0d0d0f); border-bottom: 1px solid var(--color-border-base, #2c2c2e); z-index: 10;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px;">
-             <div id="sys-name" class="focused-name truncate-1" contenteditable="true" style="outline:none; padding:4px 0; max-width:75%; border-bottom:1px solid transparent; transition:0.2s; font-size: 22px; font-weight: 800; color: var(--color-text-primary, #f2f2f7);" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">${escapeHtml(l.name)}</div>
+             <div id="sys-name" class="focused-name truncate-1" contenteditable="true" style="outline:none; padding:4px 0; max-width:90%; border-bottom:1px solid transparent; transition:0.2s; font-size: 22px; font-weight: 800; color: var(--color-text-primary, #f2f2f7);" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">${escapeHtml(l.name)}</div>
              <div style="display:flex; gap:12px; align-items: center;">
                <button id="sidebar-star-btn" data-starred="${l.starred ? 1 : 0}" style="background:transparent; border:none; font-size:22px; cursor:pointer; padding:0; color: ${l.starred ? '#ffcc00' : 'var(--color-text-secondary, #8e8e93)'}; transition: transform 0.2s;" onclick="toggleLeadStar(${l.id})" title="Priorisieren (Stern)">${l.starred ? '★' : '☆'}</button>
                <button style="background:transparent; border:none; font-size:18px; cursor:pointer; padding:0; color:var(--color-text-secondary, #8e8e93); transition: color 0.2s;" onclick="closeLeadSidebar()" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" title="Lead abwählen">✕</button>
