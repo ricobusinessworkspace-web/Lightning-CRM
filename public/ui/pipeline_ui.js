@@ -1193,7 +1193,7 @@ if (typeof window.renderDashboard === 'function') {
     const t = l.termin || 0;
     const r = l.rechnung || 0;
 
-    sidebar.innerHTML = `
+    sidebarEl.innerHTML = `
       <div class="focused-lead" style="display:flex; flex-direction:column; height:100%;">
         
         <!-- HEADER ROW: Unternehmen -->
