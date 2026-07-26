@@ -7,6 +7,16 @@ const escapeHtml = (unsafe) => {
        .replace(/'/g, "&#039;");
 };
 
+// Safe DOM helpers — prevent crashes when elements are removed
+const $ = (id) => document.getElementById(id);
+const $show = (id, d = 'flex') => { const el = $(id); if (el) el.style.display = d; };
+const $hide = (id) => { const el = $(id); if (el) el.style.display = 'none'; };
+
+window.handleLeadAssignmentChange = (val) => {
+  // Assignment wird beim Speichern des Leads gelesen (aus dem select#sys-claimed-by)
+};
+
+
   window.toggleBulkMode = () => {
       window.store.state.isBulkMode = !window.store.state.isBulkMode;
       window.store.state.selectedBulkIds.clear();
@@ -364,13 +374,14 @@ const escapeHtml = (unsafe) => {
     document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
     if(document.getElementById(`nav-${tab}`)) document.getElementById(`nav-${tab}`).classList.add('active');
     
-    document.getElementById('map-wrapper').style.display = tab === 'map' ? 'flex' : 'none';
-    if(document.getElementById('scout-wrapper')) document.getElementById('scout-wrapper').style.display = tab === 'scout' ? 'flex' : 'none';
-    if(document.getElementById('dashboard-wrapper')) document.getElementById('dashboard-wrapper').style.display = tab === 'dashboard' ? 'flex' : 'none';
-    if(document.getElementById('main-list-wrapper')) document.getElementById('main-list-wrapper').style.display = (tab !== 'map' && tab !== 'scout' && tab !== 'dashboard') ? 'flex' : 'none';
+    $show('map-wrapper', tab === 'map' ? 'flex' : 'none');
+    $show('scout-wrapper', tab === 'scout' ? 'flex' : 'none');
+    $show('dashboard-wrapper', tab === 'dashboard' ? 'flex' : 'none');
+    $show('main-list-wrapper', (tab !== 'map' && tab !== 'scout' && tab !== 'dashboard') ? 'flex' : 'none');
     
-    document.getElementById('main-sidebar').style.display = (tab === 'scout' || tab === 'dashboard') ? 'none' : 'flex';
-    document.querySelector('.main-content').style.display = (tab === 'map' || tab === 'scout' || tab === 'dashboard') ? 'none' : 'flex';
+    $show('main-sidebar', (tab === 'scout' || tab === 'dashboard') ? 'none' : 'flex');
+    const mc = document.querySelector('.main-content');
+    if (mc) mc.style.display = (tab === 'map' || tab === 'scout' || tab === 'dashboard') ? 'none' : 'flex';
 
     if (tab === 'map') {
       setTimeout(() => { if (map) map.invalidateSize(); }, 100);
@@ -381,9 +392,11 @@ const escapeHtml = (unsafe) => {
     }
     
     const hiddenTabs = ['scout', 'projects', 'dashboard'];
-    const qaContainer = document.getElementById('qa-container');
+    const qaContainer = $('qa-container');
     if (qaContainer) qaContainer.style.display = hiddenTabs.includes(tab) ? 'none' : 'flex';
-    document.getElementById('filters-container').style.display = hiddenTabs.includes(tab) ? 'none' : 'flex';
+    
+    const filtersContainer = $('filters-container');
+    if (filtersContainer) filtersContainer.style.display = hiddenTabs.includes(tab) ? 'none' : 'flex';
     
     if (typeof window.renderEmptySidebar === 'function') {
       window.renderEmptySidebar();
@@ -437,7 +450,9 @@ if (typeof window.renderDashboard === 'function') {
       }
       // --------------------------
 
-      if(document.getElementById('search-input')) document.getElementById('search-input').value = '';
+      const si = $('search-input');
+      if (si) si.value = '';
+      await loadUi();
       await loadUi();
     }
 
@@ -598,6 +613,7 @@ if (typeof window.renderDashboard === 'function') {
 
     // Reset lazy load queue for this render cycle
     window._lazyLoadQueue = [];
+
 
     const renderSingleLead = (l) => {
         const sMap = getLeadStatusMap(l);

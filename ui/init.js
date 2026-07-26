@@ -140,15 +140,7 @@ window.addEventListener('online', () => {
     if(typeof autoGeocode === 'function') autoGeocode();
     if (window.updateTrayCount) window.updateTrayCount();
     if (window.updateRPUI) window.updateRPUI();
-    if (window.fetchNotifications) {
-      window.fetchNotifications();
-      if (window.api.subscribeToNotifications) {
-        window.api.subscribeToNotifications((newNotif) => {
-           if (typeof showToast === 'function') showToast("Neue Benachrichtigung!");
-           window.fetchNotifications();
-        });
-      }
-    }
+
   }
 
   async function checkAuth() {
@@ -187,15 +179,6 @@ window.addEventListener('online', () => {
         if(typeof autoGeocode === 'function') autoGeocode();
         if (window.updateTrayCount) window.updateTrayCount();
         if (window.updateRPUI) window.updateRPUI();
-        if (window.fetchNotifications) {
-          window.fetchNotifications();
-          if (window.api.subscribeToNotifications) {
-            window.api.subscribeToNotifications((newNotif) => {
-               if (typeof showToast === 'function') showToast("Neue Benachrichtigung!");
-               window.fetchNotifications();
-            });
-          }
-        }
       } else {
         if(splash) splash.classList.add('splash-hidden');
         loginModal.style.display = 'flex';
