@@ -541,6 +541,10 @@ window.setPipeline = async (type) => {
         window.triggerMissionPassed();
       }
     }
+    
+    if (window.store.state.currentSelectedLeadId) {
+      window.saveLeadMain(window.store.state.currentSelectedLeadId, true);
+    }
   };
 
   window.triggerMissionPassed = () => {

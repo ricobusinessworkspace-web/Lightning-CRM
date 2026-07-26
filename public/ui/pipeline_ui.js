@@ -890,7 +890,6 @@ if (typeof window.renderDashboard === 'function') {
           return 0;
       };
 
-      // Sort by global logic
       allTasks.sort((a, b) => {
           const starA = a.lead.starred ? 1 : 0;
           const starB = b.lead.starred ? 1 : 0;
@@ -903,66 +902,81 @@ if (typeof window.renderDashboard === 'function') {
           return b.lead.id - a.lead.id;
       });
 
-      const emailTasks = allTasks.filter(t => t.isEmail);
-      const generalTasks = allTasks.filter(t => !t.isEmail);
+      const now = new Date();
+      now.setHours(0,0,0,0);
 
-      const renderTaskRow = (item) => {
-         const { lead, task } = item;
-         let avatarHtml = '';
-         if (lead.claimed_by && window.globalUsersList) {
-            const assignedUser = window.globalUsersList.find(u => u.id === lead.claimed_by);
-            if (assignedUser && assignedUser.name) {
-              const initial = assignedUser.name.charAt(0).toUpperCase();
-              avatarHtml = `<div style="width: 20px; height: 20px; border-radius: 50%; border: 1px solid #bf5af2; color: #bf5af2; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; background: transparent; flex-shrink: 0;" title="Zugewiesen an: ${assignedUser.name}">${initial}</div>`;
-            }
-         }
+      const checkSvg = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+      const appleCheckbox = (done, onclickParams) => `
+        <div onclick="${onclickParams}" style="width: 18px; height: 18px; border-radius: 50%; border: 1px solid ${done ? 'var(--success)' : 'rgba(255,255,255,0.3)'}; background: ${done ? 'var(--success)' : 'transparent'}; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: 0.2s; margin-top:2px;">
+          ${done ? checkSvg : ''}
+        </div>
+      `;
 
-         return `
-           <div class="task-row-item" style="display:flex; align-items:flex-start; gap: 12px; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.03);">
-             <input type="checkbox" style="margin-top:2px; cursor:pointer; flex-shrink:0;" onchange="toggleTaskFast(${lead.id}, ${task.id}, this.checked)">
-             <div style="flex:1; min-width:0;">
-               <div contenteditable="true" class="truncate-1" style="outline:none; font-size:14px; color:var(--text-main); line-height:1.5;" onblur="updateGlobalTaskText(${lead.id}, ${task.id}, this.innerText)" onclick="event.stopPropagation()">${escapeHtml(task.text)}</div>
-               <div style="font-size: 12px; margin-top: 8px; display: flex; align-items: center; gap: 8px;">
-                 <a href="#" onclick="event.preventDefault(); openLead(${lead.id})" style="color: var(--accent); text-decoration: none; font-weight: 600; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
-                   ${lead.starred ? '★ ' : ''}${escapeHtml(lead.name)}
-                 </a>
-               </div>
-             </div>
-             ${avatarHtml}
-           </div>
-         `;
-      };
+      let html = `<div class="list-header" style="margin-bottom:24px;">Missionen (${allTasks.length} offene Aufgaben)</div>`;
+      html += `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:16px; align-items: start; max-width: 100%;">`;
 
-      let html = `<div class="list-header" style="margin-bottom:24px;">Aufgaben Dashboard (${allTasks.length} offene Aufgaben)</div>`;
-      html += `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:32px; align-items: start; max-width: 100%;">`;
+      allTasks.forEach(item => {
+        const { lead, task: t } = item;
+        let textStyle = t.done ? 'text-decoration: line-through; opacity: 0.45;' : '';
+        
+        let deadlineBadge = '';
+        if (t.deadline && !t.done) {
+          const d = new Date(t.deadline + 'T00:00:00');
+          const diff = Math.floor((d - now) / (1000*60*60*24));
+          if (diff < 0)  deadlineBadge = `<span class="deadline-badge deadline-overdue">${Math.abs(diff)}d überfällig</span>`;
+          else if (diff === 0) deadlineBadge = `<span class="deadline-badge deadline-today">Heute</span>`;
+          else if (diff <= 3)  deadlineBadge = `<span class="deadline-badge deadline-soon">in ${diff}d</span>`;
+          else deadlineBadge = `<span class="deadline-badge deadline-ok">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span>`;
+        }
 
-      let generalHtml = `<div></div>`;
-      if (generalTasks.length > 0) {
-        generalHtml = `
-          <div>
-            <div style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; padding-left: 8px;">Normale Aufgaben</div>
-            <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
-              ${generalTasks.map(t => renderTaskRow(t)).join('')}
+        let subtasksHtml = '';
+        const subs = t.subtasks || [];
+        if (subs.length > 0) {
+          subtasksHtml = `<div style="margin-top: 12px; padding-left: 28px; display:flex; flex-direction:column; gap:0;">`;
+          subs.forEach((st, idx) => {
+            let stStyle = st.done ? 'text-decoration: line-through; opacity: 0.45;' : '';
+            let borderBottom = idx < subs.length - 1 ? 'border-bottom: 1px solid rgba(255,255,255,0.05);' : '';
+            subtasksHtml += `
+              <div class="task-item" style="padding: 8px 0; ${borderBottom} display:flex; align-items:flex-start; gap:8px;">
+                ${appleCheckbox(st.done, `toggleTaskFast(${lead.id}, ${t.id}, ${!st.done}, ${st.id})`)}
+                <div style="flex:1; font-size:12px; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:2px; ${stStyle}">${escapeHtml(st.text)}</div>
+              </div>
+            `;
+          });
+          subtasksHtml += `</div>`;
+        }
+        
+        let avatarHtml = '';
+        if (lead.claimed_by && window.globalUsersList) {
+           const assignedUser = window.globalUsersList.find(u => u.id === lead.claimed_by);
+           if (assignedUser && assignedUser.name) {
+             const initial = assignedUser.name.charAt(0).toUpperCase();
+             avatarHtml = `<div style="width: 20px; height: 20px; border-radius: 50%; border: 1px solid #bf5af2; color: #bf5af2; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; background: transparent; flex-shrink: 0;" title="Zugewiesen an: ${assignedUser.name}">${initial}</div>`;
+           }
+        }
+
+        html += `
+          <div class="task-item" style="flex-direction:column; align-items: stretch; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid var(--border); padding: 12px; position: relative;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+              <div style="font-size: 11px; color: var(--accent); font-weight: 600; cursor: pointer; display:flex; align-items:center; gap: 4px;" onclick="openLead(${lead.id})">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                ${lead.starred ? '★ ' : ''}${escapeHtml(lead.name)}
+              </div>
+              ${avatarHtml}
             </div>
+            <div style="display:flex; align-items:flex-start; gap: 10px;">
+              ${appleCheckbox(t.done, `toggleTaskFast(${lead.id}, ${t.id}, ${!t.done})`)}
+              <div style="flex:1; font-size:14px; font-weight:600; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}">${escapeHtml(t.text)}</div>
+              ${deadlineBadge}
+            </div>
+            ${subtasksHtml}
           </div>
         `;
-      }
+      });
 
-      let emailHtml = `<div></div>`;
-      if (emailTasks.length > 0) {
-        emailHtml = `
-          <div>
-            <div style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; padding-left: 8px;">E-Mail Aufgaben</div>
-            <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
-              ${emailTasks.map(t => renderTaskRow(t)).join('')}
-            </div>
-          </div>
-        `;
-      }
-
-      html += generalHtml + emailHtml;
       html += `</div>`;
       qList.innerHTML = html;
+
 
 
     } else if (window.store.state.currentTab === 'customers' && !window.store.state.currentSearch) {
@@ -1348,7 +1362,7 @@ if (typeof window.renderDashboard === 'function') {
         </div>
         
         <div class="sidebar-footer" style="padding: 16px 24px max(24px, env(safe-area-inset-bottom)) 24px; flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg-sidebar);">
-          <button class="action-btn" id="main-save-btn" style="width:100%; padding: 14px; font-size:14px; font-weight:600; background:var(--text-main); color:var(--bg-sidebar); border:none;" onclick="saveLeadMain(${l.id})">Speichern</button>
+          <button class="action-btn" id="main-save-btn" style="width:100%; padding: 14px; font-size:14px; font-weight:600; background:var(--text-main); color:var(--bg-sidebar); border:none;" onclick="saveLeadMain(${l.id}, true)">Speichern</button>
         </div>
       </div>
     `;
@@ -1450,7 +1464,7 @@ if (typeof window.renderDashboard === 'function') {
     }
   };
 
-  window.toggleTaskFast = async (leadId, taskId, done) => {
+  window.toggleTaskFast = async (leadId, taskId, done, subtaskId = null) => {
     try {
       const fullList = await window.api.getLeads({ all: true }); 
       const l = fullList.find(x => x.id === leadId);
@@ -1460,7 +1474,21 @@ if (typeof window.renderDashboard === 'function') {
       try { tasks = JSON.parse(l.task_text); } catch(e) { return; }
       const t = tasks.find(x => x.id === taskId);
       if (t) {
-         t.done = done;
+         if (subtaskId) {
+           const st = t.subtasks?.find(x => x.id === subtaskId);
+           if (st) st.done = done;
+           if (t.subtasks && t.subtasks.every(s => s.done)) {
+             t.done = true;
+           } else {
+             t.done = false;
+           }
+         } else {
+           t.done = done;
+           if (t.subtasks) {
+             t.subtasks.forEach(s => s.done = done);
+           }
+         }
+         
          l.task_text = JSON.stringify(tasks);
          await window.api.saveLead(l);
          loadUi(); // refresh the view

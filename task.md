@@ -13,3 +13,8 @@
 - [x] Implement the Gamification 'Mission System' UI in the Lead Sidebar/Modal
 - [x] Hierarchical Task System
 - [x] Visual Task UI Overhaul
+
+# Phase 4: Global Tasks View & UX Flow
+- [x] Modal Save UX
+- [x] Global Tasks Tab Overhaul
+- [x] Verify & Deploy
