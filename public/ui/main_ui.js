@@ -215,6 +215,40 @@ window.setPipeline = async (type) => {
     }
   };
 
+  window.capturePendingTasks = () => {
+    let changed = false;
+    // Auto-capture any text sitting in the input field when save is clicked (if they forgot to hit Enter)
+    const remInput = document.getElementById('new-task-input-rem');
+    if (remInput && remInput.value.trim() !== '') {
+      if (!window.currentTasks) window.currentTasks = [];
+      window.currentTasks.push({ id: Date.now(), text: remInput.value.trim(), done: false });
+      remInput.value = '';
+      changed = true;
+    }
+
+    // Auto-capture subtasks
+    const subtaskInputs = document.querySelectorAll('.subtask-input-rem');
+    subtaskInputs.forEach(input => {
+      if (input.value.trim() !== '') {
+        const parentId = parseInt(input.getAttribute('data-parent'), 10);
+        if (window.currentTasks) {
+          const pt = window.currentTasks.find(x => x.id === parentId);
+          if (pt) {
+            if (!pt.subtasks) pt.subtasks = [];
+            pt.subtasks.push({ id: Date.now() + Math.floor(Math.random()*1000), text: input.value.trim(), done: false });
+            pt.done = false;
+            input.value = '';
+            changed = true;
+          }
+        }
+      }
+    });
+    
+    if (changed && typeof window.renderTasksList === 'function') {
+      window.renderTasksList();
+    }
+  };
+
   // Remove confirmEnrich, autoEnrich, cancelEnrich, etc. (deprecated)
   window.saveLeadMain = async (id, noClose = false) => {
     if (window.store.state.currentSelectedLeadId !== id) {
@@ -254,30 +288,10 @@ window.setPipeline = async (type) => {
       const sysCityNode = document.getElementById('sys-city');
       let city = sysCityNode ? sysCityNode.value : (lData ? lData.maps_city : '');
     
-      // Auto-capture any text sitting in the input field when save is clicked (if they forgot to hit Enter)
-      const remInput = document.getElementById('new-task-input-rem');
-      if (remInput && remInput.value.trim() !== '') {
-        if (!window.currentTasks) window.currentTasks = [];
-        window.currentTasks.push({ id: Date.now(), text: remInput.value.trim(), done: false });
-        remInput.value = '';
+      // Auto-capture any text sitting in the input fields when save is clicked
+      if (typeof window.capturePendingTasks === 'function') {
+        window.capturePendingTasks();
       }
-
-      // Auto-capture subtasks
-      const subtaskInputs = document.querySelectorAll('.subtask-input-rem');
-      subtaskInputs.forEach(input => {
-        if (input.value.trim() !== '') {
-          const parentId = parseInt(input.getAttribute('data-parent'), 10);
-          if (window.currentTasks) {
-            const pt = window.currentTasks.find(x => x.id === parentId);
-            if (pt) {
-              if (!pt.subtasks) pt.subtasks = [];
-              pt.subtasks.push({ id: Date.now() + Math.floor(Math.random()*1000), text: input.value.trim(), done: false });
-              pt.done = false;
-              input.value = '';
-            }
-          }
-        }
-      });
 
       // Store remaining tasks (filtering out done)
       let finalTasks = (window.currentTasks || []).filter(t => !t.done);
@@ -516,6 +530,7 @@ window.setPipeline = async (type) => {
 
   window.setTaskDeadline = (id, dateStr) => {
     if (!window.currentTasks) return;
+    if (typeof window.capturePendingTasks === 'function') window.capturePendingTasks();
     const t = window.currentTasks.find(x => x.id === id);
     if (t) { 
       t.deadline = dateStr; 
