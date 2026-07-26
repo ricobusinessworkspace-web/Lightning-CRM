@@ -1022,100 +1022,46 @@ window.setPipeline = async (type) => {
     callbackOnProceed();
   };
 
-  // --- RECENTLY EDITED LEADS SIDEBAR ---
+  // --- RECENTLY EDITED LEADS SIDEBAR / EMPTY STATE ---
   window.renderEmptySidebar = async () => {
     const sidebarEl = document.getElementById('main-sidebar');
     if (!sidebarEl) return;
     
     sidebarEl.classList.add('collapsed');
-
-    if (window.store.state.currentTab === 'map') {
-      sidebarEl.classList.remove('collapsed');
-      sidebarEl.innerHTML = `
-        <div style="padding: 24px; display: flex; flex-direction: column; height: 100%; box-sizing: border-box;">
-          <h3 style="margin-top:0; color:var(--text-main);">📍 Standort-Zuweisung</h3>
-          <p style="font-size:12px; color:var(--text-muted); line-height:1.4;">Wähle einen Lead aus, um ihn auf der Karte zu platzieren.</p>
-          
-          <input type="text" id="map-lead-search" class="modern-input-small" style="width:100%; margin-bottom:12px; box-sizing: border-box;" placeholder="Nach Lead suchen..." oninput="searchLeadForMap(this.value)">
-          
-          <div id="map-lead-results" style="max-height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;"></div>
-        </div>
-      `;
-      if (typeof window.searchLeadForMap === 'function') {
-         window.searchLeadForMap('');
-      }
-      return;
-    }
-
     sidebarEl.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
   };
 
-  // --- NOTIFICATIONS ---
-  window.toggleNotifications = () => {
-    const d = document.getElementById('notification-dropdown');
-    if (d) {
-      if (d.style.display === 'none' || !d.style.display) {
-        d.style.display = 'flex';
-        d.classList.add('notification-dropdown-enter');
-        setTimeout(() => d.classList.remove('notification-dropdown-enter'), 200);
-        window.fetchNotifications();
-      } else {
-        d.style.display = 'none';
-      }
-    }
-  };
-
-  window.fetchNotifications = async () => {
-    if (!window.globalUser || !window.api.getNotifications) return;
-    try {
-      const notifs = await window.api.getNotifications();
-      const badge = document.getElementById('notification-badge');
-      const list = document.getElementById('notification-list');
-      
-      const unread = notifs.filter(n => !n.is_read);
-      if (badge) {
-        if (unread.length > 0) {
-          badge.style.display = 'block';
-          badge.innerText = unread.length;
-        } else {
-          badge.style.display = 'none';
-        }
-      }
-      
-      if (list) {
-        if (notifs.length === 0) {
-           list.innerHTML = '<div style="padding:20px; text-align:center; font-size:12px; color:var(--text-muted);">Keine neuen Benachrichtigungen</div>';
-        } else {
-           list.innerHTML = notifs.map(n => {
-             const bg = n.is_read ? 'transparent' : 'rgba(255, 69, 58, 0.1)';
-             const icon = n.type === 'message' ? '📩' : (n.type === 'task' ? '⏰' : '🕒');
-             return `
-               <div class="notification-item ${n.is_read ? '' : 'unread'}" onclick="handleNotificationClick('${n.id}', ${n.lead_id})">
-                 <div style="font-size:13px; color:var(--text-main); display:flex; gap:8px;">
-                   <span>${icon}</span>
-                   <span style="${n.is_read ? 'color:var(--text-muted);' : 'font-weight:600;'}">${escapeHtml(n.message)}</span>
-                 </div>
-                 <div style="font-size:10px; color:var(--text-muted); margin-top:4px; text-align:right;">
-                   ${new Date(n.created_at).toLocaleDateString('de-DE')} ${new Date(n.created_at).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}
-                 </div>
-               </div>
-             `;
-           }).join('');
-        }
-      }
-    } catch(e) { console.error("Error fetching notifications", e); }
-  };
-
-  window.handleNotificationClick = async (notifId, leadId) => {
-    try {
-      if (window.api.markNotificationRead) {
-        await window.api.markNotificationRead(notifId);
-      }
-      window.fetchNotifications();
-      if (leadId) {
-        const d = document.getElementById('notification-dropdown');
-        if (d) d.style.display = 'none';
-        if (window.openLead) window.openLead(leadId);
-      }
-    } catch(e) { console.error("Error clicking notif", e); }
+  window.openNewLeadForm = () => {
+    const sidebarEl = document.getElementById('main-sidebar');
+    if (!sidebarEl) return;
+    
+    sidebarEl.classList.remove('collapsed');
+    sidebarEl.innerHTML = `
+      <div style="padding: 24px; display: flex; flex-direction: column; height: 100%; box-sizing: border-box;">
+        <h3 style="margin-top:0; color:var(--text-main); font-size: 18px;">Neuen Lead erstellen</h3>
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom: 24px;">Bitte fülle die grundlegenden Daten aus.</p>
+        
+        <form onsubmit="event.preventDefault(); window.quickAdd();" style="display: flex; flex-direction: column; gap: 16px;">
+          <div>
+            <label style="font-size:12px; color:var(--text-muted); margin-bottom:6px; display:block; font-weight: 500;">Firmenname / Ansprechpartner</label>
+            <input type="text" id="qa-name" class="modern-input-small" style="width:100%; box-sizing: border-box;" placeholder="Firma / Name..." required />
+          </div>
+          <div>
+            <label style="font-size:12px; color:var(--text-muted); margin-bottom:6px; display:block; font-weight: 500;">Telefonnummer</label>
+            <input type="text" id="qa-phone" class="modern-input-small" style="width:100%; box-sizing: border-box;" placeholder="+49..." />
+          </div>
+          
+          <div style="margin-top: 16px; display: flex; gap: 12px;">
+            <button type="button" class="action-btn-small outline" style="flex:1;" onclick="renderEmptySidebar()">Abbrechen</button>
+            <button type="submit" class="action-btn success-bold" style="flex:1;">Speichern</button>
+          </div>
+        </form>
+      </div>
+    `;
+    
+    // Focus the name input automatically
+    setTimeout(() => {
+      const nameInput = document.getElementById('qa-name');
+      if (nameInput) nameInput.focus();
+    }, 100);
   };
