@@ -135,6 +135,10 @@ function postProcessAndSort(rows, filters = {}) {
 
   // 2. Sorting — unified global relevance sort
   results.sort((a, b) => {
+    if (filters.tab === 'customers') {
+      return b.id - a.id;
+    }
+
     const snoozedA = (a.snooze_until_ms && a.snooze_until_ms > now) ? 1 : 0;
     const snoozedB = (b.snooze_until_ms && b.snooze_until_ms > now) ? 1 : 0;
     if (snoozedA !== snoozedB) return snoozedA - snoozedB;
