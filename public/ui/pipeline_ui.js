@@ -671,6 +671,35 @@ if (typeof window.renderDashboard === 'function') {
              activityLog = `<div style="margin-top: 6px; display: flex; flex-direction: column; gap: 2px;">${callHtml}${emailHtml}</div>`;
            }
         }
+        
+        if (window.store.state.currentTab === 'cold') {
+          let coldInfo = '';
+          const city = l.maps_city || (l.locations && l.locations.length > 0 && l.locations[0].maps_city) || '';
+          if (city) coldInfo += `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500;">📍 ${city}</div>`;
+          
+          let ohHtml = '';
+          if (l.opening_hours) {
+            try {
+              const parsed = JSON.parse(l.opening_hours);
+              if (parsed && parsed.length > 0) ohHtml = parsed[0];
+            } catch(e) {}
+          } else if (l.locations && l.locations.length > 0 && l.locations[0].opening_hours) {
+            ohHtml = Array.isArray(l.locations[0].opening_hours) ? l.locations[0].opening_hours[0] : '';
+          }
+          
+          if (ohHtml) {
+            const shortOh = ohHtml.split(':').slice(1).join(':').trim() || ohHtml;
+            coldInfo += `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500;">🕒 ${shortOh}</div>`;
+          }
+          
+          if (coldInfo) {
+             if (activityLog) {
+               activityLog = activityLog.replace('</div>', `${coldInfo}</div>`);
+             } else {
+               activityLog = `<div style="margin-top: 6px; display: flex; flex-direction: column; gap: 2px;">${coldInfo}</div>`;
+             }
+          }
+        }
 
         let avatarHtml = '';
         if (l.claimed_by && window.globalUsersList) {
@@ -938,7 +967,7 @@ if (typeof window.renderDashboard === 'function') {
       `;
 
       let html = `<div class="list-header" style="margin-bottom:24px;">Missionen (${allTasks.length} offene Aufgaben)</div>`;
-      html += `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:16px; align-items: start; max-width: 100%;">`;
+      html += `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:16px; align-items: stretch; max-width: 100%;">`;
 
       allTasks.forEach(item => {
         const { lead, task: t } = item;
@@ -981,15 +1010,15 @@ if (typeof window.renderDashboard === 'function') {
         }
 
         html += `
-          <div class="task-item" style="flex-direction:column; align-items: stretch; background: var(--color-surface-base, #161618); border-radius: var(--radius-lg, 12px); padding: 16px; position: relative; box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.3));">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border-base, #2c2c2e);">
-              <div style="font-size: 12px; color: var(--color-brand-accent, #0a84ff); font-weight: 600; cursor: pointer; display:flex; align-items:center; gap: 6px;" onclick="openLead(${lead.id})">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                ${lead.starred ? '★ ' : ''}${escapeHtml(lead.name)}
+          <div class="task-item" style="display:flex; flex-direction:column; align-items: stretch; background: var(--color-surface-base, #161618); border-radius: var(--radius-lg, 12px); padding: 16px; position: relative; box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.3)); height: 100%; box-sizing: border-box;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border-base, #2c2c2e); min-height: 42px;">
+              <div class="truncate-2" style="font-size: 12px; color: var(--color-brand-accent, #0a84ff); font-weight: 600; cursor: pointer; display:flex; align-items:flex-start; gap: 6px; line-height: 1.4; padding-right: 8px;" onclick="openLead(${lead.id})">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:1px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                <span>${lead.starred ? '★ ' : ''}${escapeHtml(lead.name)}</span>
               </div>
               ${avatarHtml}
             </div>
-            <div style="display:flex; align-items:flex-start; gap: 12px;">
+            <div style="display:flex; align-items:flex-start; gap: 12px; flex: 1;">
               ${appleCheckbox(t.done, `toggleTaskFast(${lead.id}, ${t.id}, ${!t.done})`)}
               <div style="flex:1; font-size:15px; font-weight:500; color:var(--color-text-primary, #f2f2f7); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}">${escapeHtml(t.text)}</div>
               ${deadlineBadge}
