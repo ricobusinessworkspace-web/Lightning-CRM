@@ -1040,11 +1040,16 @@ if (typeof window.renderDashboard === 'function') {
            }
         }
 
+        let leadColor = 'var(--text-main)';
+        if (lead.status === 'Kunde') leadColor = 'var(--color-crm-customer, #30d158)';
+        else if (lead.rechnung) leadColor = 'var(--color-crm-invoice, #ff453a)';
+        else if (lead.termin) leadColor = 'var(--color-crm-contact, #ff9f0a)';
+        else if (lead.entscheider) leadColor = 'var(--color-crm-decision, #0a84ff)';
+
         html += `
           <div class="task-item" style="display:flex; flex-direction:column; align-items: stretch; background: var(--color-surface-base, #161618); border-radius: var(--radius-lg, 12px); padding: 16px; position: relative; box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.3)); height: 100%; box-sizing: border-box; cursor: pointer;" onclick="openLead(${lead.id})">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border-base, #2c2c2e); min-height: 42px;">
-              <div class="truncate-2" style="font-size: 12px; color: var(--color-brand-accent, #0a84ff); font-weight: 600; cursor: pointer; display:flex; align-items:flex-start; gap: 6px; line-height: 1.4; padding-right: 8px;" onclick="openLead(${lead.id})">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:1px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              <div class="truncate-2" style="font-size: 13px; color: ${leadColor}; font-weight: 700; cursor: pointer; display:flex; align-items:flex-start; gap: 6px; line-height: 1.4; padding-right: 8px;">
                 <span>${lead.starred ? '★ ' : ''}${escapeHtml(lead.name)}</span>
               </div>
               ${avatarHtml}
