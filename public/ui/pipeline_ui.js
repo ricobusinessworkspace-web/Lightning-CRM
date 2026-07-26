@@ -1123,7 +1123,7 @@ if (typeof window.renderDashboard === 'function') {
 
   window._sessionRecentLeads = window._sessionRecentLeads || new Set();
 
-  window.openLeadDirectly = async (id, keepForceLocationSearch = false) => {
+  window.openLeadDirectly = async (id, keepForceLocationSearch = false, isSaving = false) => {
     if (!keepForceLocationSearch) window._forceLocationSearch = false;
     window.store.state.currentSelectedLeadId = id;
     
@@ -1426,12 +1426,22 @@ if (typeof window.renderDashboard === 'function') {
         </div>
         
         <div class="sidebar-footer" style="padding: 16px 24px max(24px, env(safe-area-inset-bottom)) 24px; flex-shrink: 0; border-top: 1px solid var(--color-border-base, #2c2c2e); background: var(--color-bg-panel, #0d0d0f); z-index: 10;">
-          <button class="action-btn success-bold" id="main-save-btn" style="width:100%; padding: 14px; font-size:15px; font-weight:600; border-radius: var(--radius-lg, 12px);" onclick="saveLeadMain(${l.id}, true)">Speichern</button>
+          <button class="action-btn success-bold ${isSaving ? 'btn-success-flash' : ''}" id="main-save-btn" style="width:100%; padding: 14px; font-size:15px; font-weight:600; border-radius: var(--radius-lg, 12px);" onclick="saveLeadMain(${l.id}, true)">${isSaving ? '✓ Gespeichert' : 'Speichern'}</button>
         </div>
       </div>
     `;
     
     renderTasksList();
+
+    if (isSaving) {
+      setTimeout(() => {
+        const btn = document.getElementById('main-save-btn');
+        if (btn) {
+          btn.classList.remove('btn-success-flash');
+          btn.textContent = 'Speichern';
+        }
+      }, 2000);
+    }
   };
 
   // --- NEW FEATURES: Pin Click, Call Tracking & Calendar ---

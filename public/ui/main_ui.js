@@ -391,21 +391,8 @@ window.setPipeline = async (type) => {
           }
         }, 2000);
       } else {
-        if (window.openLeadDirectly) await window.openLeadDirectly(id);
+        if (window.openLeadDirectly) await window.openLeadDirectly(id, false, true);
         else if (window.openLead) await window.openLead(id);
-        
-        // Use requestAnimationFrame to ensure the DOM has updated after the async function
-        requestAnimationFrame(() => {
-          const newSaveBtn = document.getElementById('main-save-btn');
-          if (newSaveBtn) {
-            newSaveBtn.classList.add('btn-success-flash');
-            newSaveBtn.textContent = '✓ Gespeichert';
-            setTimeout(() => {
-              newSaveBtn.classList.remove('btn-success-flash');
-              newSaveBtn.textContent = 'Speichern';
-            }, 2000);
-          }
-        });
       }
       
       return true;
