@@ -490,17 +490,19 @@ export const db = {
 
   // ── deleteLead ─────────────────────────────────────────────────────────────
   deleteLead: async (id) => {
-    const { error } = await supabase.from(TABLE).delete().eq('id', id);
+    const { data, error } = await supabase.from(TABLE).delete().eq('id', id).select();
     if (error) throw new Error(error.message || error.details || JSON.stringify(error));
+    if (!data || data.length === 0) throw new Error("Fehler: Lead konnte nicht gelöscht werden (Möglicherweise fehlen Datenbank-Rechte).");
     return { deleted: 1 };
   },
 
   // ── deleteLeads ────────────────────────────────────────────────────────────
   deleteLeads: async (ids) => {
     if (!ids || ids.length === 0) return { deleted: 0 };
-    const { error } = await supabase.from(TABLE).delete().in('id', ids);
-    if (error) throw new Error(error.message || error.details || JSON.stringify(error));
-    return { deleted: ids.length };
+    const { data, error } = await supabase.from(TABLE).delete().in('id', ids).select();
+    if (error) throw new Error(error.message || JSON.stringify(error));
+    if (!data || data.length === 0) throw new Error("Fehler: Leads konnten nicht gelöscht werden.");
+    return { deleted: data.length };
   },
 
   // ── importLeads ────────────────────────────────────────────────────────────

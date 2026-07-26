@@ -383,14 +383,20 @@ window.setPipeline = async (type) => {
           }
         }, 2000);
       } else {
-        setTimeout(() => {
-          if (saveBtn) {
-            saveBtn.classList.remove('btn-success-flash');
-            saveBtn.textContent = 'Speichern';
-          }
-        }, 2000);
         if (window.openLeadDirectly) window.openLeadDirectly(id);
         else if (window.openLead) window.openLead(id);
+        
+        setTimeout(() => {
+          const newSaveBtn = document.getElementById('main-save-btn');
+          if (newSaveBtn) {
+            newSaveBtn.classList.add('btn-success-flash');
+            newSaveBtn.textContent = '✓ Gespeichert';
+            setTimeout(() => {
+              newSaveBtn.classList.remove('btn-success-flash');
+              newSaveBtn.textContent = 'Speichern';
+            }, 2000);
+          }
+        }, 50);
       }
       
       return true;

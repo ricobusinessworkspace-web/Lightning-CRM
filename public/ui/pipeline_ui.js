@@ -1408,8 +1408,8 @@ if (typeof window.renderDashboard === 'function') {
           ${snoozeHtml.replace('margin-top: 16px;', '').replace('label', 'h4 class="apple-section-title"').replace('<div class="snooze-grid"', '<div class="apple-section"><h4 class="apple-section-title">Follow-Up (Snooze)</h4><div class="snooze-grid"')}</div>
 
           <div style="display: flex; justify-content: center; gap: 24px; margin-top: 8px; margin-bottom: 24px;">
-            <button class="action-btn-small" style="border:none; color:var(--color-text-secondary, #8e8e93); background:transparent; font-size: 12px; padding: 4px; cursor:pointer; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" onclick="markLeadUninteresting(${l.id})">Uninteressant</button>
-            <button class="action-btn-small" style="border:none; color:var(--color-text-secondary, #8e8e93); background:transparent; font-size: 12px; padding: 4px; cursor:pointer; transition: color 0.2s;" onmouseover="this.style.color='#ff453a'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" onclick="deleteLead(${l.id})">Löschen</button>
+            <button class="action-btn-small" style="border:none; color:var(--color-text-secondary, #8e8e93); background:transparent; font-size: 12px; padding: 4px; cursor:pointer; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" onclick="markLeadUninteresting('${l.id}')">Uninteressant</button>
+            <button class="action-btn-small" style="border:none; color:var(--color-text-secondary, #8e8e93); background:transparent; font-size: 12px; padding: 4px; cursor:pointer; transition: color 0.2s;" onmouseover="this.style.color='#ff453a'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" onclick="deleteLead('${l.id}')">Löschen</button>
           </div>
 
           <!-- Hidden System Fields -->
