@@ -262,6 +262,23 @@ window.setPipeline = async (type) => {
         remInput.value = '';
       }
 
+      // Auto-capture subtasks
+      const subtaskInputs = document.querySelectorAll('.subtask-input-rem');
+      subtaskInputs.forEach(input => {
+        if (input.value.trim() !== '') {
+          const parentId = parseInt(input.getAttribute('data-parent'), 10);
+          if (window.currentTasks) {
+            const pt = window.currentTasks.find(x => x.id === parentId);
+            if (pt) {
+              if (!pt.subtasks) pt.subtasks = [];
+              pt.subtasks.push({ id: Date.now() + Math.floor(Math.random()*1000), text: input.value.trim(), done: false });
+              pt.done = false;
+              input.value = '';
+            }
+          }
+        }
+      });
+
       // Store remaining tasks (filtering out done)
       let finalTasks = (window.currentTasks || []).filter(t => !t.done);
       let taskTxt = finalTasks.length > 0 ? JSON.stringify(finalTasks) : '';
@@ -431,7 +448,7 @@ window.setPipeline = async (type) => {
       // Apple Checkbox SVG
       const checkSvg = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
       const appleCheckbox = (done, onclickParams) => `
-        <div onclick="${onclickParams}" style="width: 18px; height: 18px; border-radius: 50%; border: 1px solid ${done ? 'var(--success)' : 'rgba(255,255,255,0.3)'}; background: ${done ? 'var(--success)' : 'transparent'}; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: 0.2s; margin-top:2px;">
+        <div onclick="${onclickParams}; event.stopPropagation();" style="width: 18px; height: 18px; border-radius: 50%; border: 1px solid ${done ? 'var(--success)' : 'rgba(255,255,255,0.3)'}; background: ${done ? 'var(--success)' : 'transparent'}; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: 0.2s; margin-top:2px;">
           ${done ? checkSvg : ''}
         </div>
       `;
@@ -471,7 +488,7 @@ window.setPipeline = async (type) => {
           </div>
           ${subtasksHtml}
           <div style="margin-top: 8px; padding-left: 28px; display: flex; align-items: center; border-top: ${subs.length > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none'}; padding-top: 8px;">
-            <input type="text" placeholder="+ Neue Teilaufgabe..." style="flex: 1; padding: 4px 0; font-size: 12px; background: transparent; border: none; color: var(--text-main); outline: none;" onkeypress="if(event.key==='Enter'){handleAddSubtask(${t.id}, this.value); this.value='';}">
+            <input type="text" placeholder="+ Neue Teilaufgabe..." class="subtask-input-rem" data-parent="${t.id}" style="flex: 1; padding: 4px 0; font-size: 12px; background: transparent; border: none; color: var(--text-main); outline: none;" onkeypress="if(event.key==='Enter'){handleAddSubtask(${t.id}, this.value); this.value='';}">
           </div>
         </div>
       `;
@@ -731,10 +748,17 @@ window.setPipeline = async (type) => {
       'Ja, endgültig löschen',
       async () => {
         await window.api.deleteLead(id);
+        
+        // Remove locally immediately to ensure UI reflects the deletion
+        if (window.store && window.store.state && window.store.state.allLeads) {
+          window.store.state.allLeads = window.store.state.allLeads.filter(l => l.id !== id);
+        }
+
         if (typeof window.renderEmptySidebar === 'function') {
           window.renderEmptySidebar();
         } else {
-          sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
+          const sidebar = document.getElementById('main-sidebar');
+          if (sidebar) sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
         }
         await loadUi();
       }
