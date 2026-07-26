@@ -87,6 +87,14 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   transition: background var(--transition-fast), box-shadow var(--transition-fast);
   box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.15));
   position: relative;
+  
+  /* Uniform Size Constraints */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 135px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 .lead-card:hover {
   background: var(--color-surface-hover, #1e1e20);
