@@ -609,6 +609,14 @@ export const db = {
     return currentUser;
   },
 
+  updateEmail: async (email) => {
+    if (!currentUser) throw new Error("Not logged in");
+    const { error } = await supabase.auth.updateUser({ email });
+    if (error) throw new Error(error.message);
+    currentUser.email = email;
+    return currentUser;
+  },
+
   updateCallGoal: async (goal) => {
     if (!currentUser) throw new Error("Not logged in");
     const parsedGoal = parseInt(goal, 10);

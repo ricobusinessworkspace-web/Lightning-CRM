@@ -22,6 +22,7 @@ window.api = {
   saveCredential: async () => ({success: true}),
   promptTouchID: async () => ({success: true}), 
   updateProfile: (name) => db.updateProfile(name),
+  updateEmail: (email) => db.updateEmail(email),
   getUsers: () => db.getUsers(),
   inviteUser: (email) => db.inviteUser(email),
   updateUserRole: (userId, newRole) => db.updateUserRole(userId, newRole),

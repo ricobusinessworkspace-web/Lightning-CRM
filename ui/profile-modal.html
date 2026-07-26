@@ -9,19 +9,24 @@
       <!-- User Info Section -->
       <div class="profile-section">
         <h3>Mein Profil</h3>
+        <p id="account-info" style="margin: 0 0 16px 0; font-size: 12px; color: var(--color-text-secondary); line-height: 1.4;">Lade Profil...</p>
+        
         <div class="input-group">
           <label>Name</label>
           <input type="text" id="profile-name-input" class="input" placeholder="Dein Name">
         </div>
         <div class="input-group">
           <label>E-Mail</label>
-          <input type="email" id="profile-email-input" class="input" disabled>
+          <input type="email" id="profile-email-input" class="input" placeholder="Deine E-Mail">
         </div>
         <div class="input-group">
           <label>Rolle</label>
           <div class="badge" id="profile-role-badge">agent</div>
         </div>
-        <button id="save-profile-btn" class="btn btn-primary">Profil speichern</button>
+        <div style="display: flex; gap: 8px;">
+          <button id="save-profile-btn" class="btn btn-primary" style="flex: 1;">Profil speichern</button>
+          <button class="btn btn-outline" style="border-color: rgba(255,69,58,0.5); color: #ff453a; font-weight: 600;" onclick="handleLogout()">Abmelden</button>
+        </div>
       </div>
 
       <hr class="section-divider">
@@ -98,5 +103,11 @@
     display: flex; justify-content: space-between; align-items: center;
     padding: 10px; background: var(--color-surface-hover, #1c1c1e);
     border-radius: 8px; margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .admin-user-row > div {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 </style>

@@ -17,9 +17,13 @@ export function initProfileModal() {
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
       const name = document.getElementById('profile-name-input').value;
+      const email = document.getElementById('profile-email-input').value;
     try {
       saveBtn.textContent = 'Speichere...';
       await window.api.updateProfile(name);
+      if (email && email !== window.globalUser.email) {
+        await window.api.updateEmail(email);
+      }
       saveBtn.textContent = 'Gespeichert!';
       setTimeout(() => saveBtn.textContent = 'Profil speichern', 2000);
     } catch (err) {
