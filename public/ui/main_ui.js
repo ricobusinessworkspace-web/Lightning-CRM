@@ -381,7 +381,7 @@ window.setPipeline = async (type) => {
               window.renderEmptySidebar();
             }
           }
-        }, 500);
+        }, 2000);
       } else {
         setTimeout(() => {
           if (saveBtn) {
