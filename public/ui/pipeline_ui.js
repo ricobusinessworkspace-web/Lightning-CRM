@@ -692,10 +692,10 @@ if (typeof window.renderDashboard === 'function') {
              let color = 'var(--text-muted)';
              const s = ohRaw.toLowerCase();
              if (s.includes('geschlossen')) {
-               isOpenText = 'Closed';
+               isOpenText = '🕒 Closed';
                color = 'var(--color-crm-excluded, #ff453a)';
              } else if (s.includes('rund um die uhr') || s.includes('24 hours')) {
-               isOpenText = 'Open';
+               isOpenText = '🕒 Open';
                color = 'var(--color-crm-customer, #34c759)';
              } else {
                const match = ohRaw.match(/(\d{1,2}:\d{2})\s*[–-]\s*(\d{1,2}:\d{2})/);
@@ -708,10 +708,10 @@ if (typeof window.renderDashboard === 'function') {
                  const startMins = startH * 60 + startM;
                  const endMins = endH * 60 + endM;
                  if (currMins >= startMins && currMins <= endMins) {
-                   isOpenText = 'Open';
+                   isOpenText = '🕒 Open';
                    color = 'var(--color-crm-customer, #34c759)';
                  } else {
-                   isOpenText = 'Closed';
+                   isOpenText = '🕒 Closed';
                    color = 'var(--color-crm-excluded, #ff453a)';
                  }
                }
@@ -746,14 +746,12 @@ if (typeof window.renderDashboard === 'function') {
         <div class="lead-card ${window.store.state.currentSelectedLeadId === l.id ? 'active-lead-card' : ''} ${isStarredClass}" style="${opacityStyle} ${bulkStyle}" onclick="handleLeadClick(${l.id})" id="lead-card-${l.id}">
           
           <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-start;">
-            ${!isCustomerTab ? `
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
               <div class="lead-prio ${titleColor}" style="margin-bottom:0;">${milestone}</div>
               <div style="display:flex; align-items:center; gap:6px;">
                 ${starHtml}
               </div>
             </div>
-            ` : ''}
             
             <div class="lead-name truncate-2" style="margin-bottom: ${isCustomerTab ? '0' : '12px'}; font-weight: 600; color: var(--color-text-primary, #f2f2f7); padding-right: 20px; width: 100%;">
               <span>${l.name}</span>
@@ -1362,7 +1360,6 @@ if (typeof window.renderDashboard === 'function') {
           })()}
 
           <!-- Location & Opening Hours -->
-          ${openingHoursHtml}
           <div class="apple-section">
             <h4 class="apple-section-title">Standort</h4>
             ${locListHtml}
