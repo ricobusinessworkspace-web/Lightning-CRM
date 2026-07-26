@@ -1129,11 +1129,15 @@ if (typeof window.renderDashboard === 'function') {
     
     const sidebarEl = document.getElementById('main-sidebar');
     if (sidebarEl) {
+      const wasCollapsed = sidebarEl.classList.contains('collapsed');
       sidebarEl.classList.remove('collapsed');
-      sidebarEl.classList.add('sidebar-enter');
-      requestAnimationFrame(() => {
-        setTimeout(() => sidebarEl.classList.remove('sidebar-enter'), 200);
-      });
+      
+      if (wasCollapsed) {
+        sidebarEl.classList.add('sidebar-enter');
+        requestAnimationFrame(() => {
+          setTimeout(() => sidebarEl.classList.remove('sidebar-enter'), 200);
+        });
+      }
     }
 
     document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
