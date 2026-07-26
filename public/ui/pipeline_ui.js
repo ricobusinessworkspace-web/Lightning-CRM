@@ -1551,6 +1551,9 @@ if (typeof window.renderDashboard === 'function') {
          
          l.task_text = JSON.stringify(tasks);
          await window.api.saveLead(l);
+         if (done && typeof window.showToast === 'function') {
+           window.showToast("Aufgabe erledigt!");
+         }
          loadUi(); // refresh the view
       }
     } catch(e) { console.error(e); }

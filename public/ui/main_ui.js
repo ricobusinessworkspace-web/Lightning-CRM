@@ -174,7 +174,7 @@ window.setPipeline = async (type) => {
     document.body.appendChild(t);
     
     requestAnimationFrame(() => { t.style.top = '30px'; t.style.opacity = '1'; });
-    setTimeout(() => { t.style.top = '-50px'; t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2500);
+    setTimeout(() => { t.style.top = '-50px'; t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 5000);
   };
 
   window.showConfirmDialog = (title, message, confirmLabel, onConfirm) => {
@@ -576,6 +576,9 @@ window.setPipeline = async (type) => {
     
     if (window.store.state.currentSelectedLeadId) {
       window.saveLeadMain(window.store.state.currentSelectedLeadId, true);
+    }
+    if (done && typeof window.showToast === 'function') {
+      window.showToast("Aufgabe erledigt!");
     }
   };
 
