@@ -1832,6 +1832,7 @@ if (typeof window.renderDashboard === 'function') {
       if (!l) return;
       
       l.starred = l.starred ? 0 : 1;
+      const starBtn = document.getElementById('sidebar-star-btn');
       if (starBtn) {
         starBtn.setAttribute('data-starred', l.starred ? '1' : '0');
         starBtn.style.color = l.starred ? '#ffcc00' : 'var(--text-muted)';
