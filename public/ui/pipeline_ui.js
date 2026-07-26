@@ -1204,6 +1204,40 @@ if (typeof window.renderDashboard === 'function') {
       `;
     }
 
+    let openingHoursHtml = '';
+    let ohArray = null;
+    if (l.opening_hours) {
+      try { 
+        const parsed = JSON.parse(l.opening_hours);
+        if (parsed.weekdayDescriptions) ohArray = parsed.weekdayDescriptions;
+        else if (Array.isArray(parsed)) ohArray = parsed;
+      } catch(e) {}
+    }
+    if (!ohArray && locations.length > 0 && locations[0].opening_hours && Array.isArray(locations[0].opening_hours)) {
+      ohArray = locations[0].opening_hours;
+    }
+
+    if (ohArray && Array.isArray(ohArray) && ohArray.length === 7) {
+      const todayIdx = (new Date().getDay() + 6) % 7;
+      let todayStr = ohArray[todayIdx] || '';
+      openingHoursHtml = `
+        <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 14px;">🕒</span>
+          <div style="font-size: 12px; color: var(--color-text-primary, #f2f2f7); font-weight: 500;">
+            ${escapeHtml(todayStr)}
+          </div>
+        </div>
+      `;
+    } else if (ohArray && Array.isArray(ohArray)) {
+      let ohStr = ohArray.map(day => escapeHtml(day)).join('<br>');
+      openingHoursHtml = `
+        <div style="margin-top: 12px;">
+          <label style="font-size: 11px; font-weight: 600; color: var(--color-text-secondary, #8e8e93); margin-bottom: 4px; display:block;">Öffnungszeiten</label>
+          <div style="font-size: 11px; color: var(--color-text-primary, #f2f2f7); line-height: 1.5;">${ohStr}</div>
+        </div>
+      `;
+    }
+
     let locationMatchingHtml = `
       <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
         <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display:block;">Standort</label>
@@ -1297,43 +1331,7 @@ if (typeof window.renderDashboard === 'function') {
           })()}
 
           <!-- Location & Opening Hours -->
-          ${(() => {
-            let openingHoursHtml = '';
-            let ohArray = null;
-            if (l.opening_hours) {
-              try { 
-                const parsed = JSON.parse(l.opening_hours);
-                if (parsed.weekdayDescriptions) ohArray = parsed.weekdayDescriptions;
-                else if (Array.isArray(parsed)) ohArray = parsed;
-              } catch(e) {}
-            }
-            if (!ohArray && locations.length > 0 && locations[0].opening_hours && Array.isArray(locations[0].opening_hours)) {
-              ohArray = locations[0].opening_hours;
-            }
-
-            if (ohArray && Array.isArray(ohArray) && ohArray.length === 7) {
-              const todayIdx = (new Date().getDay() + 6) % 7;
-              let todayStr = ohArray[todayIdx] || '';
-              openingHoursHtml = `
-                <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
-                  <span style="font-size: 14px;">🕒</span>
-                  <div style="font-size: 12px; color: var(--color-text-primary, #f2f2f7); font-weight: 500;">
-                    ${escapeHtml(todayStr)}
-                  </div>
-                </div>
-              `;
-            } else if (ohArray && Array.isArray(ohArray)) {
-              let ohStr = ohArray.map(day => escapeHtml(day)).join('<br>');
-              openingHoursHtml = `
-                <div style="margin-top: 12px;">
-                  <label style="font-size: 11px; font-weight: 600; color: var(--color-text-secondary, #8e8e93); margin-bottom: 4px; display:block;">Öffnungszeiten</label>
-                  <div style="font-size: 11px; color: var(--color-text-primary, #f2f2f7); line-height: 1.5;">${ohStr}</div>
-                </div>
-              `;
-            }
-            return openingHoursHtml;
-          })()}
-
+          ${openingHoursHtml}
           <div class="apple-section">
             <h4 class="apple-section-title">Standort</h4>
             ${locListHtml}
