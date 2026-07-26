@@ -662,23 +662,61 @@ if (typeof window.renderDashboard === 'function') {
              const dateStr = new Date(lastCall.ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
              callHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📞 ${escapeHtml(uname)} (${dateStr})</div>`;
            }
-
            // 3. Opening Hours Data
            let ohHtml = '';
            let ohRaw = '';
            if (l.opening_hours) {
              try {
                const parsed = JSON.parse(l.opening_hours);
-               if (parsed.weekdayDescriptions) ohRaw = parsed.weekdayDescriptions[0];
-               else if (Array.isArray(parsed) && parsed.length > 0) ohRaw = parsed[0];
+               let ohArray = parsed.weekdayDescriptions || (Array.isArray(parsed) ? parsed : null);
+               if (ohArray && ohArray.length === 7) {
+                 const todayIdx = (new Date().getDay() + 6) % 7;
+                 ohRaw = ohArray[todayIdx];
+               } else if (ohArray && ohArray.length > 0) {
+                 ohRaw = ohArray[0];
+               }
              } catch(e) {}
            } 
            if (!ohRaw && l.locations && l.locations.length > 0 && l.locations[0].opening_hours) {
-             ohRaw = Array.isArray(l.locations[0].opening_hours) ? l.locations[0].opening_hours[0] : '';
+             const ohArray = l.locations[0].opening_hours;
+             if (Array.isArray(ohArray) && ohArray.length === 7) {
+                 const todayIdx = (new Date().getDay() + 6) % 7;
+                 ohRaw = ohArray[todayIdx];
+             } else if (Array.isArray(ohArray)) {
+                 ohRaw = ohArray[0];
+             }
            }
+           
            if (ohRaw) {
-             const shortOh = ohRaw.split(':').slice(1).join(':').trim() || ohRaw;
-             ohHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">🕒 ${escapeHtml(shortOh)}</div>`;
+             let isOpenText = '🕒 Unbekannt';
+             let color = 'var(--text-muted)';
+             const s = ohRaw.toLowerCase();
+             if (s.includes('geschlossen')) {
+               isOpenText = 'Closed';
+               color = 'var(--color-crm-excluded, #ff453a)';
+             } else if (s.includes('rund um die uhr') || s.includes('24 hours')) {
+               isOpenText = 'Open';
+               color = 'var(--color-crm-customer, #34c759)';
+             } else {
+               const match = ohRaw.match(/(\d{1,2}:\d{2})\s*[–-]\s*(\d{1,2}:\d{2})/);
+               if (match) {
+                 const now = new Date();
+                 const currMins = now.getHours() * 60 + now.getMinutes();
+                 const [startH, startM] = match[1].split(':').map(Number);
+                 let [endH, endM] = match[2].split(':').map(Number);
+                 if (endH === 0 && endM === 0) endH = 24;
+                 const startMins = startH * 60 + startM;
+                 const endMins = endH * 60 + endM;
+                 if (currMins >= startMins && currMins <= endMins) {
+                   isOpenText = 'Open';
+                   color = 'var(--color-crm-customer, #34c759)';
+                 } else {
+                   isOpenText = 'Closed';
+                   color = 'var(--color-crm-excluded, #ff453a)';
+                 }
+               }
+             }
+             ohHtml = `<div style="font-size: 11px; color: ${color}; display: flex; align-items: center; gap: 4px; font-weight: 600; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${isOpenText}</div>`;
            }
            
            if (cityHtml || callHtml || ohHtml) {
@@ -707,21 +745,23 @@ if (typeof window.renderDashboard === 'function') {
         return `
         <div class="lead-card ${window.store.state.currentSelectedLeadId === l.id ? 'active-lead-card' : ''} ${isStarredClass}" style="${opacityStyle} ${bulkStyle}" onclick="handleLeadClick(${l.id})" id="lead-card-${l.id}">
           
-          ${!isCustomerTab ? `
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
-            <div class="lead-prio ${titleColor}" style="margin-bottom:0;">${milestone}</div>
-            <div style="display:flex; align-items:center; gap:6px;">
-              ${starHtml}
+          <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-start;">
+            ${!isCustomerTab ? `
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
+              <div class="lead-prio ${titleColor}" style="margin-bottom:0;">${milestone}</div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                ${starHtml}
+              </div>
+            </div>
+            ` : ''}
+            
+            <div class="lead-name truncate-2" style="margin-bottom: ${isCustomerTab ? '0' : '12px'}; font-weight: 600; color: var(--color-text-primary, #f2f2f7); padding-right: 20px; width: 100%;">
+              <span>${l.name}</span>
             </div>
           </div>
-          ` : ''}
-          
-          <div class="lead-name truncate-2" style="margin-bottom: ${isCustomerTab ? '0' : '12px'}; font-weight: 600; color: var(--color-text-primary, #f2f2f7); padding-right: 20px; width: 100%;">
-            <span>${l.name}</span>
-          </div>
           
           ${!isCustomerTab ? `
-          <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto;">
             <div style="flex: 1;">
               ${activityLog}
               ${snoozeBadge}

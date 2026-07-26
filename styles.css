@@ -76,7 +76,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 .main-content { flex: 1; padding: 32px 48px; overflow-y: auto; }
 
 .list-header { font-weight: 600; font-size: 12px; color: var(--text-muted); margin-bottom: 24px; text-transform: uppercase; letter-spacing: 1px; }
-.leads-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
+.leads-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; align-items: start; }
 
 .lead-card {
   background: var(--color-surface-base, #161618);
