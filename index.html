@@ -136,10 +136,7 @@
     <div class="header-actions" style="display: flex; align-items: center; gap: 12px;">
       <div id="topbar-calls-count" style="display: none;"></div>
       
-      <!-- Minimal Quick Add Button -->
-      <div onclick="openNewLeadForm()" style="cursor:pointer; display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%; background:var(--accent); color:#fff; font-weight:800; font-size: 20px; transition: 0.2s; box-shadow: 0 4px 12px rgba(10, 132, 255, 0.4);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" title="Neuen Lead hinzufügen">
-        +
-      </div>
+
       
       <div style="display:flex; align-items:center; cursor:pointer;" onclick="openProfileModal()" title="Account & Profil">
         <div class="profile-icon-wrapper" style="position:relative; width:44px; height:44px; display:flex; align-items:center; justify-content:center;">
@@ -262,6 +259,10 @@
       <div class="main-container" style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
         <div class="filters-row-global" id="filters-container" style="padding: 16px 48px; border-bottom: 1px solid var(--border); background: var(--bg); display: flex; align-items: center; gap: 16px;">
           <input type="text" id="search-input" class="modern-input-small search-bar" style="max-width:300px;" placeholder="Global Suchen..." oninput="handleSearch(event)" />
+          
+          <button onclick="openNewLeadForm()" class="action-btn-small outline" style="padding: 0 12px; height: 32px; border-color: var(--border); color: var(--text-muted); font-size: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; margin-left: -8px;" title="Neuen Lead erstellen">
+            +
+          </button>
           <div class="filter-chips" id="chip-container" style="display:flex; align-items:center; gap:8px;">
             <div id="filter-group-2" style="display:flex; gap:8px; align-items:center;">
               <!-- Buttons injected by renderer.js -->

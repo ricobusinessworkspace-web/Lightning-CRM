@@ -1295,6 +1295,7 @@ if (typeof window.renderDashboard === 'function') {
               const usersOpts = [{ id: 'unassigned', name: 'Niemandem (Kalt)' }].concat(window.globalUsersList || []);
               const optsHtml = usersOpts.map(u => `<option value="${u.id}" ${l.claimed_by === u.id || (!l.claimed_by && u.id === 'unassigned') ? 'selected' : ''}>${escapeHtml(u.name)}</option>`).join('');
               
+              assignmentHtml = `
                 <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
                   <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display:block;">Lead Zuweisung</label>
                   <select id="sys-claimed-by" class="modern-input-small" style="width: 100%; box-sizing: border-box; margin-bottom: 8px;" onchange="handleLeadAssignmentChange(this.value)">
