@@ -293,8 +293,8 @@ window.setPipeline = async (type) => {
         window.capturePendingTasks();
       }
 
-      // Store remaining tasks (filtering out done)
-      let finalTasks = (window.currentTasks || []).filter(t => !t.done);
+      // Store remaining tasks (filtering out done, but keeping those done in this session)
+      let finalTasks = (window.currentTasks || []).filter(t => !t.done || (window.sessionDoneTasks && window.sessionDoneTasks.has(t.id)));
       let taskTxt = finalTasks.length > 0 ? JSON.stringify(finalTasks) : '';
 
       let status = 'Lead';
@@ -511,8 +511,10 @@ window.setPipeline = async (type) => {
     };
 
     const isEmailTask = (t) => t.text.toLowerCase().includes('email') || t.text.toLowerCase().includes('mail');
-    const emailTasks = (window.currentTasks || []).filter(isEmailTask);
-    const regularTasks = (window.currentTasks || []).filter(t => !isEmailTask(t));
+    const displayTasks = (window.currentTasks || []).filter(t => !t.done || (window.sessionDoneTasks && window.sessionDoneTasks.has(t.id)));
+    
+    const emailTasks = displayTasks.filter(isEmailTask);
+    const regularTasks = displayTasks.filter(t => !isEmailTask(t));
 
     if (regularTasks.length > 0) {
       html += '<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: 0 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">Hauptaufgaben</div>';
