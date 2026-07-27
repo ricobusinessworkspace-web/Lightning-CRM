@@ -590,15 +590,13 @@ window.setPipeline = async (type) => {
       // Toggle a subtask
       const st = pt.subtasks?.find(x => x.id === subtaskId);
       if (st) st.done = done;
-      // If a subtask is checked, evaluate if all subtasks are checked
-      if (pt.subtasks && pt.subtasks.every(s => s.done)) {
-        pt.done = true;
-      } else {
-        pt.done = false;
-      }
     } else {
       // Toggle the main task
       pt.done = done;
+      if (done) {
+        window.sessionDoneTasks = window.sessionDoneTasks || new Set();
+        window.sessionDoneTasks.add(pt.id);
+      }
       // If a Main Task is checked, check ALL its subtasks. If unchecked, uncheck all.
       if (pt.subtasks) {
         pt.subtasks.forEach(s => s.done = done);

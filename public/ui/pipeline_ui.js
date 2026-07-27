@@ -954,7 +954,7 @@ if (typeof window.renderDashboard === 'function') {
       let allTasks = [];
       leadsWithTasks.forEach(lead => {
          try { 
-           const tasks = JSON.parse(lead.task_text).filter(t => !t.done);
+           const tasks = JSON.parse(lead.task_text).filter(t => !t.done || (window.sessionDoneTasks && window.sessionDoneTasks.has(t.id)));
            tasks.forEach(t => {
                const isEmail = t.text.toLowerCase().includes('email') || t.text.toLowerCase().includes('mail');
                allTasks.push({ lead, task: t, isEmail });
@@ -1570,13 +1570,12 @@ if (typeof window.renderDashboard === 'function') {
          if (subtaskId) {
            const st = t.subtasks?.find(x => x.id === subtaskId);
            if (st) st.done = done;
-           if (t.subtasks && t.subtasks.every(s => s.done)) {
-             t.done = true;
-           } else {
-             t.done = false;
-           }
          } else {
            t.done = done;
+           if (done) {
+             window.sessionDoneTasks = window.sessionDoneTasks || new Set();
+             window.sessionDoneTasks.add(t.id);
+           }
            if (t.subtasks) {
              t.subtasks.forEach(s => s.done = done);
            }
