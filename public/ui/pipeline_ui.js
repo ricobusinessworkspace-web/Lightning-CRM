@@ -577,7 +577,7 @@ if (typeof window.renderDashboard === 'function') {
     let userOptions = `<option value="all" ${st.advFilterAssign === 'all' ? 'selected' : ''}>Alle Leads</option>`;
     userOptions += `<option value="me" ${st.advFilterAssign === 'me' ? 'selected' : ''}>Meine Leads</option>`;
     userOptions += `<option value="unassigned" ${st.advFilterAssign === 'unassigned' ? 'selected' : ''}>Nicht zugewiesen</option>`;
-    if (window.globalUser && window.globalUser.role === 'admin' && window.globalUsersList) {
+    if (window.globalUser && (window.globalUser.role === 'admin' || window.globalUser.role === 'developer') && window.globalUsersList) {
       window.globalUsersList.forEach(u => {
         if (u.id !== window.globalUser.id) {
           userOptions += `<option value="${u.id}" ${String(st.advFilterAssign) === String(u.id) ? 'selected' : ''}>${escapeHtml(u.name)}</option>`;
@@ -639,24 +639,6 @@ if (typeof window.renderDashboard === 'function') {
       </div>
     `;
 
-    // Map filters remain for backward compatibility
-    const mapUserRow = document.getElementById('map-user-filter-row');
-    const mapUserBtns = document.getElementById('map-user-btns');
-    if (mapUserRow && mapUserBtns && window.globalUser && window.globalUser.role === 'admin') {
-      mapUserRow.style.display = 'flex';
-      let mapOpts = [{ id: 'all', label: 'Alle User' }];
-      if (window.globalUsersList) {
-        window.globalUsersList.forEach(u => mapOpts.push({ id: u.id, label: escapeHtml(u.name || 'Unknown') }));
-      }
-      mapUserBtns.innerHTML = mapOpts.map(o => `
-        <button class="chip ${window.store.state.currentMapUserFilter === o.id ? 'active' : ''}" onclick="setMapUserFilter('${o.id}', this)">${o.label}</button>
-      `).join('');
-      group2.innerHTML = '';
-      window.store.state.currentFilter2 = 'all';
-
-      const mapUserRow = document.getElementById('map-user-filter-row');
-      if (mapUserRow) mapUserRow.style.display = 'none';
-    }
   }
 
   window.setFilter = (group, filterName) => {
@@ -1472,11 +1454,10 @@ if (typeof window.renderDashboard === 'function') {
                    links.forEach(link => {
                       const tLead = (window.store.state.leads || []).find(x => x.id === link.id);
                       const name = tLead ? tLead.name : 'Unbekannt';
-                      const icon = link.type === 'Empfehlung' ? '🤝' : (link.type === 'Filiale / Standort' ? '🏢' : '🔗');
                       html += `
                         <div style="display:flex; align-items:center; justify-content:space-between; background:var(--color-surface-hover, #1c1c1e); padding:6px 10px; border-radius:6px; cursor:pointer; transition:0.2s;" onclick="openLead(${link.id})">
                           <div style="display:flex; align-items:center; gap:8px;">
-                            <span style="font-size:16px;">${icon}</span>
+                            <span style="font-size:16px; color:var(--text-muted); opacity:0.7;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>
                             <div style="display:flex; flex-direction:column;">
                               <span style="font-size:13px; color:var(--color-text-primary, #f2f2f7); font-weight:500;">${escapeHtml(name)}</span>
                               <span style="font-size:10px; color:var(--text-muted);">${escapeHtml(link.type)}</span>
@@ -2417,12 +2398,12 @@ window.openLinkModal = (sourceId) => {
   if (existing) existing.remove();
   
   const leads = window.store.state.leads || [];
-  let options = '<option value="">-- Lead auswählen --</option>';
+  let datalistOptions = '';
   // Sort leads alphabetically for easier selection
   const sortedLeads = [...leads].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
   sortedLeads.forEach(l => {
-    if (l.id !== sourceId) {
-      options += `<option value="${l.id}">${escapeHtml(l.name)}</option>`;
+    if (l.id !== sourceId && l.name) {
+      datalistOptions += `<option data-id="${l.id}" value="${escapeHtml(l.name)}"></option>`;
     }
   });
 
@@ -2433,17 +2414,17 @@ window.openLinkModal = (sourceId) => {
         
         <div style="margin-bottom:16px;">
           <label style="display:block; font-size:12px; font-weight:500; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Anderen Lead suchen</label>
-          <select id="link-target-id" class="modern-input" style="width:100%; padding:10px 12px; border-radius:8px; background:var(--color-surface-base, #2c2c2e); color:white; border:1px solid var(--color-border-base); font-size:14px; outline:none;">
-            ${options}
-          </select>
+          <input type="text" id="link-target-input" list="leads-datalist" placeholder="Namen eintippen..." class="modern-input" style="width:100%; padding:10px 12px; border-radius:8px; background:var(--color-surface-base, #2c2c2e); color:white; border:1px solid var(--color-border-base); font-size:14px; outline:none;" autocomplete="off">
+          <datalist id="leads-datalist">
+            ${datalistOptions}
+          </datalist>
         </div>
         
         <div style="margin-bottom:32px;">
           <label style="display:block; font-size:12px; font-weight:500; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Art der Verknüpfung</label>
           <select id="link-type" class="modern-input" style="width:100%; padding:10px 12px; border-radius:8px; background:var(--color-surface-base, #2c2c2e); color:white; border:1px solid var(--color-border-base); font-size:14px; outline:none;">
-            <option value="Filiale / Standort">🏢 Filiale / Standort</option>
-            <option value="Empfehlung">🤝 Empfehlung</option>
-            <option value="Partner / Kooperation">🤝 Partner / Kooperation</option>
+            <option value="Filiale / Standort">Filiale / Standort</option>
+            <option value="Empfehlung">Empfehlung</option>
           </select>
         </div>
         
@@ -2458,7 +2439,14 @@ window.openLinkModal = (sourceId) => {
 };
 
 window.saveLeadLink = async (sourceId) => {
-  const targetId = parseInt(document.getElementById('link-target-id').value, 10);
+  const targetInput = document.getElementById('link-target-input').value;
+  const datalist = document.getElementById('leads-datalist');
+  const option = Array.from(datalist.options).find(opt => opt.value === targetInput);
+  if (!option) {
+     if (typeof window.showToast === 'function') window.showToast('Bitte wähle einen gültigen Lead aus der Liste', 'error');
+     return;
+  }
+  const targetId = parseInt(option.getAttribute('data-id'), 10);
   const type = document.getElementById('link-type').value;
   if (!targetId) return;
 
