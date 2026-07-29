@@ -1340,7 +1340,7 @@ if (typeof window.renderDashboard === 'function') {
       `).join('');
     } else {
       locListHtml = `
-        <div style="padding: 4px 0; font-size: 12px; color: var(--text-muted); cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'" onclick="window.handlePinDoubleClick(${l.id})">
+        <div style="padding: 4px 0; font-size: 12px; color: var(--text-muted); cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'" onclick="document.getElementById('loc-search-container').style.display='block'; this.style.display='none';">
           + Standort hinzufügen
         </div>
       `;
@@ -1443,10 +1443,19 @@ if (typeof window.renderDashboard === 'function') {
             <textarea id="note-input" class="modern-input" placeholder="Notizen hier eintragen..." style="width: 100%; box-sizing: border-box; min-height: 120px; flex: 1; resize: vertical; margin-bottom: 0; background: transparent; border: none; padding: 8px 0; color: var(--color-text-primary, #f2f2f7); font-size: 14px;">${escapeHtml(l.notes || '')}</textarea>
           </div>
 
+          <!-- Mission Briefing (Aufgaben) -->
+          <div class="apple-section">
+            <h4 class="apple-section-title">Aufgaben</h4>
+            <div id="tasks-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;"></div>
+            <form onsubmit="window.handleNewTaskSubmit(event)" style="margin:0; padding:0; width:100%;">
+              <input type="text" id="new-task-input-rem" style="width:100%; box-sizing:border-box; border:none; background:transparent; font-size:14px; color:var(--color-text-primary, #f2f2f7); padding:8px 0; outline:none;" placeholder="+ Neue Aufgabe..." enterkeyhint="done" onkeypress="handleNewTaskKeyPress(event)" />
+            </form>
+          </div>
+
           <!-- Verknüpfte Leads -->
           <div class="apple-section">
             <h4 class="apple-section-title">Verknüpfte Leads</h4>
-            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;" id="linked-leads-list">
               ${(() => {
                 let html = '';
                 const links = l.linked_leads || [];
@@ -1471,37 +1480,38 @@ if (typeof window.renderDashboard === 'function') {
                 return html;
               })()}
             </div>
-            <button onclick="window.openLinkModal(${l.id})" style="background:transparent; border:1px dashed var(--color-border-base, #2c2c2e); padding:8px; border-radius:8px; color:var(--text-muted); cursor:pointer; width:100%; text-align:center; font-size:13px; transition:0.2s;">+ Lead verknüpfen</button>
-          </div>
-
-          <!-- Mission Briefing (Aufgaben) -->
-          <div class="apple-section">
-            <h4 class="apple-section-title">Aufgaben</h4>
-            <div id="tasks-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;"></div>
-            <form onsubmit="window.handleNewTaskSubmit(event)" style="margin:0; padding:0; width:100%;">
-              <input type="text" id="new-task-input-rem" style="width:100%; box-sizing:border-box; border:none; background:transparent; font-size:14px; color:var(--color-text-primary, #f2f2f7); padding:8px 0; outline:none;" placeholder="+ Neue Aufgabe..." enterkeyhint="done" onkeypress="handleNewTaskKeyPress(event)" />
-            </form>
-          </div>
-
-          <!-- Admin Zuweisung -->
-          ${(() => {
-            if (window.globalUser && window.globalUser.role === 'admin') {
-               const users = window.globalUsersList || [];
-               let optionsHtml = `<option value="unassigned">-- Niemandem zugewiesen --</option>`;
-               users.forEach(u => {
-                  optionsHtml += `<option value="${u.id}" ${l.claimed_by === u.id ? 'selected' : ''}>${escapeHtml(u.name || 'Unknown')} (${u.role})</option>`;
-               });
-               return `
-                 <div class="apple-section">
-                   <h4 class="apple-section-title">Zuweisung (Admin)</h4>
-                   <select id="admin-assign-select" class="modern-input-small" style="width:100%; padding: 8px 0; font-size: 14px; background: transparent; border: none;" onchange="window.saveAdminAssignment(${l.id}, this.value)">
-                     ${optionsHtml}
-                   </select>
+            
+            <div id="inline-link-search" style="display:none; flex-direction:column; gap:8px; margin-top:8px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+               <div style="position:relative;">
+                 <input type="text" id="inline-link-input" placeholder="Namen eintippen..." class="modern-input-small" style="width:100%; font-size: 12px; padding: 8px; background: transparent; border: 1px solid var(--color-border-base, #2c2c2e); border-radius: 6px; color:white; outline:none;" autocomplete="off" oninput="window.filterInlineLinkLeads(this.value)" onclick="window.filterInlineLinkLeads(this.value)">
+                 <input type="hidden" id="inline-link-id" value="">
+                 <div id="inline-link-dropdown" style="display:none; position:absolute; top:100%; left:0; width:100%; max-height:150px; overflow-y:auto; background:var(--color-surface-hover, #1c1c1e); border:1px solid var(--color-border-base, #2c2c2e); border-radius:6px; z-index:20; margin-top:4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                   ${(() => {
+                     const leads = window.store.state.leads || [];
+                     const sortedLeads = [...leads].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+                     let opts = '';
+                     sortedLeads.forEach(sl => {
+                       if (sl.id !== l.id && sl.name) {
+                         opts += `<div class="link-lead-option" data-name="${escapeHtml(sl.name).replace(/"/g, '&quot;')}" style="padding:10px 12px; cursor:pointer; color:white; font-size:13px; border-bottom:1px solid rgba(255,255,255,0.05);" onclick="window.selectInlineLinkLead(${sl.id}, this)">${escapeHtml(sl.name)}</div>`;
+                       }
+                     });
+                     return opts;
+                   })()}
                  </div>
-               `;
-            }
-            return '';
-          })()}
+               </div>
+               <div style="display:flex; gap:8px;">
+                 <select id="inline-link-type" class="modern-input-small" style="flex:1; font-size: 12px; padding: 6px; background: transparent; border: 1px solid var(--color-border-base, #2c2c2e); border-radius: 6px; color:white; outline:none;">
+                   <option value="Filiale / Standort">Filiale / Standort</option>
+                   <option value="Empfehlung">Empfehlung</option>
+                 </select>
+                 <button class="action-btn-small" style="background: var(--color-brand-accent, #0a84ff); color: white; border: none; font-weight: 600; padding: 0 12px; border-radius: 6px;" onclick="window.saveInlineLeadLink(${l.id})">Ok</button>
+               </div>
+            </div>
+            
+            <div id="inline-link-toggle" style="padding: 4px 0; font-size: 12px; color: var(--text-muted); cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'" onclick="document.getElementById('inline-link-search').style.display='flex'; this.style.display='none';">
+              + Verknüpfung hinzufügen
+            </div>
+          </div>
 
           <!-- Location & Opening Hours -->
           <div class="apple-section">
@@ -1510,23 +1520,24 @@ if (typeof window.renderDashboard === 'function') {
             ${openingHoursHtml}
             <div id="loc-search-container" style="display:${window._forceLocationSearch ? 'block' : 'none'}; margin-top:12px;">
               <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                <input type="text" id="loc-search-input" class="modern-input-small" style="font-size: 12px; padding: 8px; flex:1; background: rgba(0,0,0,0.2);" value="${escapeHtml(l.name)}" placeholder="Firma, Ort..." />
-                <button class="action-btn-small" style="background: var(--color-brand-accent, #0a84ff); color: white; border-color: var(--color-brand-accent, #0a84ff); font-weight: 600; padding: 0 12px;" onclick="searchLeadLocation(${l.id})">Suchen</button>
+                <input type="text" id="loc-search-input" class="modern-input-small" style="font-size: 12px; padding: 8px; flex:1; background: rgba(0,0,0,0.2); color:white; border:none; border-radius:6px;" value="${escapeHtml(l.name)}" placeholder="Firma, Ort..." />
+                <button class="action-btn-small" style="background: var(--color-brand-accent, #0a84ff); color: white; border-color: var(--color-brand-accent, #0a84ff); font-weight: 600; padding: 0 12px; border-radius:6px;" onclick="searchLeadLocation(${l.id})">Suchen</button>
               </div>
               <div id="loc-search-results" style="max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
             </div>
           </div>
 
+          <!-- Zuweisung -->
           ${(function(){
             let assignmentHtml = '';
             if (window.globalUser && (window.globalUser.role === 'admin' || window.globalUser.role === 'developer')) {
-              const usersOpts = [{ id: 'unassigned', name: 'Niemandem (Kalt)' }].concat(window.globalUsersList || []);
+              const usersOpts = [{ id: 'unassigned', name: 'Niemandem zugewiesen' }].concat(window.globalUsersList || []);
               const optsHtml = usersOpts.map(u => `<option value="${u.id}" ${l.claimed_by === u.id || (!l.claimed_by && u.id === 'unassigned') ? 'selected' : ''}>${escapeHtml(u.name)}</option>`).join('');
               
               assignmentHtml = `
                 <div class="apple-section">
                   <h4 class="apple-section-title">Zuweisung</h4>
-                  <select id="sys-claimed-by" class="modern-input-small" style="width: 100%; box-sizing: border-box; background: transparent; border: none; padding: 8px 0;" onchange="handleLeadAssignmentChange(this.value)">
+                  <select id="sys-claimed-by" class="modern-input-small" style="width: 100%; box-sizing: border-box; background: transparent; border: none; padding: 8px 0; font-size: 14px; color: var(--color-text-primary); outline:none;" onchange="handleLeadAssignmentChange(this.value); if(window.saveAdminAssignment){ window.saveAdminAssignment(${l.id}, this.value); }">
                     ${optsHtml}
                   </select>
                 </div>
@@ -2393,65 +2404,8 @@ if (typeof window.renderDashboard === 'function') {
 
 
 // --- Linked Leads Logic ---
-window.openLinkModal = (sourceId) => {
-  const existing = document.getElementById('link-modal');
-  if (existing) existing.remove();
-  
-  const leads = window.store.state.leads || [];
-  // Sort leads alphabetically for easier selection
-  const sortedLeads = [...leads].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-  
-  let customOptionsHtml = '';
-  sortedLeads.forEach(l => {
-    if (l.id !== sourceId && l.name) {
-      customOptionsHtml += `<div class="link-lead-option" style="padding:10px 12px; cursor:pointer; color:white; font-size:13px; border-bottom:1px solid rgba(255,255,255,0.05);" onclick="window.selectLinkLead(${l.id}, '${escapeHtml(l.name).replace(/'/g, "\\'")}')">${escapeHtml(l.name)}</div>`;
-    }
-  });
-
-  const html = `
-    <div id="link-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); z-index:var(--z-modal, 9999); display:flex; align-items:center; justify-content:center;">
-      <div style="background:var(--color-bg-panel, #1c1c1e); padding:24px; border-radius:12px; width:400px; max-width:90%; box-shadow:var(--shadow-modal, 0 10px 30px rgba(0,0,0,0.5)); border:1px solid var(--color-border-base, #2c2c2e);">
-        <h3 style="margin-top:0; color:var(--color-text-primary, #f2f2f7); font-size:18px; font-weight:600; margin-bottom:20px;">Lead verknüpfen</h3>
-        
-        <div style="margin-bottom:16px; position:relative;">
-          <label style="display:block; font-size:12px; font-weight:500; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Anderen Lead suchen</label>
-          <input type="text" id="link-target-input" placeholder="Namen eintippen..." class="modern-input" style="width:100%; padding:10px 12px; border-radius:8px; background:var(--color-surface-base, #2c2c2e); color:white; border:1px solid var(--color-border-base); font-size:14px; outline:none;" autocomplete="off" oninput="window.filterLinkLeads(this.value)" onclick="window.filterLinkLeads(this.value)">
-          <input type="hidden" id="link-target-id" value="">
-          <div id="link-leads-dropdown" style="display:none; position:absolute; top:100%; left:0; width:100%; max-height:200px; overflow-y:auto; background:var(--color-surface-hover, #1c1c1e); border:1px solid var(--color-border-base); border-radius:8px; z-index:10; margin-top:4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-            ${customOptionsHtml}
-          </div>
-        </div>
-        
-        <div style="margin-bottom:32px;">
-          <label style="display:block; font-size:12px; font-weight:500; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Art der Verknüpfung</label>
-          <select id="link-type" class="modern-input" style="width:100%; padding:10px 12px; border-radius:8px; background:var(--color-surface-base, #2c2c2e); color:white; border:1px solid var(--color-border-base); font-size:14px; outline:none;">
-            <option value="Filiale / Standort">Filiale / Standort</option>
-            <option value="Empfehlung">Empfehlung</option>
-          </select>
-        </div>
-        
-        <div style="display:flex; justify-content:flex-end; gap:12px;">
-          <button onclick="document.getElementById('link-modal').remove()" style="padding:10px 16px; border-radius:8px; border:none; background:transparent; color:var(--text-muted); font-size:14px; font-weight:500; cursor:pointer;">Abbrechen</button>
-          <button onclick="window.saveLeadLink(${sourceId})" style="padding:10px 16px; border-radius:8px; border:none; background:var(--color-brand-primary, #0a84ff); color:white; font-size:14px; font-weight:600; cursor:pointer;">Verknüpfen</button>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.insertAdjacentHTML('beforeend', html);
-  
-  // Close dropdown when clicking outside
-  setTimeout(() => {
-    document.getElementById('link-modal').addEventListener('click', (e) => {
-      if(e.target.id !== 'link-target-input' && e.target.id !== 'link-leads-dropdown') {
-        const dd = document.getElementById('link-leads-dropdown');
-        if (dd) dd.style.display = 'none';
-      }
-    });
-  }, 100);
-};
-
-window.filterLinkLeads = (val) => {
-  const dd = document.getElementById('link-leads-dropdown');
+window.filterInlineLinkLeads = (val) => {
+  const dd = document.getElementById('inline-link-dropdown');
   if (!dd) return;
   const opts = dd.querySelectorAll('.link-lead-option');
   let hasAny = false;
@@ -2463,24 +2417,29 @@ window.filterLinkLeads = (val) => {
       opt.style.display = 'none';
     }
   });
-  // Show if there is at least one match, even if input is empty (so clicking it shows options)
   dd.style.display = hasAny ? 'block' : 'none';
 };
 
-window.selectLinkLead = (id, name) => {
-  document.getElementById('link-target-id').value = id;
-  document.getElementById('link-target-input').value = name;
-  document.getElementById('link-leads-dropdown').style.display = 'none';
+window.selectInlineLinkLead = (id, el) => {
+  document.getElementById('inline-link-id').value = id;
+  document.getElementById('inline-link-input').value = el.getAttribute('data-name');
+  document.getElementById('inline-link-dropdown').style.display = 'none';
 };
 
-window.saveLeadLink = async (sourceId) => {
-  const targetId = parseInt(document.getElementById('link-target-id').value, 10);
+document.addEventListener('click', (e) => {
+  if (e.target.id !== 'inline-link-input' && e.target.id !== 'inline-link-dropdown') {
+    const dd = document.getElementById('inline-link-dropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
+
+window.saveInlineLeadLink = async (sourceId) => {
+  const targetId = parseInt(document.getElementById('inline-link-id').value, 10);
   if (!targetId || isNaN(targetId)) {
-     if (typeof window.showToast === 'function') window.showToast('Bitte wähle einen gültigen Lead aus der Liste', 'error');
+     if (typeof window.showToast === 'function') window.showToast('Bitte wähle einen Lead', 'error');
      return;
   }
-  const type = document.getElementById('link-type').value;
-  if (!targetId) return;
+  const type = document.getElementById('inline-link-type').value;
 
   const leads = window.store.state.leads;
   const source = leads.find(l => l.id === sourceId);
@@ -2501,9 +2460,8 @@ window.saveLeadLink = async (sourceId) => {
 
   await window.api.saveLead(source);
   await window.api.saveLead(target);
-  document.getElementById('link-modal').remove();
   
-  if (typeof window.showToast === 'function') window.showToast('Leads erfolgreich verknüpft');
+  if (typeof window.showToast === 'function') window.showToast('Leads verknüpft');
   
   if (window.store.state.currentLeadId === sourceId) {
     window.openLead(sourceId, true);
