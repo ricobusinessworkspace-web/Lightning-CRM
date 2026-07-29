@@ -1480,32 +1480,27 @@ if (typeof window.renderDashboard === 'function') {
                 return html;
               })()}
             </div>
-            
-            <div id="inline-link-search" style="display:none; flex-direction:column; gap:8px; margin-top:8px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
-               <div style="position:relative;">
-                 <input type="text" id="inline-link-input" placeholder="Namen eintippen..." class="modern-input-small" style="width:100%; font-size: 12px; padding: 8px; background: transparent; border: 1px solid var(--color-border-base, #2c2c2e); border-radius: 6px; color:white; outline:none;" autocomplete="off" oninput="window.filterInlineLinkLeads(this.value)" onclick="window.filterInlineLinkLeads(this.value)">
-                 <input type="hidden" id="inline-link-id" value="">
-                 <div id="inline-link-dropdown" style="display:none; position:absolute; top:100%; left:0; width:100%; max-height:150px; overflow-y:auto; background:var(--color-surface-hover, #1c1c1e); border:1px solid var(--color-border-base, #2c2c2e); border-radius:6px; z-index:20; margin-top:4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-                   ${(() => {
-                     const leads = window.store.state.leads || [];
-                     const sortedLeads = [...leads].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-                     let opts = '';
-                     sortedLeads.forEach(sl => {
-                       if (sl.id !== l.id && sl.name) {
-                         opts += `<div class="link-lead-option" data-name="${escapeHtml(sl.name).replace(/"/g, '&quot;')}" style="padding:10px 12px; cursor:pointer; color:white; font-size:13px; border-bottom:1px solid rgba(255,255,255,0.05);" onclick="window.selectInlineLinkLead(${sl.id}, this)">${escapeHtml(sl.name)}</div>`;
-                       }
-                     });
-                     return opts;
-                   })()}
-                 </div>
-               </div>
-               <div style="display:flex; gap:8px;">
-                 <select id="inline-link-type" class="modern-input-small" style="flex:1; font-size: 12px; padding: 6px; background: transparent; border: 1px solid var(--color-border-base, #2c2c2e); border-radius: 6px; color:white; outline:none;">
-                   <option value="Filiale / Standort">Filiale / Standort</option>
+            <div id="inline-link-search" style="display:none; margin-top:12px;">
+              <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input type="text" id="inline-link-input" class="modern-input-small" style="font-size: 12px; padding: 8px; flex:1; background: rgba(0,0,0,0.2); color:white; border:none; border-radius:6px; outline:none;" placeholder="Lead-Namen suchen..." oninput="window.filterInlineLinkLeads(this.value)" autocomplete="off" />
+                <select id="inline-link-type" class="modern-input-small" style="font-size: 12px; padding: 6px 4px; background: rgba(0,0,0,0.2); color: white; border: none; border-radius: 6px; outline:none; max-width:110px;">
+                   <option value="Filiale / Standort">Standort</option>
                    <option value="Empfehlung">Empfehlung</option>
-                 </select>
-                 <button class="action-btn-small" style="background: var(--color-brand-accent, #0a84ff); color: white; border: none; font-weight: 600; padding: 0 12px; border-radius: 6px;" onclick="window.saveInlineLeadLink(${l.id})">Ok</button>
-               </div>
+                </select>
+              </div>
+              <div id="inline-link-results" style="max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; display:none;">
+                ${(() => {
+                  const leads = window.store.state.leads || [];
+                  const sortedLeads = [...leads].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+                  let opts = '';
+                  sortedLeads.forEach(sl => {
+                    if (sl.id !== l.id && sl.name) {
+                      opts += `<div class="link-lead-option" style="padding:8px 12px; background:rgba(0,0,0,0.2); border-radius:6px; cursor:pointer; color:white; font-size:12px; transition:0.2s; display:none;" onmouseover="this.style.background='rgba(0,0,0,0.4)'" onmouseout="this.style.background='rgba(0,0,0,0.2)'" onclick="window.saveInlineLeadLink(${l.id}, ${sl.id})">${escapeHtml(sl.name)}</div>`;
+                    }
+                  });
+                  return opts;
+                })()}
+              </div>
             </div>
             
             <div id="inline-link-toggle" style="padding: 4px 0; font-size: 12px; color: var(--text-muted); cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'" onclick="document.getElementById('inline-link-search').style.display='flex'; this.style.display='none';">
@@ -2405,9 +2400,15 @@ if (typeof window.renderDashboard === 'function') {
 
 // --- Linked Leads Logic ---
 window.filterInlineLinkLeads = (val) => {
-  const dd = document.getElementById('inline-link-dropdown');
-  if (!dd) return;
-  const opts = dd.querySelectorAll('.link-lead-option');
+  const resultsDiv = document.getElementById('inline-link-results');
+  if (!resultsDiv) return;
+  
+  if (!val || val.trim().length === 0) {
+    resultsDiv.style.display = 'none';
+    return;
+  }
+  
+  const opts = resultsDiv.querySelectorAll('.link-lead-option');
   let hasAny = false;
   opts.forEach(opt => {
     if (opt.innerText.toLowerCase().includes(val.toLowerCase())) {
@@ -2417,28 +2418,11 @@ window.filterInlineLinkLeads = (val) => {
       opt.style.display = 'none';
     }
   });
-  dd.style.display = hasAny ? 'block' : 'none';
+  resultsDiv.style.display = hasAny ? 'flex' : 'none';
 };
 
-window.selectInlineLinkLead = (id, el) => {
-  document.getElementById('inline-link-id').value = id;
-  document.getElementById('inline-link-input').value = el.getAttribute('data-name');
-  document.getElementById('inline-link-dropdown').style.display = 'none';
-};
-
-document.addEventListener('click', (e) => {
-  if (e.target.id !== 'inline-link-input' && e.target.id !== 'inline-link-dropdown') {
-    const dd = document.getElementById('inline-link-dropdown');
-    if (dd) dd.style.display = 'none';
-  }
-});
-
-window.saveInlineLeadLink = async (sourceId) => {
-  const targetId = parseInt(document.getElementById('inline-link-id').value, 10);
-  if (!targetId || isNaN(targetId)) {
-     if (typeof window.showToast === 'function') window.showToast('Bitte wähle einen Lead', 'error');
-     return;
-  }
+window.saveInlineLeadLink = async (sourceId, targetId) => {
+  if (!targetId || isNaN(targetId)) return;
   const type = document.getElementById('inline-link-type').value;
 
   const leads = window.store.state.leads;
