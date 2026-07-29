@@ -2411,7 +2411,7 @@ window.filterInlineLinkLeads = (val) => {
   const opts = resultsDiv.querySelectorAll('.link-lead-option');
   let hasAny = false;
   opts.forEach(opt => {
-    if (opt.innerText.toLowerCase().includes(val.toLowerCase())) {
+    if (opt.textContent.toLowerCase().includes(val.toLowerCase())) {
       opt.style.display = 'block';
       hasAny = true;
     } else {
