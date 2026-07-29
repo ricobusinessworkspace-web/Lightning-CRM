@@ -226,7 +226,7 @@ export const db = {
     }
 
     // Minion Access Control
-    if (currentUser && currentUser.role !== 'admin' && !filters.all) {
+    if (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'developer' && !filters.all) {
       // Agent sieht alle Kalten (unassigned), aber NUR seine EIGENEN in der Pipeline
       query = query.or(`and(status.eq.Lead,entscheider.eq.0,termin.eq.0,rechnung.eq.0),claimed_by.eq.${currentUser.id}`);
     }
