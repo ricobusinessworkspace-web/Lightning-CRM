@@ -1226,6 +1226,7 @@ if (typeof window.renderDashboard === 'function') {
   window._sessionRecentLeads = window._sessionRecentLeads || new Set();
 
   window.openLeadDirectly = async (id, keepForceLocationSearch = false, isSaving = false) => {
+    window.store.state.leads = await window.api.getLeads({ all: true });
     if (!keepForceLocationSearch) window._forceLocationSearch = false;
     window.store.state.currentSelectedLeadId = id;
     
