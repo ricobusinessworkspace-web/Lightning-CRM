@@ -84,6 +84,7 @@ function normalizeRow(row) {
   return {
     ...row,
     locations:    Array.isArray(row.locations)    ? row.locations    : [],
+    linked_leads: Array.isArray(row.linked_leads) ? row.linked_leads : [],
     call_history: callHistory,
     call_status:  deriveCallStatus(callHistory),
     // Map column name: Supabase uses created_at_ms, old code used created_at
@@ -249,6 +250,10 @@ export const db = {
       ? (typeof lead.locations === 'string' ? JSON.parse(lead.locations) : lead.locations)
       : [];
 
+    const linked_leads = lead.linked_leads
+      ? (typeof lead.linked_leads === 'string' ? JSON.parse(lead.linked_leads) : lead.linked_leads)
+      : [];
+
     const payload = {
       name:               lead.name,
       phone:              lead.phone               ?? '',
@@ -284,6 +289,7 @@ export const db = {
       phone_source:       lead.phone_source        ?? '',
       estimated_kwh:      lead.estimated_kwh       ?? 0,
       opening_hours:      lead.opening_hours       ? (typeof lead.opening_hours === 'string' ? JSON.parse(lead.opening_hours) : lead.opening_hours) : null,
+      linked_leads,
     };
 
     if (lead.last_contact_ms !== undefined) {

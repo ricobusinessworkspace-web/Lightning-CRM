@@ -509,6 +509,40 @@ if (typeof window.renderDashboard === 'function') {
       let leads = await window.api.getLeads(filters);
       // Frontend-level safeguard: Ensure Uninteressant leads are never shown in active CRM tabs
       leads = leads.filter(l => l.status !== 'Uninteressant');
+      
+      // Apply Advanced Filters
+      const st = window.store.state;
+      if (st.advFilterStatus && st.advFilterStatus !== 'all') {
+         leads = leads.filter(l => (l.status || 'Lead') === st.advFilterStatus);
+      }
+      if (st.advFilterAssign && st.advFilterAssign !== 'all') {
+         if (st.advFilterAssign === 'me') {
+            leads = leads.filter(l => l.claimed_by === (window.globalUser ? window.globalUser.id : null));
+         } else if (st.advFilterAssign === 'unassigned') {
+            leads = leads.filter(l => !l.claimed_by);
+         } else {
+            leads = leads.filter(l => String(l.claimed_by) === String(st.advFilterAssign));
+         }
+      }
+      if (st.advFilterTask && st.advFilterTask !== 'all') {
+         leads = leads.filter(l => {
+            let open = false;
+            if (l.task_text) {
+               try { 
+                  const ts = JSON.parse(l.task_text);
+                  open = ts.some(t => !t.done);
+               } catch(e){}
+            }
+            return st.advFilterTask === 'open' ? open : !open;
+         });
+      }
+      if (st.advFilterLink && st.advFilterLink !== 'all') {
+         leads = leads.filter(l => {
+            const hasLinks = l.linked_leads && l.linked_leads.length > 0;
+            return st.advFilterLink === 'linked' ? hasLinks : !hasLinks;
+         });
+      }
+
       renderQueue(leads);
     }
     
@@ -519,37 +553,104 @@ if (typeof window.renderDashboard === 'function') {
     }
   }
 
+  window.toggleAdvFilter = () => {
+    const el = document.getElementById('adv-filter-dropdown');
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  };
+
+  window.setAdvFilter = (key, val) => {
+    window.store.state[key] = val;
+    loadUi();
+  };
+
   function renderFilterButtons() {
     const group2 = document.getElementById('filter-group-2');
     if (!group2) return;
 
-    if (window.globalUser && window.globalUser.role === 'admin') {
-      group2.style.display = 'flex';
-      let opts2 = [
-        { id: 'all', label: 'Alle User' }
-      ];
+    // Use default values if not set
+    const st = window.store.state;
+    st.advFilterStatus = st.advFilterStatus || 'all';
+    st.advFilterAssign = st.advFilterAssign || 'all';
+    st.advFilterTask   = st.advFilterTask   || 'all';
+    st.advFilterLink   = st.advFilterLink   || 'all';
+
+    let userOptions = `<option value="all" ${st.advFilterAssign === 'all' ? 'selected' : ''}>Alle Leads</option>`;
+    userOptions += `<option value="me" ${st.advFilterAssign === 'me' ? 'selected' : ''}>Meine Leads</option>`;
+    userOptions += `<option value="unassigned" ${st.advFilterAssign === 'unassigned' ? 'selected' : ''}>Nicht zugewiesen</option>`;
+    if (window.globalUser && window.globalUser.role === 'admin' && window.globalUsersList) {
+      window.globalUsersList.forEach(u => {
+        if (u.id !== window.globalUser.id) {
+          userOptions += `<option value="${u.id}" ${String(st.advFilterAssign) === String(u.id) ? 'selected' : ''}>${escapeHtml(u.name)}</option>`;
+        }
+      });
+    }
+
+    const hasActiveFilters = st.advFilterStatus !== 'all' || st.advFilterAssign !== 'all' || st.advFilterTask !== 'all' || st.advFilterLink !== 'all';
+    const activeColor = hasActiveFilters ? 'var(--color-brand-primary, #0a84ff)' : 'var(--text-muted)';
+    const activeBg = hasActiveFilters ? 'rgba(10, 132, 255, 0.1)' : 'transparent';
+    const activeBorder = hasActiveFilters ? 'var(--color-brand-primary, #0a84ff)' : 'var(--border)';
+
+    group2.style.display = 'flex';
+    group2.style.position = 'relative';
+    group2.innerHTML = `
+      <button onclick="window.toggleAdvFilter()" class="action-btn-small outline" style="border-color:${activeBorder}; color:${activeColor}; background:${activeBg}; display:flex; align-items:center; gap:6px; font-weight:500; height:32px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+        Filter
+      </button>
+      
+      <div id="adv-filter-dropdown" style="display:none; position:absolute; top:40px; right:0; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; width:260px; z-index: var(--z-dropdown, 1000); box-shadow: var(--shadow-md, 0 10px 30px rgba(0,0,0,0.5));">
+        
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase;">Zuweisung</label>
+          <select class="modern-input" style="width:100%; padding:6px 8px; font-size:13px; border-radius:6px; background:var(--color-surface-hover, #1c1c1e); color:white; border:none; outline:none;" onchange="window.setAdvFilter('advFilterAssign', this.value)">
+            ${userOptions}
+          </select>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase;">Pipeline Status</label>
+          <select class="modern-input" style="width:100%; padding:6px 8px; font-size:13px; border-radius:6px; background:var(--color-surface-hover, #1c1c1e); color:white; border:none; outline:none;" onchange="window.setAdvFilter('advFilterStatus', this.value)">
+            <option value="all" ${st.advFilterStatus === 'all' ? 'selected' : ''}>Alle Status</option>
+            <option value="Lead" ${st.advFilterStatus === 'Lead' ? 'selected' : ''}>Lead</option>
+            <option value="Entscheider" ${st.advFilterStatus === 'Entscheider' ? 'selected' : ''}>Entscheider</option>
+            <option value="Termin" ${st.advFilterStatus === 'Termin' ? 'selected' : ''}>Termin</option>
+            <option value="Kunde" ${st.advFilterStatus === 'Kunde' ? 'selected' : ''}>Kunde</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase;">Aufgaben</label>
+          <select class="modern-input" style="width:100%; padding:6px 8px; font-size:13px; border-radius:6px; background:var(--color-surface-hover, #1c1c1e); color:white; border:none; outline:none;" onchange="window.setAdvFilter('advFilterTask', this.value)">
+            <option value="all" ${st.advFilterTask === 'all' ? 'selected' : ''}>Alle</option>
+            <option value="open" ${st.advFilterTask === 'open' ? 'selected' : ''}>Offene Aufgaben</option>
+            <option value="none" ${st.advFilterTask === 'none' ? 'selected' : ''}>Keine offene Aufgaben</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:4px;">
+          <label style="display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase;">Verknüpfungen</label>
+          <select class="modern-input" style="width:100%; padding:6px 8px; font-size:13px; border-radius:6px; background:var(--color-surface-hover, #1c1c1e); color:white; border:none; outline:none;" onchange="window.setAdvFilter('advFilterLink', this.value)">
+            <option value="all" ${st.advFilterLink === 'all' ? 'selected' : ''}>Alle</option>
+            <option value="linked" ${st.advFilterLink === 'linked' ? 'selected' : ''}>Mit Verknüpfungen</option>
+            <option value="none" ${st.advFilterLink === 'none' ? 'selected' : ''}>Ohne Verknüpfungen</option>
+          </select>
+        </div>
+
+      </div>
+    `;
+
+    // Map filters remain for backward compatibility
+    const mapUserRow = document.getElementById('map-user-filter-row');
+    const mapUserBtns = document.getElementById('map-user-btns');
+    if (mapUserRow && mapUserBtns && window.globalUser && window.globalUser.role === 'admin') {
+      mapUserRow.style.display = 'flex';
+      let mapOpts = [{ id: 'all', label: 'Alle User' }];
       if (window.globalUsersList) {
-        window.globalUsersList.forEach(u => {
-          opts2.push({ id: u.id, label: escapeHtml(u.name || 'Unknown') });
-        });
+        window.globalUsersList.forEach(u => mapOpts.push({ id: u.id, label: escapeHtml(u.name || 'Unknown') }));
       }
-
-      group2.innerHTML = opts2.map(o => `
-        <button class="chip ${window.store.state.currentFilter2 === o.id ? 'active' : ''}" onclick="setFilter(2, '${o.id}')">${o.label}</button>
+      mapUserBtns.innerHTML = mapOpts.map(o => `
+        <button class="chip ${window.store.state.currentMapUserFilter === o.id ? 'active' : ''}" onclick="setMapUserFilter('${o.id}', this)">${o.label}</button>
       `).join('');
-
-      // Also render map filters
-      const mapUserRow = document.getElementById('map-user-filter-row');
-      const mapUserBtns = document.getElementById('map-user-btns');
-      if (mapUserRow && mapUserBtns) {
-        mapUserRow.style.display = 'flex';
-        mapUserBtns.innerHTML = opts2.map(o => `
-          <button class="chip ${window.store.state.currentMapUserFilter === o.id ? 'active' : ''}" onclick="setMapUserFilter('${o.id}', this)">${o.label}</button>
-        `).join('');
-      }
-
-    } else {
-      group2.style.display = 'none';
       group2.innerHTML = '';
       window.store.state.currentFilter2 = 'all';
 
@@ -1358,6 +1459,38 @@ if (typeof window.renderDashboard === 'function') {
           <div class="apple-section" style="display: flex; flex-direction: column;">
             <h4 class="apple-section-title">Notizen</h4>
             <textarea id="note-input" class="modern-input" placeholder="Notizen hier eintragen..." style="width: 100%; box-sizing: border-box; min-height: 120px; flex: 1; resize: vertical; margin-bottom: 0; background: transparent; border: none; padding: 8px 0; color: var(--color-text-primary, #f2f2f7); font-size: 14px;">${escapeHtml(l.notes || '')}</textarea>
+          </div>
+
+          <!-- Verknüpfte Leads -->
+          <div class="apple-section">
+            <h4 class="apple-section-title">Verknüpfte Leads</h4>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+              ${(() => {
+                let html = '';
+                const links = l.linked_leads || [];
+                if (links.length > 0) {
+                   links.forEach(link => {
+                      const tLead = (window.store.state.leads || []).find(x => x.id === link.id);
+                      const name = tLead ? tLead.name : 'Unbekannt';
+                      const icon = link.type === 'Empfehlung' ? '🤝' : (link.type === 'Filiale / Standort' ? '🏢' : '🔗');
+                      html += `
+                        <div style="display:flex; align-items:center; justify-content:space-between; background:var(--color-surface-hover, #1c1c1e); padding:6px 10px; border-radius:6px; cursor:pointer; transition:0.2s;" onclick="openLead(${link.id})">
+                          <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:16px;">${icon}</span>
+                            <div style="display:flex; flex-direction:column;">
+                              <span style="font-size:13px; color:var(--color-text-primary, #f2f2f7); font-weight:500;">${escapeHtml(name)}</span>
+                              <span style="font-size:10px; color:var(--text-muted);">${escapeHtml(link.type)}</span>
+                            </div>
+                          </div>
+                          <button onclick="event.stopPropagation(); window.removeLeadLink(${l.id}, ${link.id})" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:16px; padding:0 4px;">×</button>
+                        </div>
+                      `;
+                   });
+                }
+                return html;
+              })()}
+            </div>
+            <button onclick="window.openLinkModal(${l.id})" style="background:transparent; border:1px dashed var(--color-border-base, #2c2c2e); padding:8px; border-radius:8px; color:var(--text-muted); cursor:pointer; width:100%; text-align:center; font-size:13px; transition:0.2s;">+ Lead verknüpfen</button>
           </div>
 
           <!-- Mission Briefing (Aufgaben) -->
@@ -2276,3 +2409,105 @@ if (typeof window.renderDashboard === 'function') {
       container.innerHTML = `<div class="empty-state" style="width: 100%; color: #ff453a;">Fehler beim Laden der Metriken: ${err.message}</div>`;
     }
   };
+
+
+// --- Linked Leads Logic ---
+window.openLinkModal = (sourceId) => {
+  const existing = document.getElementById('link-modal');
+  if (existing) existing.remove();
+  
+  const leads = window.store.state.leads || [];
+  let options = '<option value="">-- Lead auswählen --</option>';
+  // Sort leads alphabetically for easier selection
+  const sortedLeads = [...leads].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+  sortedLeads.forEach(l => {
+    if (l.id !== sourceId) {
+      options += `<option value="${l.id}">${escapeHtml(l.name)}</option>`;
+    }
+  });
+
+  const html = `
+    <div id="link-modal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); z-index:var(--z-modal, 9999); display:flex; align-items:center; justify-content:center;">
+      <div style="background:var(--color-bg-panel, #1c1c1e); padding:24px; border-radius:12px; width:400px; max-width:90%; box-shadow:var(--shadow-modal, 0 10px 30px rgba(0,0,0,0.5)); border:1px solid var(--color-border-base, #2c2c2e);">
+        <h3 style="margin-top:0; color:var(--color-text-primary, #f2f2f7); font-size:18px; font-weight:600; margin-bottom:20px;">Lead verknüpfen</h3>
+        
+        <div style="margin-bottom:16px;">
+          <label style="display:block; font-size:12px; font-weight:500; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Anderen Lead suchen</label>
+          <select id="link-target-id" class="modern-input" style="width:100%; padding:10px 12px; border-radius:8px; background:var(--color-surface-base, #2c2c2e); color:white; border:1px solid var(--color-border-base); font-size:14px; outline:none;">
+            ${options}
+          </select>
+        </div>
+        
+        <div style="margin-bottom:32px;">
+          <label style="display:block; font-size:12px; font-weight:500; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Art der Verknüpfung</label>
+          <select id="link-type" class="modern-input" style="width:100%; padding:10px 12px; border-radius:8px; background:var(--color-surface-base, #2c2c2e); color:white; border:1px solid var(--color-border-base); font-size:14px; outline:none;">
+            <option value="Filiale / Standort">🏢 Filiale / Standort</option>
+            <option value="Empfehlung">🤝 Empfehlung</option>
+            <option value="Partner / Kooperation">🤝 Partner / Kooperation</option>
+          </select>
+        </div>
+        
+        <div style="display:flex; justify-content:flex-end; gap:12px;">
+          <button onclick="document.getElementById('link-modal').remove()" style="padding:10px 16px; border-radius:8px; border:none; background:transparent; color:var(--text-muted); font-size:14px; font-weight:500; cursor:pointer;">Abbrechen</button>
+          <button onclick="window.saveLeadLink(${sourceId})" style="padding:10px 16px; border-radius:8px; border:none; background:var(--color-brand-primary, #0a84ff); color:white; font-size:14px; font-weight:600; cursor:pointer;">Verknüpfen</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', html);
+};
+
+window.saveLeadLink = async (sourceId) => {
+  const targetId = parseInt(document.getElementById('link-target-id').value, 10);
+  const type = document.getElementById('link-type').value;
+  if (!targetId) return;
+
+  const leads = window.store.state.leads;
+  const source = leads.find(l => l.id === sourceId);
+  const target = leads.find(l => l.id === targetId);
+  if (!source || !target) return;
+
+  source.linked_leads = source.linked_leads || [];
+  target.linked_leads = target.linked_leads || [];
+
+  if (!source.linked_leads.find(x => x.id === targetId)) {
+    source.linked_leads.push({ id: targetId, type });
+  }
+  if (!target.linked_leads.find(x => x.id === sourceId)) {
+    let reverseType = type;
+    if (type === 'Empfehlung') reverseType = 'Empfohlen von';
+    target.linked_leads.push({ id: sourceId, type: reverseType });
+  }
+
+  await window.api.saveLead(source);
+  await window.api.saveLead(target);
+  document.getElementById('link-modal').remove();
+  
+  if (typeof window.showToast === 'function') window.showToast('Leads erfolgreich verknüpft');
+  
+  if (window.store.state.currentLeadId === sourceId) {
+    window.openLead(sourceId, true);
+  }
+};
+
+window.removeLeadLink = async (sourceId, targetId) => {
+  if (!confirm('Verknüpfung wirklich entfernen?')) return;
+  const leads = window.store.state.leads;
+  const source = leads.find(l => l.id === sourceId);
+  const target = leads.find(l => l.id === targetId);
+  
+  if (source) {
+    source.linked_leads = (source.linked_leads || []).filter(x => x.id !== targetId);
+    await window.api.saveLead(source);
+  }
+  if (target) {
+    target.linked_leads = (target.linked_leads || []).filter(x => x.id !== sourceId);
+    await window.api.saveLead(target);
+  }
+  
+  if (typeof window.showToast === 'function') window.showToast('Verknüpfung entfernt');
+  
+  if (window.store.state.currentLeadId === sourceId) {
+    window.openLead(sourceId, true);
+  }
+};
