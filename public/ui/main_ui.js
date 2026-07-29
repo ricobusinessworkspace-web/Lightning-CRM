@@ -260,8 +260,8 @@ window.setPipeline = async (type) => {
     window._sessionRecentLeads = window._sessionRecentLeads || new Set();
     window._sessionRecentLeads.add(id);
 
+    const saveBtn = document.getElementById('main-save-btn');
     try {
-      const saveBtn = document.getElementById('main-save-btn');
       if (saveBtn) {
         saveBtn.classList.add('btn-loading');
         saveBtn.disabled = true;
