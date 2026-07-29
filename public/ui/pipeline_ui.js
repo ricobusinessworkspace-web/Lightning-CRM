@@ -2398,12 +2398,13 @@ window.openLinkModal = (sourceId) => {
   if (existing) existing.remove();
   
   const leads = window.store.state.leads || [];
-  let datalistOptions = '';
   // Sort leads alphabetically for easier selection
   const sortedLeads = [...leads].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+  
+  let customOptionsHtml = '';
   sortedLeads.forEach(l => {
     if (l.id !== sourceId && l.name) {
-      datalistOptions += `<option data-id="${l.id}" value="${escapeHtml(l.name)}"></option>`;
+      customOptionsHtml += `<div class="link-lead-option" style="padding:10px 12px; cursor:pointer; color:white; font-size:13px; border-bottom:1px solid rgba(255,255,255,0.05);" onclick="window.selectLinkLead(${l.id}, '${escapeHtml(l.name).replace(/'/g, "\\'")}')">${escapeHtml(l.name)}</div>`;
     }
   });
 
@@ -2412,12 +2413,13 @@ window.openLinkModal = (sourceId) => {
       <div style="background:var(--color-bg-panel, #1c1c1e); padding:24px; border-radius:12px; width:400px; max-width:90%; box-shadow:var(--shadow-modal, 0 10px 30px rgba(0,0,0,0.5)); border:1px solid var(--color-border-base, #2c2c2e);">
         <h3 style="margin-top:0; color:var(--color-text-primary, #f2f2f7); font-size:18px; font-weight:600; margin-bottom:20px;">Lead verknüpfen</h3>
         
-        <div style="margin-bottom:16px;">
+        <div style="margin-bottom:16px; position:relative;">
           <label style="display:block; font-size:12px; font-weight:500; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Anderen Lead suchen</label>
-          <input type="text" id="link-target-input" list="leads-datalist" placeholder="Namen eintippen..." class="modern-input" style="width:100%; padding:10px 12px; border-radius:8px; background:var(--color-surface-base, #2c2c2e); color:white; border:1px solid var(--color-border-base); font-size:14px; outline:none;" autocomplete="off">
-          <datalist id="leads-datalist">
-            ${datalistOptions}
-          </datalist>
+          <input type="text" id="link-target-input" placeholder="Namen eintippen..." class="modern-input" style="width:100%; padding:10px 12px; border-radius:8px; background:var(--color-surface-base, #2c2c2e); color:white; border:1px solid var(--color-border-base); font-size:14px; outline:none;" autocomplete="off" oninput="window.filterLinkLeads(this.value)" onclick="window.filterLinkLeads(this.value)">
+          <input type="hidden" id="link-target-id" value="">
+          <div id="link-leads-dropdown" style="display:none; position:absolute; top:100%; left:0; width:100%; max-height:200px; overflow-y:auto; background:var(--color-surface-hover, #1c1c1e); border:1px solid var(--color-border-base); border-radius:8px; z-index:10; margin-top:4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+            ${customOptionsHtml}
+          </div>
         </div>
         
         <div style="margin-bottom:32px;">
@@ -2436,17 +2438,47 @@ window.openLinkModal = (sourceId) => {
     </div>
   `;
   document.body.insertAdjacentHTML('beforeend', html);
+  
+  // Close dropdown when clicking outside
+  setTimeout(() => {
+    document.getElementById('link-modal').addEventListener('click', (e) => {
+      if(e.target.id !== 'link-target-input' && e.target.id !== 'link-leads-dropdown') {
+        const dd = document.getElementById('link-leads-dropdown');
+        if (dd) dd.style.display = 'none';
+      }
+    });
+  }, 100);
+};
+
+window.filterLinkLeads = (val) => {
+  const dd = document.getElementById('link-leads-dropdown');
+  if (!dd) return;
+  const opts = dd.querySelectorAll('.link-lead-option');
+  let hasAny = false;
+  opts.forEach(opt => {
+    if (opt.innerText.toLowerCase().includes(val.toLowerCase())) {
+      opt.style.display = 'block';
+      hasAny = true;
+    } else {
+      opt.style.display = 'none';
+    }
+  });
+  // Show if there is at least one match, even if input is empty (so clicking it shows options)
+  dd.style.display = hasAny ? 'block' : 'none';
+};
+
+window.selectLinkLead = (id, name) => {
+  document.getElementById('link-target-id').value = id;
+  document.getElementById('link-target-input').value = name;
+  document.getElementById('link-leads-dropdown').style.display = 'none';
 };
 
 window.saveLeadLink = async (sourceId) => {
-  const targetInput = document.getElementById('link-target-input').value;
-  const datalist = document.getElementById('leads-datalist');
-  const option = Array.from(datalist.options).find(opt => opt.value === targetInput);
-  if (!option) {
+  const targetId = parseInt(document.getElementById('link-target-id').value, 10);
+  if (!targetId || isNaN(targetId)) {
      if (typeof window.showToast === 'function') window.showToast('Bitte wähle einen gültigen Lead aus der Liste', 'error');
      return;
   }
-  const targetId = parseInt(option.getAttribute('data-id'), 10);
   const type = document.getElementById('link-type').value;
   if (!targetId) return;
 
