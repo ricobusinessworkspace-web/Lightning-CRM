@@ -692,13 +692,14 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  opacity: 0.4;
+  opacity: 0.55;
   transition: opacity 0.2s ease, color 0.2s ease;
   cursor: pointer;
   text-decoration: none;
   padding: 2px;
   border-radius: 4px;
   flex-shrink: 0;
+  margin-left: 2px;
 }
 .wa-icon:hover {
   opacity: 1;
