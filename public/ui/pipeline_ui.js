@@ -742,15 +742,12 @@ if (typeof window.renderDashboard === 'function') {
              if (type === 'call' && !lastCall) { lastCall = entry; break; }
            }
          }
-         // WhatsApp icon for pipeline cards (subtle, end of call line)
-         const waIconHtml = (l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone) : '';
-
          if (lastCall && (lastCall.by_user_name || typeof lastCall.ts === 'number')) {
            const uname = lastCall.by_user_name || 'Unbekannt';
            const dateStr = new Date(lastCall.ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-           callHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📞 ${escapeHtml(uname)} (${dateStr})${waIconHtml}</div>`;
+           callHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📞 ${escapeHtml(uname)} (${dateStr})</div>`;
          } else {
-           callHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">📞 Kein Anruf${waIconHtml ? `</div><div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; opacity: 0.7;">${waIconHtml}` : ''}</div>`;
+           callHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">📞 Kein Anruf</div>`;
          }
 
          // 3. Opening Hours Data
@@ -1431,7 +1428,10 @@ if (typeof window.renderDashboard === 'function') {
             <div style="display:flex; flex-direction:column; gap:8px;">
                <div style="display:flex; justify-content:space-between; align-items:center;">
                  <input type="text" id="sys-phone" style="font-family:ui-monospace, monospace; font-size:14px; padding:4px 0; background:transparent; border:none; border-bottom:1px solid transparent; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; margin-right: 16px;" value="${escapeHtml(l.phone || '')}" placeholder="Keine Nummer" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
-                 <button style="background:transparent; border:none; padding:4px 8px; font-size:11px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 6px;" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')">Copy</button>
+                 <div style="display:flex; gap: 8px; align-items: center;">
+                   ${(l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone) : ''}
+                   <button style="background:transparent; border:none; padding:4px 8px; font-size:11px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 6px;" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')">Copy</button>
+                 </div>
                </div>
                <div style="border-bottom: 1px solid var(--color-border-base, #2c2c2e); margin: 4px 0;"></div>
                <div style="display:flex; justify-content:space-between; align-items:center;">
