@@ -742,12 +742,15 @@ if (typeof window.renderDashboard === 'function') {
              if (type === 'call' && !lastCall) { lastCall = entry; break; }
            }
          }
+         // WhatsApp icon for pipeline cards (subtle, end of call line)
+         const waIconHtml = (l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone) : '';
+
          if (lastCall && (lastCall.by_user_name || typeof lastCall.ts === 'number')) {
            const uname = lastCall.by_user_name || 'Unbekannt';
            const dateStr = new Date(lastCall.ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-           callHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📞 ${escapeHtml(uname)} (${dateStr})</div>`;
+           callHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📞 ${escapeHtml(uname)} (${dateStr})${waIconHtml}</div>`;
          } else {
-           callHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">📞 Kein Anruf</div>`;
+           callHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">📞 Kein Anruf${waIconHtml ? `</div><div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; opacity: 0.7;">${waIconHtml}` : ''}</div>`;
          }
 
          // 3. Opening Hours Data

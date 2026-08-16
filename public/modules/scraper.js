@@ -251,10 +251,14 @@
 
       let phoneHtml = '';
       if (r.phone) {
+        const phoneInfo = window.PhoneUtil ? window.PhoneUtil.classify(r.phone) : null;
+        const typeBadge = window.PhoneUtil ? `<span class="phone-type-badge">${window.PhoneUtil.getTypeBadge(r.phone)}</span>` : '<span>📞</span>';
+        const waIcon = window.PhoneUtil ? window.PhoneUtil.renderWhatsAppIcon(r.phone) : '';
         phoneHtml = `
           <div class="scout-card-detail">
-            <span>📞</span>
+            ${typeBadge}
             <span style="font-family: monospace; font-size:12px; color: var(--text-main);">${escapeHtml(r.phone)}</span>
+            ${waIcon}
             <button class="copy-btn" style="padding: 2px 6px; font-size: 10px; margin-left: auto;" onclick="window.api.copyText('${escapeHtml(r.phone)}').then(() => showToast('Telefonnummer kopiert!'))">Kopieren</button>
           </div>
         `;
@@ -629,6 +633,9 @@
       }
 
       let notes = '';
+      if (r.director_name) {
+        notes = `👤 Geschäftsführer/Inhaber: ${r.director_name}`;
+      }
       let locations = [];
       if (r.opening_hours) {
         locations.push({
@@ -680,6 +687,9 @@
         if (extLead) continue;
 
         let notes = '';
+        if (r.director_name) {
+          notes = `👤 Geschäftsführer/Inhaber: ${r.director_name}`;
+        }
 
         let locations = [];
         if (r.opening_hours) {

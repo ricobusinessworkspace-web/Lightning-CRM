@@ -686,6 +686,30 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   border-top: 1px dashed var(--border);
 }
 
+/* ─── WhatsApp Icon & Phone Badges ──────────────────────────────────────────── */
+.wa-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: 0.4;
+  transition: opacity 0.2s ease, color 0.2s ease;
+  cursor: pointer;
+  text-decoration: none;
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.wa-icon:hover {
+  opacity: 1;
+  color: #25d366;
+}
+.phone-type-badge {
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 /* ─── Feature 1: Map Hover Card ─────────────────────────────────────────────── */
 .map-hover-card {
   position: absolute;
