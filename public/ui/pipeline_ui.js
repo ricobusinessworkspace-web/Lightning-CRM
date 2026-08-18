@@ -809,22 +809,7 @@ if (typeof window.renderDashboard === 'function') {
            ohHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 600; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">🕒 Keine Öffnungszeiten</div>`;
          }
          
-         let importHtml = '';
-         if (window.store.state.currentTab === 'cold') {
-           const time = l.created_at_ms || l.created_at || 0;
-           let dateStr = 'Unbekannt';
-           if (time > 0) {
-             dateStr = new Date(time).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
-           }
-           let scoutTerm = 'Direkt / Manuell';
-           const match = (l.notes || '').match(/\[Scout-Suche:\s*(.+?)\]/);
-           if (match) {
-             scoutTerm = match[1];
-           }
-           importHtml = `<div style="font-size: 11px; color: var(--color-brand-accent, #0a84ff); display: flex; align-items: center; gap: 4px; font-weight: 600; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9;">📥 ${dateStr} • ${escapeHtml(scoutTerm)}</div>`;
-         }
-         
-         activityLog = `<div style="margin-top: 2px; display: flex; flex-direction: column; gap: 3px;">${cityHtml}${callHtml}${ohHtml}${importHtml}</div>`;
+         activityLog = `<div style="margin-top: 2px; display: flex; flex-direction: column; gap: 3px;">${cityHtml}${callHtml}${ohHtml}</div>`;
         let avatarHtml = '';
         if (l.claimed_by && window.globalUsersList) {
            const assignedUser = window.globalUsersList.find(u => u.id === l.claimed_by);
@@ -981,6 +966,15 @@ if (typeof window.renderDashboard === 'function') {
           const datePart = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
           const timePart = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute:'2-digit' });
           timeStr = "Import am " + datePart + " (ca. " + timePart + " Uhr)";
+        }
+        
+        let scoutTerm = '';
+        for (let l of leadsArr) {
+          const match = (l.notes || '').match(/\[Scout-Suche:\s*(.+?)\]/);
+          if (match) { scoutTerm = escapeHtml(match[1]); break; }
+        }
+        if (scoutTerm) {
+          timeStr += ` — Suche: "${scoutTerm}"`;
         }
         
         leadsArr.sort((a,b) => {
