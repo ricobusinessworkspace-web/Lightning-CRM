@@ -633,8 +633,13 @@
       }
 
       let notes = '';
+      const scoutTermEl = document.getElementById('scout-term');
+      const scoutTerm = scoutTermEl ? scoutTermEl.value.trim() : '';
+      if (scoutTerm) {
+        notes += `[Scout-Suche: ${scoutTerm}]\n`;
+      }
       if (r.director_name) {
-        notes = `👤 Geschäftsführer/Inhaber: ${r.director_name}`;
+        notes += `👤 Geschäftsführer/Inhaber: ${r.director_name}`;
       }
       let locations = [];
       if (r.opening_hours) {
@@ -687,8 +692,13 @@
         if (extLead) continue;
 
         let notes = '';
+        const scoutTermEl = document.getElementById('scout-term');
+        const scoutTerm = scoutTermEl ? scoutTermEl.value.trim() : '';
+        if (scoutTerm) {
+          notes += `[Scout-Suche: ${scoutTerm}]\n`;
+        }
         if (r.director_name) {
-          notes = `👤 Geschäftsführer/Inhaber: ${r.director_name}`;
+          notes += `👤 Geschäftsführer/Inhaber: ${r.director_name}`;
         }
 
         let locations = [];
