@@ -1226,18 +1226,20 @@ if (typeof window.renderDashboard === 'function') {
   window._sessionRecentLeads = window._sessionRecentLeads || new Set();
 
   window.openLeadDirectly = async (id, keepForceLocationSearch = false, isSaving = false) => {
-    window.store.state.leads = await window.api.getLeads({ all: true });
-    if (!keepForceLocationSearch) window._forceLocationSearch = false;
-    window.store.state.currentSelectedLeadId = id;
-    
+    // --- Instant Visual UI Feedback ---
+    document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
+    const card = document.getElementById(`lead-card-${id}`);
+    if (card) card.classList.add('active-lead-card');
+
     const sidebarEl = document.getElementById('main-sidebar');
     if (sidebarEl) {
       sidebarEl.classList.remove('collapsed');
     }
+    // ----------------------------------
 
-    document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
-    const card = document.getElementById(`lead-card-${id}`);
-    if (card) card.classList.add('active-lead-card');
+    window.store.state.leads = await window.api.getLeads({ all: true });
+    if (!keepForceLocationSearch) window._forceLocationSearch = false;
+    window.store.state.currentSelectedLeadId = id;
 
     // Use current search and filters to get the lead, but fallback to a global search if not found
     let l = null;
