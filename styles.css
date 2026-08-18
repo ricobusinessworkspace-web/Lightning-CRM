@@ -79,17 +79,17 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 
 .main-content { flex: 1; padding: 32px 48px; overflow-y: auto; }
 
-.list-header { font-weight: 600; font-size: 12px; color: var(--text-muted); margin-bottom: 24px; text-transform: uppercase; letter-spacing: 1px; }
+.list-header { font-weight: 600; font-size: 12px; color: var(--text-muted); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.8px; padding-left: 4px; }
 .leads-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; align-items: start; }
 
 .lead-card {
   background: var(--color-surface-base, #161618);
-  border: none;
+  border: 1px solid rgba(255,255,255,0.05);
   border-radius: var(--radius-lg, 12px);
   padding: 14px 16px;
   cursor: pointer;
-  transition: background var(--transition-fast), box-shadow var(--transition-fast);
-  box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.15));
+  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+  box-shadow: none;
   position: relative;
   
   /* Uniform Size Constraints */
@@ -103,7 +103,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 }
 .lead-card:hover {
   background: var(--color-surface-hover, #1e1e20);
-  box-shadow: var(--shadow-card-hover, 0 2px 8px rgba(0,0,0,0.4), 0 8px 24px rgba(0,0,0,0.2));
+  border-color: rgba(255,255,255,0.1);
   transform: translateY(-2px);
 }
 
@@ -162,21 +162,26 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 .copy-btn:hover { background: var(--surface-hover); color: var(--accent); border-color: var(--accent); }
 
 .modern-input {
-  background: var(--color-surface-base, #161618);
-  border: 1px solid var(--color-border-base, #2c2c2e);
+  background: transparent;
+  border: 1px solid transparent;
   color: var(--color-text-primary, #f2f2f7);
-  padding: 12px 16px;
+  padding: 12px 0;
   border-radius: var(--radius-lg, 12px);
   font-size: var(--text-md, 14px);
   resize: vertical;
   min-height: 100px;
   outline: none;
   margin-bottom: 24px;
-  transition: border-color var(--transition-fast);
+  transition: border-color var(--transition-fast), background var(--transition-fast), padding var(--transition-fast);
+}
+.modern-input:hover {
+  background: rgba(255,255,255,0.02);
+  padding: 12px 16px;
 }
 .modern-input:focus {
-  border-color: var(--color-brand-accent, #0a84ff);
-  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.1);
+  padding: 12px 16px;
 }
 
 .milestones { background: var(--surface); padding: 16px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 24px; }
@@ -613,7 +618,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 /* Radar Scout Premium Styles */
 .scout-card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255,255,255,0.05);
   border-radius: 12px;
   padding: 20px;
   display: flex;
@@ -623,8 +628,8 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 }
 .scout-card:hover {
   background: var(--surface-hover);
-  border-color: var(--border-focus);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  border-color: rgba(255,255,255,0.1);
+  transform: translateY(-2px);
 }
 .scout-card-duplicate {
   opacity: 0.6;

@@ -1397,7 +1397,7 @@ if (typeof window.renderDashboard === 'function') {
       <div class="focused-lead" style="display:flex; flex-direction:column; height:100%;">
         
         <!-- HEADER ROW: Unternehmen -->
-        <div class="sidebar-header" style="padding: 24px 24px 16px 24px; flex-shrink: 0; background: var(--color-bg-panel, #0d0d0f); border-bottom: 1px solid var(--color-border-base, #2c2c2e); z-index: 10;">
+        <div class="sidebar-header" style="padding: 24px 24px 16px 24px; flex-shrink: 0; background: rgba(13, 13, 15, 0.7); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-bottom: 1px solid var(--color-border-base, #2c2c2e); z-index: 20; position: sticky; top: 0;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; gap: 16px;">
              <div id="sys-name" class="focused-name truncate-1" contenteditable="true" style="outline:none; padding:4px 0; flex: 1; min-width: 0; border-bottom:1px solid transparent; transition:0.2s; font-size: 22px; font-weight: 800; color: var(--color-text-primary, #f2f2f7); margin: 0; white-space: pre-wrap;" onfocus="this.classList.remove('truncate-1'); this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.classList.add('truncate-1'); this.style.borderBottom='1px solid transparent';">${escapeHtml(l.name)}</div>
              <div style="display:flex; gap:16px; align-items: center; flex-shrink: 0;">
