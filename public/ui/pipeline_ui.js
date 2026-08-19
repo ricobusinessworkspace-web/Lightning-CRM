@@ -1406,11 +1406,18 @@ if (typeof window.renderDashboard === 'function') {
         
         <!-- HEADER ROW: Unternehmen -->
         <div class="sidebar-header" style="padding: 24px 24px 16px 24px; flex-shrink: 0; background: rgba(13, 13, 15, 0.7); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-bottom: 1px solid var(--color-border-base, #2c2c2e); z-index: 20; position: sticky; top: 0;">
+          
+          <!-- MOBILE NATIVE BACK BUTTON -->
+          <div class="mobile-only" style="align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer;" onclick="closeLeadSidebar()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-brand-accent, #0a84ff)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            <span style="color: var(--color-brand-accent, #0a84ff); font-size: 16px; font-weight: 500;">Zurück</span>
+          </div>
+
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; gap: 16px;">
              <div id="sys-name" class="focused-name truncate-1" contenteditable="true" style="outline:none; padding:4px 0; flex: 1; min-width: 0; border-bottom:1px solid transparent; transition:0.2s; font-size: 22px; font-weight: 800; color: var(--color-text-primary, #f2f2f7); margin: 0; white-space: pre-wrap;" onfocus="this.classList.remove('truncate-1'); this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.classList.add('truncate-1'); this.style.borderBottom='1px solid transparent';">${escapeHtml(l.name)}</div>
              <div style="display:flex; gap:16px; align-items: center; flex-shrink: 0;">
                <button id="sidebar-star-btn" data-starred="${l.starred ? 1 : 0}" style="background:transparent; border:none; font-size:24px; cursor:pointer; padding:0; color: ${l.starred ? '#ffcc00' : 'var(--color-text-secondary, #8e8e93)'}; transition: transform 0.2s; line-height: 1; display: flex; align-items: center;" onclick="toggleLeadStar(${l.id})" title="Priorisieren (Stern)">${l.starred ? '★' : '☆'}</button>
-               <button style="background:transparent; border:none; font-size:20px; cursor:pointer; padding:0; color:var(--color-text-secondary, #8e8e93); transition: color 0.2s; line-height: 1; display: flex; align-items: center;" onclick="closeLeadSidebar()" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" title="Lead abwählen">✕</button>
+               <button class="desktop-only" style="background:transparent; border:none; font-size:20px; cursor:pointer; padding:0; color:var(--color-text-secondary, #8e8e93); transition: color 0.2s; line-height: 1; display: flex; align-items: center;" onclick="closeLeadSidebar()" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" title="Lead abwählen">✕</button>
              </div>
           </div>
           <div class="pipeline-bar" style="margin-top: 12px;">
@@ -1427,18 +1434,18 @@ if (typeof window.renderDashboard === 'function') {
           <!-- Kontakt-Informationen -->
           <div class="apple-section">
             <h4 class="apple-section-title">Kontakt</h4>
-            <div style="display:flex; flex-direction:column; gap:8px;">
-               <div style="display:flex; justify-content:space-between; align-items:center;">
-                 <input type="text" id="sys-phone" style="font-family:ui-monospace, monospace; font-size:14px; padding:4px 0; background:transparent; border:none; border-bottom:1px solid transparent; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; margin-right: 16px;" value="${escapeHtml(l.phone || '')}" placeholder="Keine Nummer" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
+            <div style="display:flex; flex-direction:column; gap:12px;">
+               <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 8px;">
+                 <input type="text" id="sys-phone" style="font-family:ui-monospace, monospace; font-size:14px; padding:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; min-width: 150px;" value="${escapeHtml(l.phone || '')}" placeholder="Keine Nummer" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
                  <div style="display:flex; gap: 8px; align-items: center;">
-                   ${(l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone) : ''}
-                   <button style="background:transparent; border:none; padding:4px 8px; font-size:11px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 6px;" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')">Copy</button>
+                   ${(l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone).replace('<a', '<a style="background: rgba(37, 211, 102, 0.1); padding: 8px 12px; border-radius: 8px;"') : ''}
+                   <button style="background:transparent; border:none; padding:8px 12px; font-size:12px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 8px;" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')">Copy</button>
                  </div>
                </div>
-               <div style="border-bottom: 1px solid var(--color-border-base, #2c2c2e); margin: 4px 0;"></div>
-               <div style="display:flex; justify-content:space-between; align-items:center;">
-                 <input type="text" id="sys-email" style="font-family:ui-monospace, monospace; font-size:14px; padding:4px 0; background:transparent; border:none; border-bottom:1px solid transparent; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; margin-right: 16px;" value="${escapeHtml(l.email || '')}" placeholder="Keine E-Mail" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
-                 <button style="background:transparent; border:none; padding:4px 8px; font-size:11px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 6px;" onclick="copyEmail(event, ${l.id}, '${escapeHtml(l.email || '')}')">Copy</button>
+               
+               <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 8px;">
+                 <input type="text" id="sys-email" style="font-family:ui-monospace, monospace; font-size:14px; padding:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; min-width: 150px;" value="${escapeHtml(l.email || '')}" placeholder="Keine E-Mail" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
+                 <button style="background:transparent; border:none; padding:8px 12px; font-size:12px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 8px;" onclick="copyEmail(event, ${l.id}, '${escapeHtml(l.email || '')}')">Copy</button>
                </div>
             </div>
           </div>

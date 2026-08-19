@@ -1,0 +1,261 @@
+/* 
+ * mobile.css 
+ * Apple Style Minimalism for Lightning CRM
+ * Only applies to screens <= 768px 
+ */
+
+@media (max-width: 768px) {
+  
+  /* ── 1. GLOBAL & LAYOUT ─────────────────────────────────────────────── */
+  body {
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior-y: none;
+  }
+  
+  .app-container {
+    flex-direction: column;
+  }
+  
+  .main-container {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+    /* Bottom padding to account for the new bottom nav bar */
+    padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important;
+  }
+  
+  /* Paddings */
+  .main-content, .filters-row-global, .quick-add, #map-wrapper, #scout-wrapper, #dashboard-wrapper {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* ── 2. HEADER & BOTTOM NAV ─────────────────────────────────────────── */
+  
+  /* Header Adjustments */
+  .drag-header {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    padding: max(12px, env(safe-area-inset-top)) 16px 12px 16px !important;
+    height: auto !important;
+    background: rgba(13, 13, 15, 0.85);
+  }
+  
+  .drag-header .logo {
+    font-size: 16px !important;
+  }
+  
+  /* Transform top-nav into Bottom Navigation Bar */
+  .top-nav {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    background: rgba(20, 20, 22, 0.9) !important;
+    backdrop-filter: blur(24px) !important;
+    -webkit-backdrop-filter: blur(24px) !important;
+    border-top: 1px solid rgba(255,255,255,0.08) !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom)) 8px !important;
+    z-index: 1000 !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    border-bottom: none !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+  
+  .top-nav::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .nav-btn {
+    font-size: 10px !important;
+    padding: 6px 8px !important;
+    white-space: nowrap !important;
+    flex-direction: column !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 44px !important;
+    flex: 1;
+  }
+  
+  .nav-btn.active::after {
+    bottom: -4px !important;
+    left: 35% !important;
+    width: 30% !important;
+  }
+  
+  /* ── 3. LIST & CARDS (Apple Style) ──────────────────────────────────── */
+  
+  .leads-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .lead-card {
+    min-height: 0;
+    padding: 16px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.03) !important; /* Lighter touch for cards */
+    border: 1px solid rgba(255,255,255,0.05);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  }
+  
+  /* No hover effects on mobile */
+  .lead-card:hover {
+    transform: none !important;
+  }
+  
+  .focused-name {
+    font-size: 20px !important;
+  }
+
+  /* ── 4. SIDEBAR (Full Screen Modal) ─────────────────────────────────── */
+  
+  .sidebar:has(.empty-state) {
+    display: none !important;
+  }
+  
+  .sidebar:not(:has(.empty-state)) {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    z-index: 2000 !important;
+    background: #000 !important; /* Pitch black for iOS feel */
+    border: none !important;
+    border-radius: 0 !important;
+    padding-top: 0 !important; 
+    overflow-y: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    animation: slideUpModal 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  
+  @keyframes slideUpModal {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  
+  /* Hide the old floating close button since we use the header now */
+  .mobile-close-sidebar {
+    display: none !important;
+  }
+  
+  /* The new sidebar header padding */
+  .sidebar-header {
+    padding-top: max(16px, env(safe-area-inset-top)) !important;
+    background: rgba(13, 13, 15, 0.85) !important;
+  }
+  
+  .sidebar-footer {
+    padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+  }
+  
+  /* ── 5. TOUCH TARGETS & UX ──────────────────────────────────────────── */
+  
+  .action-btn, .action-btn-small, .chip {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Ghost inputs become more visible on mobile */
+  .modern-input, .sidebar-contact-input {
+    background: rgba(255,255,255,0.03) !important;
+    border: 1px solid rgba(255,255,255,0.06) !important;
+    border-radius: 10px !important;
+    padding: 12px 16px !important;
+    font-size: 16px !important; /* Prevent iOS zoom */
+  }
+  
+  /* Always show hover-only buttons */
+  .task-delete-btn, .task-deadline-trigger, .sidebar-copy-btn, .wa-icon {
+    opacity: 1 !important;
+  }
+  
+  /* Pipeline Segments Grid */
+  .pipeline-bar {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    background: transparent !important;
+  }
+  
+  .pipe-seg {
+    background: rgba(255,255,255,0.05) !important;
+    padding: 12px 8px !important;
+    border-radius: 10px !important;
+  }
+  
+  .pipe-seg.active-blue, .pipe-seg.active-orange, .pipe-seg.active-red, .pipe-seg.active-success {
+    box-shadow: none !important;
+  }
+  
+  /* ── 6. FILTERS & KANBAN ────────────────────────────────────────────── */
+  
+  .filters-row-global {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding-top: 16px !important;
+    padding-bottom: 16px !important;
+  }
+  
+  .filters-row-global input {
+    max-width: 100% !important;
+  }
+  
+  .filter-chips {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  
+  .quick-add {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  
+  .quick-add input, .quick-add button {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  
+  .kanban-board {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding-bottom: 8px;
+  }
+  
+  .kanban-column {
+    min-width: 85vw;
+    scroll-snap-align: center;
+    height: auto;
+    min-height: 400px;
+  }
+  
+  /* Modals */
+  .modal-content {
+    min-width: 90vw;
+    width: 90vw !important;
+    padding: 24px;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+}
