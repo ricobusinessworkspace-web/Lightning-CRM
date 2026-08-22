@@ -1233,7 +1233,7 @@ if (typeof window.renderDashboard === 'function') {
 
   window._sessionRecentLeads = window._sessionRecentLeads || new Set();
 
-  window.openLeadDirectly = async (id, keepForceLocationSearch = false, isSaving = false) => {
+  window.openLeadDirectly = async (id, keepForceLocationSearch = false, isSaving = false, draft = null) => {
     // --- Instant Visual UI Feedback ---
     document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
     const card = document.getElementById(`lead-card-${id}`);
@@ -1266,6 +1266,20 @@ if (typeof window.renderDashboard === 'function') {
       l = fullList.find(x => x.id === id);
     }
     if(!l) return;
+
+    if (draft) {
+      l.name = draft.name || l.name;
+      l.phone = draft.phone !== undefined ? draft.phone : l.phone;
+      l.email = draft.email !== undefined ? draft.email : l.email;
+      l.website_url = draft.website_url !== undefined ? draft.website_url : l.website_url;
+      l.notes = draft.notes !== undefined ? draft.notes : l.notes;
+      l.entscheider = draft.entscheider !== undefined ? draft.entscheider : l.entscheider;
+      l.termin = draft.termin !== undefined ? draft.termin : l.termin;
+      l.rechnung = draft.rechnung !== undefined ? draft.rechnung : l.rechnung;
+      l.maps_city = draft.maps_city !== undefined ? draft.maps_city : l.maps_city;
+      l.lat = draft.lat !== undefined ? draft.lat : l.lat;
+      l.lng = draft.lng !== undefined ? draft.lng : l.lng;
+    }
 
     window.store.state.currentSnoozeOffset = 0;
     window.store.state.currentSnoozeTargetMs = 0;
@@ -1785,9 +1799,7 @@ if (typeof window.renderDashboard === 'function') {
 
   window.removeLocation = async (id, index) => {
     try {
-      if (typeof window.saveLeadMain === 'function') {
-        await window.saveLeadMain(id, true, true);
-      }
+      const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
       const fullList = await window.api.getLeads({ all: true });
       const l = fullList.find(x => x.id === id);
       if (!l) return;
@@ -1811,7 +1823,8 @@ if (typeof window.renderDashboard === 'function') {
           }
         }
         await loadUi();
-        await openLead(id);
+        if (window.openLeadDirectly) await window.openLeadDirectly(id, false, false, draft);
+        else await openLead(id);
       }
     } catch(e) {
       console.error(e);
@@ -1929,9 +1942,7 @@ if (typeof window.renderDashboard === 'function') {
 
   window.linkLeadLocation = async (leadId, encodedData) => {
     try {
-      if (typeof window.saveLeadMain === 'function') {
-        await window.saveLeadMain(leadId, true, true);
-      }
+      const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
       const data = JSON.parse(decodeURIComponent(encodedData));
       const fullList = await window.api.getLeads({ all: true });
       const l = fullList.find(x => x.id === leadId);
@@ -1962,7 +1973,8 @@ if (typeof window.renderDashboard === 'function') {
       await window.api.saveLead(l);
       showToast("Standort erfolgreich verknüpft! 🗺️");
       await loadUi();
-      await openLead(leadId);
+      if (window.openLeadDirectly) await window.openLeadDirectly(leadId, false, false, draft);
+      else await openLead(leadId);
 
       setTimeout(() => {
         if(window.map) {
@@ -1984,9 +1996,7 @@ if (typeof window.renderDashboard === 'function') {
 
   window.toggleLeadStar = async (id) => {
     try {
-      if (typeof window.saveLeadMain === 'function') {
-        await window.saveLeadMain(id, true, true);
-      }
+      const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
       const fullList = await window.api.getLeads({ all: true });
       const l = fullList.find(x => x.id === id);
       if (!l) return;
@@ -2002,6 +2012,9 @@ if (typeof window.renderDashboard === 'function') {
       await window.api.saveLead(l);
       showToast(l.starred ? "Lead priorisiert! ⭐" : "Priorisierung aufgehoben.");
       await loadUi();
+      // toggleLeadStar didn't call openLead, but if it did, we'd pass draft.
+      // Wait, toggleLeadStar just calls loadUi(). It doesn't re-render the sidebar.
+      // We don't need to do anything else!
     } catch(e) {
       console.error(e);
       showToast("Fehler beim Priorisieren.");
@@ -2445,9 +2458,7 @@ window.filterInlineLinkLeads = (val) => {
 
 window.saveInlineLeadLink = async (sourceId, targetId) => {
   if (!targetId || isNaN(targetId)) return;
-  if (typeof window.saveLeadMain === 'function') {
-    await window.saveLeadMain(sourceId, true, true);
-  }
+  const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
   const type = document.getElementById('inline-link-type').value;
 
   const leads = window.store.state.leads;
@@ -2473,15 +2484,14 @@ window.saveInlineLeadLink = async (sourceId, targetId) => {
   if (typeof window.showToast === 'function') window.showToast('Leads verknüpft');
   
   if (window.store.state.currentLeadId === sourceId) {
-    window.openLead(sourceId, true);
+    if (window.openLeadDirectly) await window.openLeadDirectly(sourceId, true, false, draft);
+    else window.openLead(sourceId, true);
   }
 };
 
 window.removeLeadLink = async (sourceId, targetId) => {
   if (!confirm('Verknüpfung wirklich entfernen?')) return;
-  if (typeof window.saveLeadMain === 'function') {
-    await window.saveLeadMain(sourceId, true, true);
-  }
+  const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
   const leads = window.store.state.leads;
   const source = leads.find(l => l.id === sourceId);
   const target = leads.find(l => l.id === targetId);
@@ -2498,6 +2508,7 @@ window.removeLeadLink = async (sourceId, targetId) => {
   if (typeof window.showToast === 'function') window.showToast('Verknüpfung entfernt');
   
   if (window.store.state.currentLeadId === sourceId) {
-    window.openLead(sourceId, true);
+    if (window.openLeadDirectly) await window.openLeadDirectly(sourceId, true, false, draft);
+    else window.openLead(sourceId, true);
   }
 };

@@ -249,6 +249,29 @@ window.setPipeline = async (type) => {
     }
   };
 
+  window.getDomDraft = () => {
+    let sNameNode = document.getElementById('sys-name');
+    if (!sNameNode) return null; // Not viewing a lead
+    let sPhoneNode = document.getElementById('sys-phone');
+    let sWebNode = document.getElementById('sys-web');
+    let sEmailNode = document.getElementById('sys-email');
+    let noteEl = document.getElementById('note-input');
+    
+    return {
+        name: (sNameNode.innerText || sNameNode.value || '').trim(),
+        phone: sPhoneNode?.value?.trim() ?? '',
+        email: sEmailNode?.value?.trim() ?? '',
+        website_url: sWebNode?.value?.trim() ?? '',
+        notes: noteEl ? noteEl.value : '',
+        entscheider: parseInt(document.getElementById('sys-e')?.value) || 0,
+        termin: parseInt(document.getElementById('sys-t')?.value) || 0,
+        rechnung: parseInt(document.getElementById('sys-r')?.value) || 0,
+        maps_city: document.getElementById('sys-city')?.value || '',
+        lat: parseFloat(document.getElementById('sys-lat')?.value) || null,
+        lng: parseFloat(document.getElementById('sys-lng')?.value) || null
+    };
+  };
+
   // Remove confirmEnrich, autoEnrich, cancelEnrich, etc. (deprecated)
   window.saveLeadMain = async (id, noClose = false, noRender = false) => {
     if (window.store.state.currentSelectedLeadId !== id) {
@@ -556,9 +579,6 @@ window.setPipeline = async (type) => {
     if (t) { 
       t.deadline = dateStr; 
       renderTasksList(); 
-      if (window.store && window.store.state && window.store.state.currentSelectedLeadId) {
-        window.saveLeadMain(window.store.state.currentSelectedLeadId, true, true);
-      }
     }
   };
 
@@ -616,9 +636,6 @@ window.setPipeline = async (type) => {
       }
     }
     
-    if (window.store.state.currentSelectedLeadId) {
-      window.saveLeadMain(window.store.state.currentSelectedLeadId, true, true);
-    }
     if (done && typeof window.showToast === 'function') {
       window.showToast("Aufgabe erledigt!");
     }
@@ -698,11 +715,6 @@ window.setPipeline = async (type) => {
 
   // ── copyPhone — F5: DOES NOT save lead data. Only copies + logs call. ────────
   window.copyPhone = async (e, id, phone) => {
-    // 1. Force save any pending DOM changes (name, email, notes) first without re-rendering
-    if (typeof window.saveLeadMain === 'function') {
-      await window.saveLeadMain(id, true, true);
-    }
-
     // Always read the current phone from the input if available (most up-to-date)
     const phoneInput = document.getElementById('sys-phone');
     const targetPhone = phoneInput ? phoneInput.value.trim() : phone;
@@ -743,11 +755,6 @@ window.setPipeline = async (type) => {
 
   // ── copyEmail — F5: DOES NOT save lead data. Only copies + logs email. ───────
   window.copyEmail = async (e, id, email) => {
-    // 1. Force save any pending DOM changes first without re-rendering
-    if (typeof window.saveLeadMain === 'function') {
-      await window.saveLeadMain(id, true, true);
-    }
-
     const emailInput = document.getElementById('sys-email');
     const targetEmail = emailInput ? emailInput.value.trim() : email;
     if (!targetEmail) return;
