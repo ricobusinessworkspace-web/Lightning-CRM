@@ -250,7 +250,7 @@ window.setPipeline = async (type) => {
   };
 
   // Remove confirmEnrich, autoEnrich, cancelEnrich, etc. (deprecated)
-  window.saveLeadMain = async (id, noClose = false) => {
+  window.saveLeadMain = async (id, noClose = false, noRender = false) => {
     if (window.store.state.currentSelectedLeadId !== id) {
         console.warn('saveLeadMain aborted: Lead ID mismatch or no lead selected.');
         return false;
@@ -275,6 +275,7 @@ window.setPipeline = async (type) => {
       const sName = sNameNode ? (sNameNode.innerText || sNameNode.value || '').trim() : (lData ? lData.name : '');
       const sPhone = document.getElementById('sys-phone')?.value?.trim() ?? (lData ? (lData.phone || '') : '');
       const sWeb = document.getElementById('sys-web')?.value?.trim() ?? (lData ? (lData.website_url || '') : '');
+      const sEmail = document.getElementById('sys-email')?.value?.trim() ?? (lData ? (lData.email || '') : '');
 
       const noteEl = document.getElementById('note-input');
       const notes = noteEl ? noteEl.value : (lData ? (lData.notes || '') : '');
@@ -354,7 +355,7 @@ window.setPipeline = async (type) => {
         abschlussdatum: abschlussdatum,
         provi_umsatz: lData ? (lData.provi_umsatz || 0) : 0,
         opening_hours: lData ? lData.opening_hours : null,
-        email: lData ? lData.email : '',
+        email: sEmail,
         impressum_phone: lData ? lData.impressum_phone : '',
         legal_company_name: lData ? lData.legal_company_name : '',
         director_name: lData ? lData.director_name : '',
@@ -405,7 +406,7 @@ window.setPipeline = async (type) => {
             }
           }
         }, 2000);
-      } else {
+      } else if (!noRender) {
         if (window.openLeadDirectly) await window.openLeadDirectly(id, false, true);
         else if (window.openLead) await window.openLead(id);
       }
@@ -556,7 +557,7 @@ window.setPipeline = async (type) => {
       t.deadline = dateStr; 
       renderTasksList(); 
       if (window.store && window.store.state && window.store.state.currentSelectedLeadId) {
-        window.saveLeadMain(window.store.state.currentSelectedLeadId, true);
+        window.saveLeadMain(window.store.state.currentSelectedLeadId, true, true);
       }
     }
   };
@@ -616,7 +617,7 @@ window.setPipeline = async (type) => {
     }
     
     if (window.store.state.currentSelectedLeadId) {
-      window.saveLeadMain(window.store.state.currentSelectedLeadId, true);
+      window.saveLeadMain(window.store.state.currentSelectedLeadId, true, true);
     }
     if (done && typeof window.showToast === 'function') {
       window.showToast("Aufgabe erledigt!");
@@ -697,6 +698,11 @@ window.setPipeline = async (type) => {
 
   // ── copyPhone — F5: DOES NOT save lead data. Only copies + logs call. ────────
   window.copyPhone = async (e, id, phone) => {
+    // 1. Force save any pending DOM changes (name, email, notes) first without re-rendering
+    if (typeof window.saveLeadMain === 'function') {
+      await window.saveLeadMain(id, true, true);
+    }
+
     // Always read the current phone from the input if available (most up-to-date)
     const phoneInput = document.getElementById('sys-phone');
     const targetPhone = phoneInput ? phoneInput.value.trim() : phone;
@@ -737,6 +743,11 @@ window.setPipeline = async (type) => {
 
   // ── copyEmail — F5: DOES NOT save lead data. Only copies + logs email. ───────
   window.copyEmail = async (e, id, email) => {
+    // 1. Force save any pending DOM changes first without re-rendering
+    if (typeof window.saveLeadMain === 'function') {
+      await window.saveLeadMain(id, true, true);
+    }
+
     const emailInput = document.getElementById('sys-email');
     const targetEmail = emailInput ? emailInput.value.trim() : email;
     if (!targetEmail) return;

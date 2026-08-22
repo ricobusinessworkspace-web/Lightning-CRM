@@ -1785,6 +1785,9 @@ if (typeof window.renderDashboard === 'function') {
 
   window.removeLocation = async (id, index) => {
     try {
+      if (typeof window.saveLeadMain === 'function') {
+        await window.saveLeadMain(id, true, true);
+      }
       const fullList = await window.api.getLeads({ all: true });
       const l = fullList.find(x => x.id === id);
       if (!l) return;
@@ -1926,6 +1929,9 @@ if (typeof window.renderDashboard === 'function') {
 
   window.linkLeadLocation = async (leadId, encodedData) => {
     try {
+      if (typeof window.saveLeadMain === 'function') {
+        await window.saveLeadMain(leadId, true, true);
+      }
       const data = JSON.parse(decodeURIComponent(encodedData));
       const fullList = await window.api.getLeads({ all: true });
       const l = fullList.find(x => x.id === leadId);
@@ -1978,6 +1984,9 @@ if (typeof window.renderDashboard === 'function') {
 
   window.toggleLeadStar = async (id) => {
     try {
+      if (typeof window.saveLeadMain === 'function') {
+        await window.saveLeadMain(id, true, true);
+      }
       const fullList = await window.api.getLeads({ all: true });
       const l = fullList.find(x => x.id === id);
       if (!l) return;
@@ -2436,6 +2445,9 @@ window.filterInlineLinkLeads = (val) => {
 
 window.saveInlineLeadLink = async (sourceId, targetId) => {
   if (!targetId || isNaN(targetId)) return;
+  if (typeof window.saveLeadMain === 'function') {
+    await window.saveLeadMain(sourceId, true, true);
+  }
   const type = document.getElementById('inline-link-type').value;
 
   const leads = window.store.state.leads;
@@ -2467,6 +2479,9 @@ window.saveInlineLeadLink = async (sourceId, targetId) => {
 
 window.removeLeadLink = async (sourceId, targetId) => {
   if (!confirm('Verknüpfung wirklich entfernen?')) return;
+  if (typeof window.saveLeadMain === 'function') {
+    await window.saveLeadMain(sourceId, true, true);
+  }
   const leads = window.store.state.leads;
   const source = leads.find(l => l.id === sourceId);
   const target = leads.find(l => l.id === targetId);
