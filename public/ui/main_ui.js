@@ -705,6 +705,9 @@ window.setPipeline = async (type) => {
 
   window.updateTrayCount = async () => {
     try {
+      if (typeof window.updateGlobalMetrics === 'function') {
+        window.updateGlobalMetrics();
+      }
       if (window.store.state.currentTab === 'dashboard' && typeof window.renderDashboard === 'function') {
         window.renderDashboard();
       }
@@ -768,6 +771,7 @@ window.setPipeline = async (type) => {
     // Persist email log immediately
     try {
       await window.api.logEmail(id);
+      await window.updateTrayCount();
     } catch(err) { console.warn('Email log failed:', err); }
     
     const btn = e.currentTarget || e.target;

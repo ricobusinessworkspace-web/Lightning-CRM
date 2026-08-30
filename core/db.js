@@ -86,6 +86,7 @@ function normalizeRow(row) {
     locations:    Array.isArray(row.locations)    ? row.locations    : [],
     linked_leads: Array.isArray(row.linked_leads) ? row.linked_leads : [],
     call_history: callHistory,
+    lead_activities: Array.isArray(row.lead_activities) ? row.lead_activities : [],
     call_status:  deriveCallStatus(callHistory),
     // Map column name: Supabase uses created_at_ms, old code used created_at
     created_at:   row.created_at_ms ?? 0,
@@ -173,7 +174,7 @@ export const db = {
 
   // ── getLeads ───────────────────────────────────────────────────────────────
   getLeads: async (filters = {}) => {
-    let query = supabase.from(TABLE).select('*, crm_calls(*)');
+    let query = supabase.from(TABLE).select('*, crm_calls(*), lead_activities(*)');
     
     // 1. Excluded Filter
     if (filters.tab === 'excluded') {
@@ -298,7 +299,7 @@ export const db = {
 
     let existing = null;
     if (lead.id) {
-      const { data } = await supabase.from(TABLE).select('created_at_ms, claimed_by').eq('id', lead.id).single();
+      const { data } = await supabase.from(TABLE).select('created_at_ms, claimed_by, entscheider, termin, rechnung, status').eq('id', lead.id).single();
       existing = data;
     }
 
@@ -322,6 +323,14 @@ export const db = {
     if (lead.id) {
       if (existing && !existing.created_at_ms) {
         payload.created_at_ms = now;
+      }
+
+      // Check for status changes
+      if (existing) {
+        if (payload.entscheider === 1 && existing.entscheider !== 1) await window.api.logStatusChange(lead.id, 'KEEPER');
+        if (payload.termin === 1 && existing.termin !== 1) await window.api.logStatusChange(lead.id, 'PITCH');
+        if (payload.rechnung === 1 && existing.rechnung !== 1) await window.api.logStatusChange(lead.id, 'OFFER');
+        if (payload.status === 'Kunde' && existing.status !== 'Kunde') await window.api.logStatusChange(lead.id, 'CLOSE');
       }
 
       const { error } = await supabase.from(TABLE).update(payload).eq('id', lead.id);
@@ -401,24 +410,39 @@ export const db = {
   logEmail: async (id) => {
     const now = Date.now();
     try {
-      const entry = { lead_id: id, ts: now, status: 'sent', type: 'email' };
+      const entry = { lead_id: id, ts: now, type: 'email', details: 'E-Mail gesendet' };
       if (currentUser) {
         entry.by_user_id = currentUser.id;
         entry.by_user_name = currentUser.name;
       }
-      await supabase.from('crm_calls').insert(entry);
+      await supabase.from('lead_activities').insert(entry);
 
       const { data, error } = await supabase
         .from(TABLE)
         .update({ last_contact_ms: now })
         .eq('id', id)
-        .select('*, crm_calls(*)');
+        .select('*, crm_calls(*), lead_activities(*)');
 
       if (error) throw error;
       return Array.isArray(data) ? data[0] : data;
     } catch (e) {
       console.error('logEmail error:', e);
       return null;
+    }
+  },
+
+  // ── logStatusChange ────────────────────────────────────────────────────────
+  logStatusChange: async (id, newStatus) => {
+    const now = Date.now();
+    try {
+      const entry = { lead_id: id, ts: now, type: 'status_change', details: `Status geändert auf ${newStatus}` };
+      if (currentUser) {
+        entry.by_user_id = currentUser.id;
+        entry.by_user_name = currentUser.name;
+      }
+      await supabase.from('lead_activities').insert(entry);
+    } catch (e) {
+      console.error('logStatusChange error:', e);
     }
   },
 
@@ -726,22 +750,23 @@ export const db = {
     users.forEach(u => {
       stats[u.id] = { 
         id: u.id, name: u.name, role: u.role, daily_call_goal: u.daily_call_goal || 100,
-        today: { calls: 0, unanswered: 0, emails: 0, leads: 0 },
-        week: { calls: 0, unanswered: 0, emails: 0, leads: 0 },
-        total: { calls: 0, unanswered: 0, emails: 0, leads: 0 }
+        today: { calls: 0, unanswered: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 },
+        week: { calls: 0, unanswered: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 },
+        total: { calls: 0, unanswered: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 }
       };
     });
 
     if (!stats[currentUser.id]) {
       stats[currentUser.id] = {
         id: currentUser.id, name: currentUser.name, role: currentUser.role, daily_call_goal: currentUser.daily_call_goal || 100,
-        today: { calls: 0, unanswered: 0, emails: 0, leads: 0 },
-        week: { calls: 0, unanswered: 0, emails: 0, leads: 0 },
-        total: { calls: 0, unanswered: 0, emails: 0, leads: 0 }
+        today: { calls: 0, unanswered: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 },
+        week: { calls: 0, unanswered: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 },
+        total: { calls: 0, unanswered: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 }
       }
     }
     
-    const { data, error } = await supabase.from(TABLE).select('claimed_by, created_at_ms, crm_calls(*)');
+    // Fetch crm_calls AND lead_activities
+    const { data, error } = await supabase.from(TABLE).select('claimed_by, created_at_ms, entscheider, termin, rechnung, status, size, crm_calls(*), lead_activities(*)');
     if (error) throw new Error(error.message);
 
     const now = new Date();
@@ -758,6 +783,10 @@ export const db = {
         if (row.created_at_ms >= startOfDay) stats[row.claimed_by].today.leads++;
         if (row.created_at_ms >= startOfWeek) stats[row.claimed_by].week.leads++;
       }
+      
+      const isWarm = row.entscheider === 1 || row.termin === 1 || row.rechnung === 1 || row.status === 'Kunde';
+      const isGross = row.size === 'Großkunde';
+      
       const history = Array.isArray(row.crm_calls) ? row.crm_calls : [];
       for (const entry of history) {
         const norm = normalizeCallEntry(entry);
@@ -767,18 +796,42 @@ export const db = {
 
           if (norm.type === 'call') {
             stats[norm.by_user_id].total.calls++;
-            if (isToday) stats[norm.by_user_id].today.calls++;
-            if (isWeek) stats[norm.by_user_id].week.calls++;
+            if (isToday) {
+              stats[norm.by_user_id].today.calls++;
+              if (isWarm) stats[norm.by_user_id].today.warm++;
+              else if (isGross) stats[norm.by_user_id].today.cold_gross++;
+              else stats[norm.by_user_id].today.cold_tarif++;
+            }
+            if (isWeek) {
+              stats[norm.by_user_id].week.calls++;
+              if (isWarm) stats[norm.by_user_id].week.warm++;
+              else if (isGross) stats[norm.by_user_id].week.cold_gross++;
+              else stats[norm.by_user_id].week.cold_tarif++;
+            }
 
             if (norm.status === 'not_answered') {
               stats[norm.by_user_id].total.unanswered++;
               if (isToday) stats[norm.by_user_id].today.unanswered++;
               if (isWeek) stats[norm.by_user_id].week.unanswered++;
             }
-          } else if (norm.type === 'email') {
-            stats[norm.by_user_id].total.emails++;
-            if (isToday) stats[norm.by_user_id].today.emails++;
-            if (isWeek) stats[norm.by_user_id].week.emails++;
+          }
+        }
+      }
+      
+      const activities = Array.isArray(row.lead_activities) ? row.lead_activities : [];
+      for (const act of activities) {
+        if (act.by_user_id && stats[act.by_user_id]) {
+          const isToday = act.ts >= startOfDay;
+          const isWeek = act.ts >= startOfWeek;
+          
+          if (act.type === 'email') {
+            stats[act.by_user_id].total.emails++;
+            if (isToday) stats[act.by_user_id].today.emails++;
+            if (isWeek) stats[act.by_user_id].week.emails++;
+          } else if (act.type === 'status_change' && (act.details || '').includes('OFFER')) {
+            stats[act.by_user_id].total.offers++;
+            if (isToday) stats[act.by_user_id].today.offers++;
+            if (isWeek) stats[act.by_user_id].week.offers++;
           }
         }
       }

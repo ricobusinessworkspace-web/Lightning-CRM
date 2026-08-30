@@ -202,6 +202,7 @@ window.addEventListener('online', () => {
         if(typeof autoGeocode === 'function') autoGeocode();
         if (window.updateTrayCount) window.updateTrayCount();
         if (window.updateRPUI) window.updateRPUI();
+        if (window.updateGlobalMetrics) window.updateGlobalMetrics();
       } else {
         if(splash) splash.classList.add('splash-hidden');
         loginModal.style.display = 'flex';

@@ -40,6 +40,16 @@ window.handleLeadAssignmentChange = (val) => {
       loadUi();
   };
 
+  window.updateLeadSize = async (id, newSize) => {
+    try {
+      await window.api.saveLead({ id, size: newSize });
+      await window.openLeadDirectly(id, true, true);
+    } catch(e) {
+      console.error(e);
+      alert('Fehler beim Speichern der Größe');
+    }
+  };
+
   window.handleLeadClick = (id) => {
       if (window.store.state.isBulkMode) {
           if (window.store.state.selectedBulkIds.has(id)) {
@@ -513,7 +523,11 @@ if (typeof window.renderDashboard === 'function') {
       // Apply Advanced Filters
       const st = window.store.state;
       if (st.advFilterStatus && st.advFilterStatus !== 'all') {
-         leads = leads.filter(l => (l.status || 'Lead') === st.advFilterStatus);
+         if (st.advFilterStatus === 'Lead') leads = leads.filter(l => !l.entscheider && !l.termin && !l.rechnung && l.status !== 'Kunde');
+         else if (st.advFilterStatus === 'KEEPER') leads = leads.filter(l => l.entscheider && !l.termin && !l.rechnung && l.status !== 'Kunde');
+         else if (st.advFilterStatus === 'PITCH') leads = leads.filter(l => l.termin && !l.rechnung && l.status !== 'Kunde');
+         else if (st.advFilterStatus === 'OFFER') leads = leads.filter(l => l.rechnung && l.status !== 'Kunde');
+         else if (st.advFilterStatus === 'CLOSE') leads = leads.filter(l => l.status === 'Kunde');
       }
       if (st.advFilterAssign && st.advFilterAssign !== 'all') {
          if (st.advFilterAssign === 'me') {
@@ -612,9 +626,10 @@ if (typeof window.renderDashboard === 'function') {
           <select class="modern-input" style="width:100%; padding:6px 8px; font-size:13px; border-radius:6px; background:var(--color-surface-hover, #1c1c1e); color:white; border:none; outline:none;" onchange="window.setAdvFilter('advFilterStatus', this.value)">
             <option value="all" ${st.advFilterStatus === 'all' ? 'selected' : ''}>Alle Status</option>
             <option value="Lead" ${st.advFilterStatus === 'Lead' ? 'selected' : ''}>Lead</option>
-            <option value="Entscheider" ${st.advFilterStatus === 'Entscheider' ? 'selected' : ''}>Entscheider</option>
-            <option value="Termin" ${st.advFilterStatus === 'Termin' ? 'selected' : ''}>Termin</option>
-            <option value="Kunde" ${st.advFilterStatus === 'Kunde' ? 'selected' : ''}>Kunde</option>
+            <option value="KEEPER" ${st.advFilterStatus === 'KEEPER' ? 'selected' : ''}>KEEPER</option>
+            <option value="PITCH" ${st.advFilterStatus === 'PITCH' ? 'selected' : ''}>PITCH</option>
+            <option value="OFFER" ${st.advFilterStatus === 'OFFER' ? 'selected' : ''}>OFFER</option>
+            <option value="CLOSE" ${st.advFilterStatus === 'CLOSE' ? 'selected' : ''}>CLOSE</option>
           </select>
         </div>
 
@@ -728,26 +743,31 @@ if (typeof window.renderDashboard === 'function') {
            cityHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">📍 Kein Standort</div>`;
          }
 
-         // 2. Call Data
-         let callHtml = '';
-         let lastCall = null;
+         // 2. Recent Activities (Top 3)
+         let allActs = [];
          if (l.call_history && l.call_history.length > 0) {
-           for (let i = l.call_history.length - 1; i >= 0; i--) {
-             const entry = l.call_history[i];
-             if (typeof entry === 'number') {
-               if (!lastCall) lastCall = { ts: entry, by_user_name: 'Unbekannt' };
-               continue;
-             }
-             const type = entry.type || 'call';
-             if (type === 'call' && !lastCall) { lastCall = entry; break; }
-           }
+           l.call_history.forEach(c => { if(typeof c !== 'number') allActs.push(c); });
          }
-         if (lastCall && (lastCall.by_user_name || typeof lastCall.ts === 'number')) {
-           const uname = lastCall.by_user_name || 'Unbekannt';
-           const dateStr = new Date(lastCall.ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-           callHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📞 ${escapeHtml(uname)} (${dateStr})</div>`;
+         if (l.lead_activities && l.lead_activities.length > 0) {
+           l.lead_activities.forEach(a => allActs.push(a));
+         }
+         allActs.sort((a,b) => b.ts - a.ts);
+         
+         let recentActivitiesHtml = '';
+         if (allActs.length > 0) {
+           const top3 = allActs.slice(0, 3);
+           top3.forEach(act => {
+             const uname = act.by_user_name || 'Unbekannt';
+             const dateStr = new Date(act.ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+             let icon = '📞';
+             let text = act.type === 'call' ? uname : (act.details || act.type);
+             if (act.type === 'email') icon = '✉️';
+             else if (act.type === 'status_change') icon = '🔄';
+             
+             recentActivitiesHtml += `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${icon} ${escapeHtml(text)} (${dateStr})</div>`;
+           });
          } else {
-           callHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">📞 Kein Anruf</div>`;
+           recentActivitiesHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">📞 Keine Aktivitäten</div>`;
          }
 
          // 3. Opening Hours Data
@@ -809,7 +829,7 @@ if (typeof window.renderDashboard === 'function') {
            ohHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 600; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">🕒 Keine Öffnungszeiten</div>`;
          }
          
-         activityLog = `<div style="margin-top: 2px; display: flex; flex-direction: column; gap: 3px;">${cityHtml}${callHtml}${ohHtml}</div>`;
+         activityLog = `<div style="margin-top: 2px; display: flex; flex-direction: column; gap: 3px;">${cityHtml}${recentActivitiesHtml}${ohHtml}</div>`;
         let avatarHtml = '';
         if (l.claimed_by && window.globalUsersList) {
            const assignedUser = window.globalUsersList.find(u => u.id === l.claimed_by);
@@ -926,9 +946,10 @@ if (typeof window.renderDashboard === 'function') {
           </button>
         </div>
         <div class="kanban-board">
-          ${colHtml('Entscheider', entscheider)}
-          ${colHtml('Kontakt', termin)}
-          ${colHtml('Rechnung', rechnung)}
+          ${colHtml('KEEPER', entscheider)}
+          ${colHtml('PITCH', termin)}
+          ${colHtml('OFFER', rechnung)}
+          ${colHtml('CLOSE', kunden)}
         </div>
       `;
     } else if (window.store.state.currentTab === 'cold' && !window.store.state.currentSearch) {
@@ -1415,6 +1436,63 @@ if (typeof window.renderDashboard === 'function') {
     const t = l.termin || 0;
     const r = l.rechnung || 0;
 
+    let pitchCounterHtml = '';
+    if (t) { // If lead is in PITCH
+      let callsInPitch = 0;
+      let lastCallTs = 0;
+      let allActsForCount = [];
+      if (l.call_history) allActsForCount = allActsForCount.concat(l.call_history.filter(c => typeof c !== 'number'));
+      callsInPitch = allActsForCount.filter(a => a.type === 'call').length;
+      if (callsInPitch > 0) {
+        lastCallTs = Math.max(...allActsForCount.filter(a => a.type === 'call').map(a => a.ts));
+      }
+      const lastCallText = lastCallTs ? `Letzter Anruf: ${new Date(lastCallTs).toLocaleDateString()}` : 'Noch nie angerufen';
+      pitchCounterHtml = `
+        <div style="margin-top: 16px; padding: 12px; background: rgba(255, 159, 10, 0.15); border: 1px solid rgba(255, 159, 10, 0.3); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 18px;">🔥</span>
+            <div>
+              <div style="color: var(--color-brand-orange, #ff9f0a); font-weight: 600; font-size: 13px;">Bisher ${callsInPitch} mal angerufen</div>
+              <div style="color: rgba(255,255,255,0.6); font-size: 11px; margin-top: 2px;">${lastCallText}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    let allActs = [];
+    if (l.call_history && l.call_history.length > 0) {
+      l.call_history.forEach(c => { if(typeof c !== 'number') allActs.push(c); });
+    }
+    if (l.lead_activities && l.lead_activities.length > 0) {
+      l.lead_activities.forEach(a => allActs.push(a));
+    }
+    allActs.sort((a,b) => b.ts - a.ts);
+    
+    let activitiesHtml = '';
+    if (allActs.length > 0) {
+      activitiesHtml = allActs.map(act => {
+        const uname = act.by_user_name || 'Unbekannt';
+        const dateStr = new Date(act.ts).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        let icon = '📞';
+        let text = act.type === 'call' ? `Call by ${uname}` : (act.details || act.type);
+        if (act.type === 'email') icon = '✉️';
+        else if (act.type === 'status_change') icon = '🔄';
+        
+        return `
+          <div style="display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <div style="font-size: 16px; margin-top: 2px;">${icon}</div>
+            <div style="flex: 1;">
+              <div style="font-size: 13px; color: var(--color-text-primary, #f2f2f7); font-weight: 500;">${escapeHtml(text)}</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${dateStr}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } else {
+      activitiesHtml = `<div style="font-size: 12px; color: var(--text-muted); opacity: 0.5;">Noch keine Aktivitäten vorhanden.</div>`;
+    }
+
     sidebarEl.innerHTML = `
       <div class="focused-lead" style="display:flex; flex-direction:column; height:100%;">
         
@@ -1435,11 +1513,12 @@ if (typeof window.renderDashboard === 'function') {
              </div>
           </div>
           <div class="pipeline-bar" style="margin-top: 12px;">
-            <div id="seg-1" class="pipe-seg ${e || t || r || isKunde ? 'active-blue' : ''}" onclick="setPipeline('e')">Entscheider</div>
-            <div id="seg-2" class="pipe-seg ${t || isKunde ? 'active-orange' : ''}" onclick="setPipeline('t')">Kontakt</div>
-            <div id="seg-3" class="pipe-seg ${r || isKunde ? 'active-red' : ''}" onclick="setPipeline('r')">Rechnung</div>
-            <div id="seg-4" class="pipe-seg ${isKunde ? 'active-success' : ''}" onclick="setPipeline('k')">Kunde</div>
+            <div id="seg-1" class="pipe-seg ${e || t || r || isKunde ? 'active-blue' : ''}" onclick="setPipeline('e')">KEEPER</div>
+            <div id="seg-2" class="pipe-seg ${t || isKunde ? 'active-orange' : ''}" onclick="setPipeline('t')">PITCH</div>
+            <div id="seg-3" class="pipe-seg ${r || isKunde ? 'active-red' : ''}" onclick="setPipeline('r')">OFFER</div>
+            <div id="seg-4" class="pipe-seg ${isKunde ? 'active-success' : ''}" onclick="setPipeline('k')">CLOSE</div>
           </div>
+          ${pitchCounterHtml}
         </div>
 
         <!-- SCROLLABLE BODY -->
@@ -1461,6 +1540,26 @@ if (typeof window.renderDashboard === 'function') {
                  <input type="text" id="sys-email" style="font-family:ui-monospace, monospace; font-size:14px; padding:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; min-width: 150px;" value="${escapeHtml(l.email || '')}" placeholder="Keine E-Mail" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
                  <button style="background:transparent; border:none; padding:8px 12px; font-size:12px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 8px;" onclick="copyEmail(event, ${l.id}, '${escapeHtml(l.email || '')}')">Copy</button>
                </div>
+            </div>
+          </div>
+
+          <!-- Eigenschaften (Groß/Tarif) -->
+          <div class="apple-section">
+            <h4 class="apple-section-title">Eigenschaften</h4>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size: 13px; color: var(--color-text-primary, #f2f2f7);">Unternehmensgröße</span>
+              <div style="display:flex; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 2px;">
+                <button style="padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; ${l.size === 'Tarifkunde' || !l.size ? 'background: var(--color-brand-accent, #0a84ff); color: white;' : 'background: transparent; color: var(--text-muted);'}" onclick="updateLeadSize(${l.id}, 'Tarifkunde')">Tarif</button>
+                <button style="padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; ${l.size === 'Großkunde' ? 'background: var(--color-brand-accent, #0a84ff); color: white;' : 'background: transparent; color: var(--text-muted);'}" onclick="updateLeadSize(${l.id}, 'Großkunde')">Groß</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aktivitäten Historie -->
+          <div class="apple-section">
+            <h4 class="apple-section-title">Aktivitäten Historie</h4>
+            <div style="display: flex; flex-direction: column;">
+              ${activitiesHtml}
             </div>
           </div>
 
@@ -2228,6 +2327,47 @@ if (typeof window.renderDashboard === 'function') {
     } catch(e) { console.error(e); }
   };
 
+  window.updateGlobalMetrics = async () => {
+    try {
+      const widget = document.getElementById('global-metrics-widget');
+      if (!widget) return;
+      
+      const currentUser = await window.api.getCurrentUser();
+      if (!currentUser) return;
+      
+      const stats = await window.api.getAgentStats();
+      if (!stats || stats.length === 0) return;
+      
+      const myStats = stats.find(s => s.id === currentUser.id);
+      if (!myStats) return;
+      
+      widget.style.display = 'flex';
+      
+      const goal = myStats.daily_call_goal || 100;
+      const callsToday = myStats.today.calls;
+      const emailsToday = myStats.today.emails;
+      
+      document.getElementById('gm-calls').innerText = `${callsToday} / ${goal}`;
+      document.getElementById('gm-emails').innerText = `${emailsToday}`;
+      
+      const todayStr = new Date().toISOString().split('T')[0];
+      const lsKey = `dashboard_manual_kpis_${todayStr}`;
+      let manualData = { revenue: '0 € / 2500 €' };
+      try {
+        const stored = localStorage.getItem(lsKey);
+        if (stored) manualData = { ...manualData, ...JSON.parse(stored) };
+      } catch(e) {}
+      
+      const revEl = document.getElementById('gm-revenue');
+      if (revEl) {
+        revEl.innerText = manualData.revenue || '0 €';
+      }
+      
+    } catch (err) {
+      console.warn('Failed to update global metrics:', err);
+    }
+  };
+
   window.renderDashboard = async () => {
     const container = document.getElementById('dashboard-content');
     if (!container) return;
@@ -2260,62 +2400,115 @@ if (typeof window.renderDashboard === 'function') {
       
       const myStats = stats.find(s => s.id === currentUser.id);
       
-      if (myStats) {
         const mySection = document.createElement('div');
         
-        const goal = myStats.daily_call_goal || 100;
-        const callsToday = myStats.today.calls;
-        const progressPct = Math.min(100, Math.round((callsToday / goal) * 100)) || 0;
+        let kpiGoals = { warm: 20, cold_tarif: 10, cold_gross: 10 };
+        try {
+          const storedGoals = localStorage.getItem('dashboard_kpi_goals');
+          if (storedGoals) kpiGoals = { ...kpiGoals, ...JSON.parse(storedGoals) };
+        } catch(e) {}
+        
+        const warmAct = myStats.today.warm || 0;
+        const tarifAct = myStats.today.cold_tarif || 0;
+        const grossAct = myStats.today.cold_gross || 0;
+        const offersAct = myStats.today.offers || 0;
         
         mySection.innerHTML = `
           <div style="margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="font-size: 18px; font-weight: 700; color: #fff; margin: 0;">Meine Performance</h2>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 12px; color: var(--text-muted);">Tagesziel:</span>
-              <input type="number" id="daily-goal-input" value="${goal}" class="modern-input-small" style="width: 70px; text-align: center; padding: 4px;" />
-              <button class="action-btn-small outline" onclick="window.saveCallGoal()" style="padding: 4px 12px;">Speichern</button>
+            <h2 style="font-size: 18px; font-weight: 700; color: #fff; margin: 0;">KPI Dashboard</h2>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span style="font-size: 11px; color: var(--text-muted);">Warm:</span>
+                <input type="number" id="goal-warm" value="${kpiGoals.warm}" class="modern-input-small" style="width: 50px; text-align: center; padding: 4px;" />
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span style="font-size: 11px; color: var(--text-muted);">Tarif:</span>
+                <input type="number" id="goal-tarif" value="${kpiGoals.cold_tarif}" class="modern-input-small" style="width: 50px; text-align: center; padding: 4px;" />
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span style="font-size: 11px; color: var(--text-muted);">Groß:</span>
+                <input type="number" id="goal-gross" value="${kpiGoals.cold_gross}" class="modern-input-small" style="width: 50px; text-align: center; padding: 4px;" />
+              </div>
+              <button class="action-btn-small outline" onclick="window.saveKpiGoals()" style="padding: 4px 12px;">Speichern</button>
             </div>
           </div>
           
           <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px;">
-              <div>
-                <div style="font-size: 32px; font-weight: 900; color: #fff;">${callsToday} <span style="font-size: 16px; color: var(--text-muted); font-weight: 600;">/ ${goal} Calls Heute</span></div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+              
+              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 24px; font-weight: 800; color: #fff;">${warmAct} <span style="font-size: 14px; color: var(--text-muted);">/ ${kpiGoals.warm}</span></div>
+                <div style="font-size: 11px; color: var(--color-crm-milestone1, #0a84ff); text-transform: uppercase; font-weight: bold;">Warme Calls</div>
               </div>
-              <div style="font-size: 14px; font-weight: 600; color: ${progressPct >= 100 ? 'var(--success)' : 'var(--accent)'};">${progressPct}% erreicht</div>
+              
+              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 24px; font-weight: 800; color: #fff;">${tarifAct} <span style="font-size: 14px; color: var(--text-muted);">/ ${kpiGoals.cold_tarif}</span></div>
+                <div style="font-size: 11px; color: var(--color-brand-orange, #ff9f0a); text-transform: uppercase; font-weight: bold;">Cold (Tarif)</div>
+              </div>
+              
+              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 24px; font-weight: 800; color: #fff;">${grossAct} <span style="font-size: 14px; color: var(--text-muted);">/ ${kpiGoals.cold_gross}</span></div>
+                <div style="font-size: 11px; color: var(--color-crm-customer, #34c759); text-transform: uppercase; font-weight: bold;">Cold (Groß)</div>
+              </div>
+
+              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 24px; font-weight: 800; color: #fff;">${offersAct}</div>
+                <div style="font-size: 11px; color: var(--color-crm-milestone2, #ff453a); text-transform: uppercase; font-weight: bold;">Angebote Gesendet</div>
+              </div>
+              
             </div>
             
-            <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.4); border-radius: 4px; overflow: hidden; margin-bottom: 24px;">
-              <div style="width: ${progressPct}%; height: 100%; background: ${progressPct >= 100 ? 'var(--success)' : 'var(--accent)'}; border-radius: 4px; transition: width 0.5s ease;"></div>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
-              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 20px; font-weight: 800; color: #fff;">${myStats.week.calls}</div>
-                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Calls (Woche)</div>
-              </div>
-              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 20px; font-weight: 800; color: #fff;">${myStats.today.emails}</div>
-                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">E-Mails (Heute)</div>
-              </div>
-              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 20px; font-weight: 800; color: #fff;">${myStats.week.emails}</div>
-                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">E-Mails (Woche)</div>
-              </div>
+            <div style="height: 300px; width: 100%;">
+              <canvas id="kpiChart"></canvas>
             </div>
           </div>
         `;
         container.appendChild(mySection);
         
-        window.saveCallGoal = async () => {
-          const input = document.getElementById('daily-goal-input');
-          if (!input) return;
-          try {
-            await window.api.updateCallGoal(input.value);
-            window.renderDashboard();
-          } catch(e) {
-            alert("Fehler beim Speichern des Ziels.");
-          }
+        // Render Chart
+        setTimeout(() => {
+          const ctx = document.getElementById('kpiChart').getContext('2d');
+          new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: ['Warm', 'Cold (Tarif)', 'Cold (Groß)'],
+              datasets: [
+                {
+                  label: 'Ist',
+                  data: [warmAct, tarifAct, grossAct],
+                  backgroundColor: ['#0a84ff', '#ff9f0a', '#34c759'],
+                  borderRadius: 4
+                },
+                {
+                  label: 'Ziel',
+                  data: [kpiGoals.warm, kpiGoals.cold_tarif, kpiGoals.cold_gross],
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                  borderWidth: 1,
+                  borderRadius: 4
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: 'rgba(255, 255, 255, 0.7)' } },
+                x: { grid: { display: false }, ticks: { color: 'rgba(255, 255, 255, 0.7)' } }
+              },
+              plugins: {
+                legend: { labels: { color: 'rgba(255, 255, 255, 0.7)' } }
+              }
+            }
+          });
+        }, 100);
+        
+        window.saveKpiGoals = () => {
+          const warm = parseInt(document.getElementById('goal-warm').value) || 20;
+          const tarif = parseInt(document.getElementById('goal-tarif').value) || 10;
+          const gross = parseInt(document.getElementById('goal-gross').value) || 10;
+          localStorage.setItem('dashboard_kpi_goals', JSON.stringify({ warm, cold_tarif: tarif, cold_gross: gross }));
+          window.renderDashboard();
         };
       }
       
