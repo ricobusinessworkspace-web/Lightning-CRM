@@ -2400,6 +2400,7 @@ if (typeof window.renderDashboard === 'function') {
       
       const myStats = stats.find(s => s.id === currentUser.id);
       
+      if (myStats) {
         const mySection = document.createElement('div');
         
         let kpiGoals = { warm: 20, cold_tarif: 10, cold_gross: 10 };
