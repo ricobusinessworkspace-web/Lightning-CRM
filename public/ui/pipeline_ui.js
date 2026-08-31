@@ -758,7 +758,7 @@ if (typeof window.renderDashboard === 'function') {
          if (l.lead_activities && l.lead_activities.length > 0) {
            l.lead_activities.forEach(a => allActs.push(a));
          }
-         allActs.sort((a,b) => b.ts - a.ts);
+         allActs.sort((a,b) => (b.ts || 0) - (a.ts || 0));
          
          let recentActivitiesHtml = '';
          if (allActs.length > 0) {
@@ -1481,7 +1481,7 @@ if (typeof window.renderDashboard === 'function') {
     if (l.lead_activities && l.lead_activities.length > 0) {
       l.lead_activities.forEach(a => allActs.push(a));
     }
-    allActs.sort((a,b) => b.ts - a.ts);
+    allActs.sort((a,b) => (b.ts || 0) - (a.ts || 0));
     
     let activitiesHtml = '';
     if (allActs.length > 0) {
