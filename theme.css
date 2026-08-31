@@ -65,10 +65,10 @@
   /* ── 3. DOMAIN ALIASES (App-specific overrides mapping to Semantics) ─── */
 
   /* CRM: Lightning CRM pipeline stages */
-  --color-crm-cold:         var(--color-intent-muted);
-  --color-crm-decision:     var(--color-intent-info);
-  --color-crm-appointment:  var(--color-intent-warning);
-  --color-crm-invoice:      var(--color-intent-danger);
+  --color-crm-cold: #0a84ff; /* COLD: Blue */
+  --color-crm-decision: #ff9f0a; /* PITCH: Orange */
+  --color-crm-appointment: #ff453a; /* DATA: Orange-Red */
+  --color-crm-invoice: #d70015; /* OFFER: Red */
   --color-crm-customer:     var(--color-intent-success);
   --color-crm-excluded:     var(--primitive-red-500);
 

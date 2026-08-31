@@ -203,7 +203,7 @@ export const db = {
       // Tab specific base status
       if (filters.tab === 'queue') {
         if (filters.filter1 !== 'kunden') {
-          query = query.eq('status', 'Lead');
+          query = query.in('status', ['Lead', 'Close']);
         }
       } else if (filters.tab === 'cold') {
         query = query.eq('status', 'Lead');
@@ -346,7 +346,8 @@ export const db = {
           if (payload.entscheider === 1 && existing.entscheider !== 1) await window.api.logStatusChange(lead.id, 'PITCH');
           if (payload.termin === 1 && existing.termin !== 1) await window.api.logStatusChange(lead.id, 'FOLLOW-UP');
           if (payload.rechnung === 1 && existing.rechnung !== 1) await window.api.logStatusChange(lead.id, 'OFFER');
-          if (payload.status === 'Kunde' && existing.status !== 'Kunde') await window.api.logStatusChange(lead.id, 'CLOSE');
+          if (payload.status === 'Close' && existing.status !== 'Close') await window.api.logStatusChange(lead.id, 'CLOSE');
+          if (payload.status === 'Kunde' && existing.status !== 'Kunde') await window.api.logStatusChange(lead.id, 'KUNDE');
           if (payload.entscheider === 0 && payload.termin === 0 && payload.rechnung === 0 && payload.status === 'Lead' && (existing.entscheider !== 0 || existing.termin !== 0 || existing.rechnung !== 0)) {
             await window.api.logStatusChange(lead.id, 'COLD');
           }
@@ -813,7 +814,7 @@ export const db = {
         const isToday = call.ts >= startOfDay;
         const isWeek = call.ts >= startOfWeek;
         const l = call.crm_leads;
-        const isWarm = l && (l.entscheider === 1 || l.termin === 1 || l.rechnung === 1 || l.status === 'Kunde');
+        const isWarm = l && (l.entscheider === 1 || l.termin === 1 || l.rechnung === 1 || l.status === 'Kunde' || l.status === 'Close');
         const isGross = l && l.size === 'Großkunde';
 
         stats[call.by_user_id].total.calls++;

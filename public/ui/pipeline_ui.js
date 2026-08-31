@@ -141,12 +141,13 @@ window.handleLeadAssignmentChange = (val) => {
   };
 
   window.getLeadStatusMap = (l) => {
-    let res = { color: 'p-kalt', label: 'Kalt', mapPin: 'pin-kalt' };
-    if (l.status === 'Kunde') res = { color: 'p-kunde', label: 'Kunde', mapPin: 'pin-kunde' };
+    let res = { color: 'p-kalt', label: 'COLD', mapPin: 'pin-kalt' };
+    if (l.status === 'Kunde') res = { color: 'p-kunde', label: 'KUNDE', mapPin: 'pin-kunde' };
+    else if (l.status === 'Close') res = { color: 'p-close', label: 'CLOSE', mapPin: 'pin-close' };
     else if (l.status === 'Uninteressant') res = { color: 'p-excluded', label: 'Ausgeschlossen 🚫', mapPin: 'pin-excluded' };
-    else if (l.rechnung) res = { color: 'p-rechnung', label: 'Rechnung', mapPin: 'pin-rechnung' };
-    else if (l.termin) res = { color: 'p-termin', label: 'Kontakt', mapPin: 'pin-termin' };
-    else if (l.entscheider) res = { color: 'p-entscheider', label: 'Entscheider', mapPin: 'pin-entscheider' };
+    else if (l.rechnung) res = { color: 'p-rechnung', label: 'OFFER', mapPin: 'pin-rechnung' };
+    else if (l.termin) res = { color: 'p-termin', label: 'DATA', mapPin: 'pin-termin' };
+    else if (l.entscheider) res = { color: 'p-entscheider', label: 'PITCH', mapPin: 'pin-entscheider' };
     
     let hasActive = false;
     if (typeof l.task_text === 'string' && l.task_text.trim() !== '') {
@@ -309,7 +310,7 @@ window.handleLeadAssignmentChange = (val) => {
     leads.forEach(l => {
       const sMap = getLeadStatusMap(l);
       // Filter out cold leads from map display
-      if (sMap.label === 'Kalt') return;
+      if (sMap.label === 'COLD') return;
       
       // Apply Status Filter
       if (mapStatusFilter !== 'all' && sMap.label !== mapStatusFilter) return;
@@ -932,10 +933,10 @@ if (typeof window.renderDashboard === 'function') {
 
       const crmLeads = leads.filter(l => l.entscheider || l.termin || l.rechnung);
 
-      const entscheider = sortKanban(crmLeads.filter(l => l.entscheider === 1 && !l.termin && !l.rechnung && l.status === 'Lead'));
-      const termin = sortKanban(crmLeads.filter(l => l.termin === 1 && !l.rechnung && l.status === 'Lead'));
-      const rechnung = sortKanban(crmLeads.filter(l => l.rechnung === 1 && l.status === 'Lead'));
-      const kunden = sortKanban(leads.filter(l => l.status === 'Kunde'));
+      const pitchList = sortKanban(crmLeads.filter(l => l.entscheider === 1 && !l.termin && !l.rechnung && l.status === 'Lead'));
+      const dataList = sortKanban(crmLeads.filter(l => l.termin === 1 && !l.rechnung && l.status === 'Lead'));
+      const offerList = sortKanban(crmLeads.filter(l => l.rechnung === 1 && l.status === 'Lead'));
+      const closeList = sortKanban(crmLeads.filter(l => l.status === 'Close'));
 
       const colHtml = (title, list) => `
         <div class="kanban-column">
@@ -957,10 +958,10 @@ if (typeof window.renderDashboard === 'function') {
           </button>
         </div>
         <div class="kanban-board">
-          ${colHtml('PITCH', entscheider)}
-          ${colHtml('FOLLOW-UP', termin)}
-          ${colHtml('OFFER', rechnung)}
-          ${colHtml('CLOSE', kunden)}
+          ${colHtml('PITCH', pitchList)}
+          ${colHtml('DATA', dataList)}
+          ${colHtml('OFFER', offerList)}
+          ${colHtml('CLOSE', closeList)}
         </div>
       `;
     } else if (window.store.state.currentTab === 'cold' && !window.store.state.currentSearch) {
@@ -1531,12 +1532,13 @@ if (typeof window.renderDashboard === 'function') {
                <button class="desktop-only" style="background:transparent; border:none; font-size:20px; cursor:pointer; padding:0; color:var(--color-text-secondary, #8e8e93); transition: color 0.2s; line-height: 1; display: flex; align-items: center;" onclick="closeLeadSidebar()" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" title="Lead abwählen">✕</button>
              </div>
           </div>
-          <div class="pipeline-bar" style="margin-top: 12px;">
-            <div id="seg-0" class="pipe-seg ${!e && !t && !r && !isKunde ? 'active-gray' : ''}" onclick="setPipeline('cold')">COLD</div>
-            <div id="seg-1" class="pipe-seg ${e || t || r || isKunde ? 'active-blue' : ''}" onclick="setPipeline('e')">PITCH</div>
-            <div id="seg-2" class="pipe-seg ${t || isKunde ? 'active-orange' : ''}" onclick="setPipeline('t')">FOLLOW-UP</div>
-            <div id="seg-3" class="pipe-seg ${r || isKunde ? 'active-red' : ''}" onclick="setPipeline('r')">OFFER</div>
-            <div id="seg-4" class="pipe-seg ${isKunde ? 'active-success' : ''}" onclick="setPipeline('k')">CLOSE</div>
+          <div class="pipeline-bar" style="margin-top: 12px; display: flex; gap: 4px; overflow-x: auto;">
+            <div id="seg-0" class="pipe-seg ${!e && !t && !r && l.status !== 'Close' && !isKunde ? 'active-cold' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('cold')">COLD</div>
+            <div id="seg-1" class="pipe-seg ${e || t || r || l.status === 'Close' || isKunde ? 'active-pitch' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('e')">PITCH</div>
+            <div id="seg-2" class="pipe-seg ${t || r || l.status === 'Close' || isKunde ? 'active-data' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('t')">DATA</div>
+            <div id="seg-3" class="pipe-seg ${r || l.status === 'Close' || isKunde ? 'active-offer' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('r')">OFFER</div>
+            <div id="seg-4" class="pipe-seg ${l.status === 'Close' || isKunde ? 'active-close' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('c')">CLOSE</div>
+            <div id="seg-5" class="pipe-seg ${isKunde ? 'active-kunde' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('k')">KUNDE</div>
           </div>
           ${pitchCounterHtml}
         </div>
