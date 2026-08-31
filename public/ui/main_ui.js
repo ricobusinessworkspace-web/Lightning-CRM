@@ -159,26 +159,32 @@ window.setPipeline = async (type) => {
 
 
   window.showToast = (msg, type = 'success') => {
-    // Support legacy boolean API: showToast('msg', true) means error
     if (type === true) type = 'error';
     if (type === false) type = 'success';
     
     const existing = document.querySelectorAll('.app-toast');
-    const offset = existing.length * 56;
+    // Stack them vertically at the bottom
     existing.forEach((e, i) => {
-      // Push existing toasts up
-      const currentTop = parseInt(e.style.top) || 30;
-      e.style.top = (currentTop - 56) + 'px';
+      const currentBottom = parseInt(e.style.bottom) || 40;
+      e.style.bottom = (currentBottom + 60) + 'px';
     });
     
     const t = document.createElement('div');
     t.className = `app-toast toast-${type}`;
-    t.style.cssText = `top: -50px; opacity: 0;`;
+    t.style.cssText = `position: fixed; left: 50%; bottom: -100px; transform: translateX(-50%); opacity: 0; z-index: 99999;`;
     t.innerHTML = msg;
     document.body.appendChild(t);
     
-    requestAnimationFrame(() => { t.style.top = '30px'; t.style.opacity = '1'; });
-    setTimeout(() => { t.style.top = '-50px'; t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 5000);
+    requestAnimationFrame(() => { 
+      t.style.bottom = '40px'; 
+      t.style.opacity = '1'; 
+    });
+    
+    setTimeout(() => { 
+      t.style.bottom = '-100px'; 
+      t.style.opacity = '0'; 
+      setTimeout(() => t.remove(), 400); 
+    }, 4500);
   };
 
   window.showConfirmDialog = (title, message, confirmLabel, onConfirm) => {
