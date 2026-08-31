@@ -233,7 +233,9 @@ export const db = {
     }
 
     // Since we need relational sorting for crm_calls, keep this:
-    query = query.order('ts', { foreignTable: 'crm_calls', ascending: true });
+    query = query
+      .order('ts', { foreignTable: 'crm_calls', ascending: false }).limit(3, { foreignTable: 'crm_calls' })
+      .order('ts', { foreignTable: 'lead_activities', ascending: false }).limit(3, { foreignTable: 'lead_activities' });
 
     const { data, error } = await query;
     if (error) throw new Error(error.message || error.details || JSON.stringify(error));
@@ -244,6 +246,19 @@ export const db = {
   },
 
   // ── saveLead ───────────────────────────────────────────────────────────────
+
+  getLeadHistory: async (leadId) => {
+    const { data: calls, error: err1 } = await supabase.from('crm_calls').select('*').eq('lead_id', leadId).order('ts', { ascending: true });
+    const { data: acts, error: err2 } = await supabase.from('lead_activities').select('*').eq('lead_id', leadId).order('ts', { ascending: true });
+    
+    if (err1 || err2) {
+      console.warn('Failed to fetch full history', err1 || err2);
+      return { crm_calls: [], lead_activities: [] };
+    }
+    
+    return { crm_calls: calls || [], lead_activities: acts || [] };
+  },
+  
   saveLead: async (lead) => {
     const now = Date.now();
 
@@ -765,81 +780,75 @@ export const db = {
       }
     }
     
-    // Fetch crm_calls AND lead_activities
-    const { data, error } = await supabase.from(TABLE).select('claimed_by, created_at_ms, entscheider, termin, rechnung, status, size, crm_calls(*), lead_activities(*)');
+    const { data: leads, error } = await supabase.from(TABLE).select('claimed_by, created_at_ms');
     if (error) throw new Error(error.message);
+
+    const { data: allCalls } = await supabase.from('crm_calls').select('by_user_id, ts, status, crm_leads!inner(entscheider, termin, rechnung, status, size)');
+    const { data: allActs } = await supabase.from('lead_activities').select('by_user_id, ts, type, details');
 
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     
-    // Start of week (Monday)
-    const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday
+    const dayOfWeek = now.getDay();
     const diffToMonday = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
     const startOfWeek = new Date(now.getFullYear(), now.getMonth(), diffToMonday).getTime();
     
-    for (const row of (data || [])) {
+    for (const row of (leads || [])) {
       if (row.claimed_by && stats[row.claimed_by]) {
         stats[row.claimed_by].total.leads++;
         if (row.created_at_ms >= startOfDay) stats[row.claimed_by].today.leads++;
         if (row.created_at_ms >= startOfWeek) stats[row.claimed_by].week.leads++;
       }
-      
-      const isWarm = row.entscheider === 1 || row.termin === 1 || row.rechnung === 1 || row.status === 'Kunde';
-      const isGross = row.size === 'Großkunde';
-      
-      const history = Array.isArray(row.crm_calls) ? row.crm_calls : [];
-      for (const entry of history) {
-        const norm = normalizeCallEntry(entry);
-        if (norm && norm.by_user_id && stats[norm.by_user_id]) {
-          const isToday = norm.ts >= startOfDay;
-          const isWeek = norm.ts >= startOfWeek;
+    }
 
-          if (norm.type === 'call') {
-            stats[norm.by_user_id].total.calls++;
-            if (isToday) {
-              stats[norm.by_user_id].today.calls++;
-              if (isWarm) stats[norm.by_user_id].today.warm++;
-              else if (isGross) stats[norm.by_user_id].today.cold_gross++;
-              else stats[norm.by_user_id].today.cold_tarif++;
-            }
-            if (isWeek) {
-              stats[norm.by_user_id].week.calls++;
-              if (isWarm) stats[norm.by_user_id].week.warm++;
-              else if (isGross) stats[norm.by_user_id].week.cold_gross++;
-              else stats[norm.by_user_id].week.cold_tarif++;
-            }
+    for (const call of (allCalls || [])) {
+      if (call.by_user_id && stats[call.by_user_id]) {
+        const isToday = call.ts >= startOfDay;
+        const isWeek = call.ts >= startOfWeek;
+        const l = call.crm_leads;
+        const isWarm = l && (l.entscheider === 1 || l.termin === 1 || l.rechnung === 1 || l.status === 'Kunde');
+        const isGross = l && l.size === 'Großkunde';
 
-            if (norm.status === 'not_answered') {
-              stats[norm.by_user_id].total.unanswered++;
-              if (isToday) stats[norm.by_user_id].today.unanswered++;
-              if (isWeek) stats[norm.by_user_id].week.unanswered++;
-            }
-          }
+        stats[call.by_user_id].total.calls++;
+        if (isToday) {
+          stats[call.by_user_id].today.calls++;
+          if (isWarm) stats[call.by_user_id].today.warm++;
+          else if (isGross) stats[call.by_user_id].today.cold_gross++;
+          else stats[call.by_user_id].today.cold_tarif++;
+        }
+        if (isWeek) {
+          stats[call.by_user_id].week.calls++;
+          if (isWarm) stats[call.by_user_id].week.warm++;
+          else if (isGross) stats[call.by_user_id].week.cold_gross++;
+          else stats[call.by_user_id].week.cold_tarif++;
+        }
+
+        if (call.status === 'not_answered') {
+          stats[call.by_user_id].total.unanswered++;
+          if (isToday) stats[call.by_user_id].today.unanswered++;
+          if (isWeek) stats[call.by_user_id].week.unanswered++;
         }
       }
-      
-      const activities = Array.isArray(row.lead_activities) ? row.lead_activities : [];
-      for (const act of activities) {
-        if (act.by_user_id && stats[act.by_user_id]) {
-          const isToday = act.ts >= startOfDay;
-          const isWeek = act.ts >= startOfWeek;
-          
-          if (act.type === 'email') {
-            stats[act.by_user_id].total.emails++;
-            if (isToday) stats[act.by_user_id].today.emails++;
-            if (isWeek) stats[act.by_user_id].week.emails++;
-          } else if (act.type === 'status_change' && (act.details || '').includes('OFFER')) {
-            stats[act.by_user_id].total.offers++;
-            if (isToday) stats[act.by_user_id].today.offers++;
-            if (isWeek) stats[act.by_user_id].week.offers++;
-          }
+    }
+    
+    for (const act of (allActs || [])) {
+      if (act.by_user_id && stats[act.by_user_id]) {
+        const isToday = act.ts >= startOfDay;
+        const isWeek = act.ts >= startOfWeek;
+        
+        if (act.type === 'email') {
+          stats[act.by_user_id].total.emails++;
+          if (isToday) stats[act.by_user_id].today.emails++;
+          if (isWeek) stats[act.by_user_id].week.emails++;
+        } else if (act.type === 'status_change' && (act.details || '').includes('OFFER')) {
+          stats[act.by_user_id].total.offers++;
+          if (isToday) stats[act.by_user_id].today.offers++;
+          if (isWeek) stats[act.by_user_id].week.offers++;
         }
       }
     }
     return Object.values(stats);
   },
-
-  // ── getUserRP ──────────────────────────────────────────────────────────────
   getUserRP: async (userId) => {
     const { data, error } = await supabase
       .from(TABLE)

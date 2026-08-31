@@ -1288,6 +1288,14 @@ if (typeof window.renderDashboard === 'function') {
     }
     if(!l) return;
 
+    try {
+      const fullHistory = await window.api.getLeadHistory(l.id);
+      l.call_history = fullHistory.crm_calls || [];
+      l.lead_activities = fullHistory.lead_activities || [];
+    } catch(e) {
+      console.error(e);
+    }
+
     if (draft) {
       l.name = draft.name || l.name;
       l.phone = draft.phone !== undefined ? draft.phone : l.phone;

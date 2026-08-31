@@ -29,6 +29,7 @@ window.api = {
   deactivateUser: (userId) => db.deactivateUser(userId),
   makeMeDeveloper: () => db.makeMeDeveloper(),
   getAgentStats: () => db.getAgentStats(),
+  getLeadHistory: (id) => db.getLeadHistory(id),
 
   // Call Tracking
   logCall: (id) => db.logCall(id),
