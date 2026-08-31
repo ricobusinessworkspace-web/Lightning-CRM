@@ -32,20 +32,23 @@ window.setPipeline = async (type) => {
     document.getElementById('sys-r').value = r;
     document.getElementById('sys-k').value = k;
 
+    const s0 = document.getElementById('seg-0');
     const s1 = document.getElementById('seg-1');
     const s2 = document.getElementById('seg-2');
     const s3 = document.getElementById('seg-3');
     const s4 = document.getElementById('seg-4');
 
+    if (s0) s0.className = 'pipe-seg';
     if (s1) s1.className = 'pipe-seg';
     if (s2) s2.className = 'pipe-seg';
     if (s3) s3.className = 'pipe-seg';
     if (s4) s4.className = 'pipe-seg';
 
-    if (e && s1) s1.classList.add('active-blue');
-    if (t && s2) s2.classList.add('active-orange');
-    if (r && s3) s3.classList.add('active-red');
-    if (k && s4) s4.classList.add('active-success');
+    if (!e && !t && !r && !k && s0) s0.classList.add('active-cold');
+    if ((e || t || r || k) && s1) s1.classList.add('active-pitch');
+    if ((t || r || k) && s2) s2.classList.add('active-data');
+    if ((r || k) && s3) s3.classList.add('active-offer');
+    if (k && s4) s4.classList.add('active-kunde');
   };
 
   window.selectCustomSnooze = () => {
