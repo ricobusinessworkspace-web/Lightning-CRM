@@ -758,7 +758,7 @@ if (typeof window.renderDashboard === 'function') {
            cityHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">📍 Kein Standort</div>`;
          }
 
-         // 2. Recent Activities (Top 3)
+         // 2. Last Call (only the most recent call matters for the list view)
          let allActs = [];
          if (l.call_history && l.call_history.length > 0) {
            l.call_history.forEach(c => { if(typeof c !== 'number') allActs.push(c); });
@@ -766,22 +766,18 @@ if (typeof window.renderDashboard === 'function') {
          if (l.lead_activities && l.lead_activities.length > 0) {
            l.lead_activities.forEach(a => allActs.push(a));
          }
-         allActs = allActs.filter(act => !(act.type === 'call' && (!act.by_user_name || act.by_user_name === 'Unbekannt')));
+         // Sort newest first
          allActs.sort((a,b) => (b.ts || 0) - (a.ts || 0));
-         
+
+         // Only care about calls for the list view metric
+         const lastCall = allActs.find(act => act.type === 'call');
+
          let recentActivitiesHtml = '';
-         if (allActs.length > 0) {
-           const top3 = allActs.slice(0, 3);
-           top3.forEach(act => {
-             const uname = act.by_user_name || 'Unbekannt';
-             const dateStr = new Date(act.ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-             let icon = '📞';
-             let text = act.type === 'call' ? uname : (act.details || act.type);
-             if (act.type === 'email') icon = '✉️';
-             else if (act.type === 'status_change') icon = '🔄';
-             
-             recentActivitiesHtml += `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${icon} ${escapeHtml(text)} (${dateStr})</div>`;
-           });
+         if (lastCall) {
+           const dateStr = new Date(lastCall.ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+           const uname = (lastCall.by_user_name && lastCall.by_user_name !== 'Unbekannt') ? lastCall.by_user_name : null;
+           const callText = uname ? `${uname} (${dateStr})` : dateStr;
+           recentActivitiesHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📞 ${escapeHtml(callText)}</div>`;
          } else {
            recentActivitiesHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">📞 Keine Aktivitäten</div>`;
          }
@@ -1478,25 +1474,38 @@ if (typeof window.renderDashboard === 'function') {
     if (l.lead_activities && l.lead_activities.length > 0) {
       l.lead_activities.forEach(a => allActs.push(a));
     }
-    allActs = allActs.filter(act => !(act.type === 'call' && (!act.by_user_name || act.by_user_name === 'Unbekannt')));
     allActs.sort((a,b) => (b.ts || 0) - (a.ts || 0));
     
     let activitiesHtml = '';
     if (allActs.length > 0) {
       activitiesHtml = allActs.map(act => {
-        const uname = act.by_user_name || 'Unbekannt';
+        const uname = act.by_user_name && act.by_user_name !== 'Unbekannt' ? act.by_user_name : null;
         const dateStr = new Date(act.ts).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
         let icon = '📞';
-        let text = act.type === 'call' ? `Call by ${uname}` : (act.details || act.type);
-        if (act.type === 'email') icon = '✉️';
-        else if (act.type === 'status_change') icon = '🔄';
+        let text = '';
+        if (act.type === 'call') {
+          icon = '📞';
+          text = uname ? `Anruf – ${uname}` : 'Anruf';
+        } else if (act.type === 'email') {
+          icon = '✉️';
+          text = act.details || 'E-Mail';
+        } else if (act.type === 'status_change') {
+          icon = '🔄';
+          // Make status change text readable in German
+          const detail = act.details || '';
+          const statusMap = { 'PITCH': 'Status → Pitch', 'FOLLOW-UP': 'Status → Follow-Up', 'OFFER': 'Status → Angebot', 'CLOSED': 'Status → Abschluss ✅', 'COLD': 'Status → Kalt' };
+          const matched = Object.entries(statusMap).find(([k]) => detail.includes(k));
+          text = matched ? matched[1] : (uname ? `${detail} – ${uname}` : detail);
+        } else {
+          text = act.details || act.type;
+        }
         
         return `
           <div style="display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
             <div style="font-size: 16px; margin-top: 2px;">${icon}</div>
             <div style="flex: 1;">
               <div style="font-size: 13px; color: var(--color-text-primary, #f2f2f7); font-weight: 500;">${escapeHtml(text)}</div>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${dateStr}</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${dateStr}${uname && act.type !== 'call' ? ` · ${escapeHtml(uname)}` : ''}</div>
             </div>
           </div>
         `;

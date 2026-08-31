@@ -49,12 +49,7 @@ window.setPipeline = async (type) => {
     if (t && !r && !k && s2) s2.classList.add('active-data');
     if (r && !k && s3) s3.classList.add('active-offer');
     if (k && s4) s4.classList.add('active-kunde');
-
-    // Auto-save so the user gets immediate feedback
-    const currentId = window.store.state.currentSelectedLeadId;
-    if (currentId) {
-      saveLeadMain(currentId, true, true);
-    }
+    // Status is only persisted when the user presses the Save button
   };
 
   window.selectCustomSnooze = () => {
@@ -425,17 +420,40 @@ window.setPipeline = async (type) => {
         } catch(e) { console.error('Sales Bell Error:', e); }
       }
 
-      // IMPORTANT: Only call loadUi() here — NOT loadMapData() directly.
-      // Calling loadMapData() from here causes a Leaflet crash when the user is NOT on the
-      // map tab because initMap() tries to mount onto the hidden/absent #map-container element.
-      // loadUi() already calls loadMapData() internally when window.store.state.currentTab === 'map'.
-      try { await loadUi(); } catch (e) { console.warn('Non-critical loadUi error after save:', e); }
-      
+      // ── Silent store patch: update in-memory lead so the card reflects changes ──
+      // We do NOT call loadUi() here to avoid full re-render & race conditions.
+      // Instead we patch the store entry and update just the relevant lead card.
+      if (window.store.state.leads) {
+        const idx = window.store.state.leads.findIndex(x => x.id === id);
+        if (idx !== -1) {
+          // Patch the in-memory lead with what we just saved
+          const patched = {
+            ...window.store.state.leads[idx],
+            name: sName, phone: sPhone, website_url: sWeb, email: sEmail,
+            notes, entscheider, termin, rechnung, size,
+            status: status, maps_city: city,
+            starred: isStarred
+          };
+          window.store.state.leads[idx] = patched;
+        }
+      }
+
+      // Update the lead card in the list silently (just update the active-lead-card highlight)
+      document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
+      const updatedCard = document.getElementById(`lead-card-${id}`);
+      if (updatedCard) updatedCard.classList.add('active-lead-card');
+
       if (saveBtn) {
         saveBtn.classList.remove('btn-loading');
         saveBtn.classList.add('btn-success-flash');
         saveBtn.disabled = false;
         saveBtn.textContent = '✓ Gespeichert';
+        setTimeout(() => {
+          if (saveBtn) {
+            saveBtn.classList.remove('btn-success-flash');
+            saveBtn.textContent = 'Speichern';
+          }
+        }, 2000);
       }
       showToast("Lead gespeichert!");
 
@@ -451,11 +469,8 @@ window.setPipeline = async (type) => {
             }
           }
         }, 2000);
-      } else if (!noRender) {
-        if (window.openLeadDirectly) await window.openLeadDirectly(id, false, true);
-        else if (window.openLead) await window.openLead(id);
       }
-      
+
       return true;
     } catch (err) {
       if (saveBtn) {
