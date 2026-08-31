@@ -308,8 +308,6 @@ window.handleLeadAssignmentChange = (val) => {
 
     leads.forEach(l => {
       const sMap = getLeadStatusMap(l);
-      // Filter out cold leads from map display
-      if (sMap.label === 'COLD') return;
       
       // Apply Status Filter
       if (mapStatusFilter !== 'all' && sMap.label !== mapStatusFilter) return;
@@ -472,7 +470,6 @@ if (typeof window.renderDashboard === 'function') {
 
       const si = $('search-input');
       if (si) si.value = '';
-      await loadUi();
       await loadUi();
     }
 
