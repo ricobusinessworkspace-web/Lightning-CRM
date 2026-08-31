@@ -66,8 +66,8 @@
 
   /* CRM: Lightning CRM pipeline stages */
   --color-crm-cold: #0a84ff; /* COLD: Blue */
-  --color-crm-decision: #ff9f0a; /* PITCH: Orange */
-  --color-crm-appointment: #ff453a; /* DATA: Orange-Red */
+  --color-crm-decision: #ffd60a; /* PITCH: Yellow */
+  --color-crm-appointment: #ff9f0a; /* DATA: Orange */
   --color-crm-invoice: #d70015; /* OFFER: Red */
   --color-crm-customer:     var(--color-intent-success);
   --color-crm-excluded:     var(--primitive-red-500);
