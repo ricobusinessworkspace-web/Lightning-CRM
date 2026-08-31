@@ -316,7 +316,6 @@ window.setPipeline = async (type) => {
       let entscheider = parseInt(document.getElementById('sys-e')?.value) || 0;
       let termin = parseInt(document.getElementById('sys-t')?.value) || 0;
       let rechnung = parseInt(document.getElementById('sys-r')?.value) || 0;
-      let isCloseVal = parseInt(document.getElementById('sys-c')?.value) || 0;
       let isKundeVal = parseInt(document.getElementById('sys-k')?.value) || 0;
       const size = document.getElementById('m-size')?.value || (lData ? (lData.size || 'Tarifkunde') : 'Tarifkunde');
 

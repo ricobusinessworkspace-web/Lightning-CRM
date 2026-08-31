@@ -142,8 +142,7 @@ window.handleLeadAssignmentChange = (val) => {
 
   window.getLeadStatusMap = (l) => {
     let res = { color: 'p-kalt', label: 'COLD', mapPin: 'pin-kalt' };
-    if (l.status === 'Kunde') res = { color: 'p-kunde', label: 'KUNDE', mapPin: 'pin-kunde' };
-    else if (l.status === 'Close') res = { color: 'p-close', label: 'CLOSE', mapPin: 'pin-close' };
+    if (l.status === 'Kunde') res = { color: 'p-kunde', label: 'CLOSED', mapPin: 'pin-kunde' };
     else if (l.status === 'Uninteressant') res = { color: 'p-excluded', label: 'Ausgeschlossen 🚫', mapPin: 'pin-excluded' };
     else if (l.rechnung) res = { color: 'p-rechnung', label: 'OFFER', mapPin: 'pin-rechnung' };
     else if (l.termin) res = { color: 'p-termin', label: 'DATA', mapPin: 'pin-termin' };
@@ -172,7 +171,7 @@ window.handleLeadAssignmentChange = (val) => {
   function initMap() {
     if (map) return;
     map = L.map('map-container').setView([51.0504, 13.7372], 11);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
       attribution: '&copy; CartoDB',
       subdomains: 'abcd',
       maxZoom: 20
@@ -936,7 +935,6 @@ if (typeof window.renderDashboard === 'function') {
       const pitchList = sortKanban(crmLeads.filter(l => l.entscheider === 1 && !l.termin && !l.rechnung && l.status === 'Lead'));
       const dataList = sortKanban(crmLeads.filter(l => l.termin === 1 && !l.rechnung && l.status === 'Lead'));
       const offerList = sortKanban(crmLeads.filter(l => l.rechnung === 1 && l.status === 'Lead'));
-      const closeList = sortKanban(crmLeads.filter(l => l.status === 'Close'));
 
       const colHtml = (title, list) => `
         <div class="kanban-column">
@@ -945,7 +943,7 @@ if (typeof window.renderDashboard === 'function') {
             <div class="kanban-count">${list.length}</div>
           </div>
           <div class="kanban-cards">
-            ${list.length === 0 ? '<div class="empty-state" style="height:40px; font-size:12px;">Pick up the phone and start dialing.</div>' : renderLeadList(list)}
+            ${list.length === 0 ? '<div class="empty-state" style="height:40px; font-size:12px;">Keine Leads</div>' : renderLeadList(list)}
           </div>
         </div>
       `;
@@ -961,7 +959,6 @@ if (typeof window.renderDashboard === 'function') {
           ${colHtml('PITCH', pitchList)}
           ${colHtml('DATA', dataList)}
           ${colHtml('OFFER', offerList)}
-          ${colHtml('CLOSE', closeList)}
         </div>
       `;
     } else if (window.store.state.currentTab === 'cold' && !window.store.state.currentSearch) {
@@ -1533,12 +1530,11 @@ if (typeof window.renderDashboard === 'function') {
              </div>
           </div>
           <div class="pipeline-bar" style="margin-top: 12px; display: flex; gap: 4px; overflow-x: auto;">
-            <div id="seg-0" class="pipe-seg ${!e && !t && !r && l.status !== 'Close' && !isKunde ? 'active-cold' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('cold')">COLD</div>
-            <div id="seg-1" class="pipe-seg ${e || t || r || l.status === 'Close' || isKunde ? 'active-pitch' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('e')">PITCH</div>
-            <div id="seg-2" class="pipe-seg ${t || r || l.status === 'Close' || isKunde ? 'active-data' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('t')">DATA</div>
-            <div id="seg-3" class="pipe-seg ${r || l.status === 'Close' || isKunde ? 'active-offer' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('r')">OFFER</div>
-            <div id="seg-4" class="pipe-seg ${l.status === 'Close' || isKunde ? 'active-close' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('c')">CLOSE</div>
-            <div id="seg-5" class="pipe-seg ${isKunde ? 'active-kunde' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('k')">KUNDE</div>
+            <div id="seg-0" class="pipe-seg ${!e && !t && !r && !isKunde ? 'active-cold' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('cold')">COLD</div>
+            <div id="seg-1" class="pipe-seg ${e || t || r || isKunde ? 'active-pitch' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('e')">PITCH</div>
+            <div id="seg-2" class="pipe-seg ${t || r || isKunde ? 'active-data' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('t')">DATA</div>
+            <div id="seg-3" class="pipe-seg ${r || isKunde ? 'active-offer' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('r')">OFFER</div>
+            <div id="seg-4" class="pipe-seg ${isKunde ? 'active-kunde' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('k')">CLOSED</div>
           </div>
           ${pitchCounterHtml}
         </div>
@@ -1553,7 +1549,7 @@ if (typeof window.renderDashboard === 'function') {
                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 8px;">
                  <input type="text" id="sys-phone" style="font-family:ui-monospace, monospace; font-size:14px; padding:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; min-width: 150px;" value="${escapeHtml(l.phone || '')}" placeholder="Keine Nummer" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
                  <div style="display:flex; gap: 8px; align-items: center;">
-                   ${(l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone).replace('<a', '<a style="background: rgba(37, 211, 102, 0.1); padding: 8px 12px; border-radius: 8px;"') : ''}
+                   ${(l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone).replace('<a', '<a style=\"background: rgba(37, 211, 102, 0.1); color: #25D366 !important; padding: 8px 12px; border-radius: 8px;\"') : ''}
                    <button style="background:transparent; border:none; padding:8px 12px; font-size:12px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 8px;" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')">Copy</button>
                  </div>
                </div>
@@ -1700,9 +1696,9 @@ if (typeof window.renderDashboard === 'function') {
           </div>
 
           <!-- Hidden System Fields -->
-          <input type="hidden" id="sys-e" value="${e}">
-          <input type="hidden" id="sys-t" value="${t}">
-          <input type="hidden" id="sys-r" value="${r}">
+          <input type="hidden" id="sys-e" value="${e ? 1 : 0}">
+          <input type="hidden" id="sys-t" value="${t ? 1 : 0}">
+          <input type="hidden" id="sys-r" value="${r ? 1 : 0}">
           <input type="hidden" id="sys-k" value="${isKunde ? 1 : 0}">
           <input type="hidden" id="sys-web" value="${escapeHtml(l.website_url||'')}">
           <input type="hidden" id="sys-placeid" value="${l.google_place_id||''}">
