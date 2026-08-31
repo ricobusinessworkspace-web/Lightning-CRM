@@ -200,7 +200,8 @@
     border-radius: 10px !important;
   }
   
-  .pipe-seg.active-blue, .pipe-seg.active-orange, .pipe-seg.active-red, .pipe-seg.active-success {
+  .pipe-seg.active-blue, .pipe-seg.active-orange, .pipe-seg.active-red, .pipe-seg.active-success,
+  .pipe-seg.active-cold, .pipe-seg.active-pitch, .pipe-seg.active-data, .pipe-seg.active-offer, .pipe-seg.active-kunde {
     box-shadow: none !important;
   }
   

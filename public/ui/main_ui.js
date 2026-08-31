@@ -45,10 +45,16 @@ window.setPipeline = async (type) => {
     if (s4) s4.className = 'pipe-seg';
 
     if (!e && !t && !r && !k && s0) s0.classList.add('active-cold');
-    if ((e || t || r || k) && s1) s1.classList.add('active-pitch');
-    if ((t || r || k) && s2) s2.classList.add('active-data');
-    if ((r || k) && s3) s3.classList.add('active-offer');
+    if (e && !t && !r && !k && s1) s1.classList.add('active-pitch');
+    if (t && !r && !k && s2) s2.classList.add('active-data');
+    if (r && !k && s3) s3.classList.add('active-offer');
     if (k && s4) s4.classList.add('active-kunde');
+
+    // Auto-save so the user gets immediate feedback
+    const currentId = window.store.state.currentSelectedLeadId;
+    if (currentId) {
+      saveLeadMain(currentId, true, true);
+    }
   };
 
   window.selectCustomSnooze = () => {
@@ -304,8 +310,11 @@ window.setPipeline = async (type) => {
         saveBtn.textContent = 'Speichern...';
       }
 
-      // BUGFIX: Always fetch the current lead object BEFORE referencing it to prevent ReferenceError crashes
-      const lData = (await window.api.getLeads({all:true})).find(x => x.id === id);
+      // Use cached lead data from store, only fetch if missing
+      let lData = window.store.state.leads ? window.store.state.leads.find(x => x.id === id) : null;
+      if (!lData) {
+        lData = (await window.api.getLeads({all:true})).find(x => x.id === id);
+      }
 
       let sNameNode = document.getElementById('sys-name');
       const sName = sNameNode ? (sNameNode.innerText || sNameNode.value || '').trim() : (lData ? lData.name : '');

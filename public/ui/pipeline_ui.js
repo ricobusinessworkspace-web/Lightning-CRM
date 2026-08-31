@@ -57,7 +57,15 @@ window.handleLeadAssignmentChange = (val) => {
     const lead = window.store.state.leads.find(l => l.id === id);
     if (lead) lead.size = newSize;
 
-    window.openLeadDirectly(id, true, true, draft);
+    document.querySelectorAll('.size-btn').forEach(btn => {
+      if (btn.getAttribute('data-size') === newSize) {
+        btn.style.background = 'var(--color-brand-accent, #0a84ff)';
+        btn.style.color = 'white';
+      } else {
+        btn.style.background = 'transparent';
+        btn.style.color = 'var(--text-muted)';
+      }
+    });
   };
 
   window.handleLeadClick = (id) => {
@@ -758,6 +766,7 @@ if (typeof window.renderDashboard === 'function') {
          if (l.lead_activities && l.lead_activities.length > 0) {
            l.lead_activities.forEach(a => allActs.push(a));
          }
+         allActs = allActs.filter(act => !(act.type === 'call' && (!act.by_user_name || act.by_user_name === 'Unbekannt')));
          allActs.sort((a,b) => (b.ts || 0) - (a.ts || 0));
          
          let recentActivitiesHtml = '';
@@ -1272,26 +1281,14 @@ if (typeof window.renderDashboard === 'function') {
     }
     // ----------------------------------
 
-    window.store.state.leads = await window.api.getLeads({ all: true });
+    let l = window.store.state.leads ? window.store.state.leads.find(x => x.id === id) : null;
+    if (!l) {
+      window.store.state.leads = await window.api.getLeads({ all: true });
+      l = window.store.state.leads.find(x => x.id === id);
+    }
     if (!keepForceLocationSearch) window._forceLocationSearch = false;
     window.store.state.currentSelectedLeadId = id;
 
-    // Use current search and filters to get the lead, but fallback to a global search if not found
-    let l = null;
-    try {
-      const leads = await window.api.getLeads({ 
-        search: window.store.state.currentSearch || '', 
-        tab: window.store.state.currentTab, 
-        filter1: window.store.state.currentFilter1, 
-        filter2: window.store.state.currentFilter2 
-      }); 
-      l = leads.find(x => x.id === id);
-    } catch (e) {}
-
-    if (!l) {
-      const fullList = await window.api.getLeads({ all: true }); 
-      l = fullList.find(x => x.id === id);
-    }
     if(!l) return;
 
     try {
@@ -1481,6 +1478,7 @@ if (typeof window.renderDashboard === 'function') {
     if (l.lead_activities && l.lead_activities.length > 0) {
       l.lead_activities.forEach(a => allActs.push(a));
     }
+    allActs = allActs.filter(act => !(act.type === 'call' && (!act.by_user_name || act.by_user_name === 'Unbekannt')));
     allActs.sort((a,b) => (b.ts || 0) - (a.ts || 0));
     
     let activitiesHtml = '';
@@ -1528,9 +1526,9 @@ if (typeof window.renderDashboard === 'function') {
           </div>
           <div class="pipeline-bar" style="margin-top: 12px; display: flex; gap: 4px; overflow-x: auto;">
             <div id="seg-0" class="pipe-seg ${!e && !t && !r && !isKunde ? 'active-cold' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('cold')">COLD</div>
-            <div id="seg-1" class="pipe-seg ${e || t || r || isKunde ? 'active-pitch' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('e')">PITCH</div>
-            <div id="seg-2" class="pipe-seg ${t || r || isKunde ? 'active-data' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('t')">DATA</div>
-            <div id="seg-3" class="pipe-seg ${r || isKunde ? 'active-offer' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('r')">OFFER</div>
+            <div id="seg-1" class="pipe-seg ${e && !t && !r && !isKunde ? 'active-pitch' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('e')">PITCH</div>
+            <div id="seg-2" class="pipe-seg ${t && !r && !isKunde ? 'active-data' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('t')">DATA</div>
+            <div id="seg-3" class="pipe-seg ${r && !isKunde ? 'active-offer' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('r')">OFFER</div>
             <div id="seg-4" class="pipe-seg ${isKunde ? 'active-kunde' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('k')">CLOSED</div>
           </div>
           ${pitchCounterHtml}
@@ -1564,8 +1562,8 @@ if (typeof window.renderDashboard === 'function') {
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <span style="font-size: 13px; color: var(--color-text-primary, #f2f2f7);">Unternehmensgröße</span>
               <div style="display:flex; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 2px;">
-                <button style="padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; ${l.size === 'Tarifkunde' || !l.size ? 'background: var(--color-brand-accent, #0a84ff); color: white;' : 'background: transparent; color: var(--text-muted);'}" onclick="updateLeadSize(${l.id}, 'Tarifkunde')">Tarif</button>
-                <button style="padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; ${l.size === 'Großkunde' ? 'background: var(--color-brand-accent, #0a84ff); color: white;' : 'background: transparent; color: var(--text-muted);'}" onclick="updateLeadSize(${l.id}, 'Großkunde')">Groß</button>
+                <button class="size-btn" data-size="Tarifkunde" style="padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; ${l.size === 'Tarifkunde' || !l.size ? 'background: var(--color-brand-accent, #0a84ff); color: white;' : 'background: transparent; color: var(--text-muted);'}" onclick="updateLeadSize(${l.id}, 'Tarifkunde')">Tarif</button>
+                <button class="size-btn" data-size="Großkunde" style="padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; ${l.size === 'Großkunde' ? 'background: var(--color-brand-accent, #0a84ff); color: white;' : 'background: transparent; color: var(--text-muted);'}" onclick="updateLeadSize(${l.id}, 'Großkunde')">Groß</button>
               </div>
             </div>
           </div>
