@@ -759,10 +759,10 @@ if (typeof window.renderDashboard === 'function') {
          }
 
          // 2. Last Call (only the most recent call matters for the list view)
+         // Note: getLeads returns 'crm_calls', getLeadHistory returns stored in 'call_history'
          let allActs = [];
-         if (l.call_history && l.call_history.length > 0) {
-           l.call_history.forEach(c => { if(typeof c !== 'number') allActs.push(c); });
-         }
+         const callSource = l.call_history || l.crm_calls || [];
+         callSource.forEach(c => { if(typeof c !== 'number') allActs.push(c); });
          if (l.lead_activities && l.lead_activities.length > 0) {
            l.lead_activities.forEach(a => allActs.push(a));
          }
@@ -1448,7 +1448,8 @@ if (typeof window.renderDashboard === 'function') {
       let callsInPitch = 0;
       let lastCallTs = 0;
       let allActsForCount = [];
-      if (l.call_history) allActsForCount = allActsForCount.concat(l.call_history.filter(c => typeof c !== 'number'));
+      const callSrcForCount = l.call_history || l.crm_calls || [];
+      allActsForCount = callSrcForCount.filter(c => typeof c !== 'number');
       callsInPitch = allActsForCount.filter(a => a.type === 'call').length;
       if (callsInPitch > 0) {
         lastCallTs = Math.max(...allActsForCount.filter(a => a.type === 'call').map(a => a.ts));
@@ -1468,9 +1469,9 @@ if (typeof window.renderDashboard === 'function') {
     }
 
     let allActs = [];
-    if (l.call_history && l.call_history.length > 0) {
-      l.call_history.forEach(c => { if(typeof c !== 'number') allActs.push(c); });
-    }
+    // Note: getLeads returns 'crm_calls', getLeadHistory stores in 'call_history'
+    const callSrc = l.call_history || l.crm_calls || [];
+    callSrc.forEach(c => { if(typeof c !== 'number') allActs.push(c); });
     if (l.lead_activities && l.lead_activities.length > 0) {
       l.lead_activities.forEach(a => allActs.push(a));
     }
