@@ -26,7 +26,7 @@ window.store = new Store({
   currentFilter1: 'all',
   currentFilter2: 'all',
   currentSearch: '',
-  currentTab: 'tasks',
+  currentTab: 'queue',
   currentSnoozeOffset: 0,
   currentSnoozeTargetMs: 0,
   isTaskMode: false,
