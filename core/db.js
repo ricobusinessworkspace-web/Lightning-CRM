@@ -342,10 +342,17 @@ export const db = {
 
       // Check for status changes
       if (existing) {
-        if (payload.entscheider === 1 && existing.entscheider !== 1) await window.api.logStatusChange(lead.id, 'KEEPER');
-        if (payload.termin === 1 && existing.termin !== 1) await window.api.logStatusChange(lead.id, 'PITCH');
-        if (payload.rechnung === 1 && existing.rechnung !== 1) await window.api.logStatusChange(lead.id, 'OFFER');
-        if (payload.status === 'Kunde' && existing.status !== 'Kunde') await window.api.logStatusChange(lead.id, 'CLOSE');
+        try {
+          if (payload.entscheider === 1 && existing.entscheider !== 1) await window.api.logStatusChange(lead.id, 'PITCH');
+          if (payload.termin === 1 && existing.termin !== 1) await window.api.logStatusChange(lead.id, 'FOLLOW-UP');
+          if (payload.rechnung === 1 && existing.rechnung !== 1) await window.api.logStatusChange(lead.id, 'OFFER');
+          if (payload.status === 'Kunde' && existing.status !== 'Kunde') await window.api.logStatusChange(lead.id, 'CLOSE');
+          if (payload.entscheider === 0 && payload.termin === 0 && payload.rechnung === 0 && payload.status === 'Lead' && (existing.entscheider !== 0 || existing.termin !== 0 || existing.rechnung !== 0)) {
+            await window.api.logStatusChange(lead.id, 'COLD');
+          }
+        } catch(e) {
+          console.warn('Could not log status change (maybe lead_activities table is missing)', e);
+        }
       }
 
       const { error } = await supabase.from(TABLE).update(payload).eq('id', lead.id);

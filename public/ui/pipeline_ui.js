@@ -40,14 +40,24 @@ window.handleLeadAssignmentChange = (val) => {
       loadUi();
   };
 
-  window.updateLeadSize = async (id, newSize) => {
-    try {
-      await window.api.saveLead({ id, size: newSize });
-      await window.openLeadDirectly(id, true, true);
-    } catch(e) {
-      console.error(e);
-      alert('Fehler beim Speichern der Größe');
+  window.updateLeadSize = (id, newSize) => {
+    // Just update DOM/Draft instead of auto-saving
+    let hiddenInput = document.getElementById('m-size');
+    if (!hiddenInput) {
+      hiddenInput = document.createElement('input');
+      hiddenInput.type = 'hidden';
+      hiddenInput.id = 'm-size';
+      document.body.appendChild(hiddenInput);
     }
+    hiddenInput.value = newSize;
+
+    const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
+    if (draft) draft.size = newSize;
+
+    const lead = window.store.state.leads.find(l => l.id === id);
+    if (lead) lead.size = newSize;
+
+    window.openLeadDirectly(id, true, true, draft);
   };
 
   window.handleLeadClick = (id) => {
@@ -524,8 +534,8 @@ if (typeof window.renderDashboard === 'function') {
       const st = window.store.state;
       if (st.advFilterStatus && st.advFilterStatus !== 'all') {
          if (st.advFilterStatus === 'Lead') leads = leads.filter(l => !l.entscheider && !l.termin && !l.rechnung && l.status !== 'Kunde');
-         else if (st.advFilterStatus === 'KEEPER') leads = leads.filter(l => l.entscheider && !l.termin && !l.rechnung && l.status !== 'Kunde');
-         else if (st.advFilterStatus === 'PITCH') leads = leads.filter(l => l.termin && !l.rechnung && l.status !== 'Kunde');
+         else if (st.advFilterStatus === 'PITCH') leads = leads.filter(l => l.entscheider && !l.termin && !l.rechnung && l.status !== 'Kunde');
+         else if (st.advFilterStatus === 'FOLLOWUP') leads = leads.filter(l => l.termin && !l.rechnung && l.status !== 'Kunde');
          else if (st.advFilterStatus === 'OFFER') leads = leads.filter(l => l.rechnung && l.status !== 'Kunde');
          else if (st.advFilterStatus === 'CLOSE') leads = leads.filter(l => l.status === 'Kunde');
       }
@@ -626,8 +636,8 @@ if (typeof window.renderDashboard === 'function') {
           <select class="modern-input" style="width:100%; padding:6px 8px; font-size:13px; border-radius:6px; background:var(--color-surface-hover, #1c1c1e); color:white; border:none; outline:none;" onchange="window.setAdvFilter('advFilterStatus', this.value)">
             <option value="all" ${st.advFilterStatus === 'all' ? 'selected' : ''}>Alle Status</option>
             <option value="Lead" ${st.advFilterStatus === 'Lead' ? 'selected' : ''}>Lead</option>
-            <option value="KEEPER" ${st.advFilterStatus === 'KEEPER' ? 'selected' : ''}>KEEPER</option>
             <option value="PITCH" ${st.advFilterStatus === 'PITCH' ? 'selected' : ''}>PITCH</option>
+            <option value="FOLLOWUP" ${st.advFilterStatus === 'FOLLOWUP' ? 'selected' : ''}>FOLLOW-UP</option>
             <option value="OFFER" ${st.advFilterStatus === 'OFFER' ? 'selected' : ''}>OFFER</option>
             <option value="CLOSE" ${st.advFilterStatus === 'CLOSE' ? 'selected' : ''}>CLOSE</option>
           </select>
@@ -925,6 +935,7 @@ if (typeof window.renderDashboard === 'function') {
       const entscheider = sortKanban(crmLeads.filter(l => l.entscheider === 1 && !l.termin && !l.rechnung && l.status === 'Lead'));
       const termin = sortKanban(crmLeads.filter(l => l.termin === 1 && !l.rechnung && l.status === 'Lead'));
       const rechnung = sortKanban(crmLeads.filter(l => l.rechnung === 1 && l.status === 'Lead'));
+      const kunden = sortKanban(leads.filter(l => l.status === 'Kunde'));
 
       const colHtml = (title, list) => `
         <div class="kanban-column">
@@ -946,8 +957,8 @@ if (typeof window.renderDashboard === 'function') {
           </button>
         </div>
         <div class="kanban-board">
-          ${colHtml('KEEPER', entscheider)}
-          ${colHtml('PITCH', termin)}
+          ${colHtml('PITCH', entscheider)}
+          ${colHtml('FOLLOW-UP', termin)}
           ${colHtml('OFFER', rechnung)}
           ${colHtml('CLOSE', kunden)}
         </div>
@@ -1521,8 +1532,9 @@ if (typeof window.renderDashboard === 'function') {
              </div>
           </div>
           <div class="pipeline-bar" style="margin-top: 12px;">
-            <div id="seg-1" class="pipe-seg ${e || t || r || isKunde ? 'active-blue' : ''}" onclick="setPipeline('e')">KEEPER</div>
-            <div id="seg-2" class="pipe-seg ${t || isKunde ? 'active-orange' : ''}" onclick="setPipeline('t')">PITCH</div>
+            <div id="seg-0" class="pipe-seg ${!e && !t && !r && !isKunde ? 'active-gray' : ''}" onclick="setPipeline('cold')">COLD</div>
+            <div id="seg-1" class="pipe-seg ${e || t || r || isKunde ? 'active-blue' : ''}" onclick="setPipeline('e')">PITCH</div>
+            <div id="seg-2" class="pipe-seg ${t || isKunde ? 'active-orange' : ''}" onclick="setPipeline('t')">FOLLOW-UP</div>
             <div id="seg-3" class="pipe-seg ${r || isKunde ? 'active-red' : ''}" onclick="setPipeline('r')">OFFER</div>
             <div id="seg-4" class="pipe-seg ${isKunde ? 'active-success' : ''}" onclick="setPipeline('k')">CLOSE</div>
           </div>
@@ -2520,70 +2532,6 @@ if (typeof window.renderDashboard === 'function') {
           window.renderDashboard();
         };
       }
-      
-      // --- Manual KPIs Section ---
-      const todayStr = new Date().toISOString().split('T')[0];
-      const lsKey = `dashboard_manual_kpis_${todayStr}`;
-      
-      let manualData = { split: '0 / 0', offers: '0', revenue: '0 € / 2500 €' };
-      try {
-        const stored = localStorage.getItem(lsKey);
-        if (stored) manualData = { ...manualData, ...JSON.parse(stored) };
-      } catch(e) {}
-      
-      window.updateManualKpi = (field) => {
-        const el = document.getElementById(`manual-kpi-${field}`);
-        if (!el) return;
-        const currentVal = el.innerText;
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.value = currentVal;
-        input.className = 'modern-input-small';
-        input.style.width = '100%';
-        input.style.maxWidth = '150px';
-        input.style.textAlign = 'center';
-        input.style.fontSize = '20px';
-        input.style.fontWeight = '800';
-        input.style.padding = '2px';
-        input.style.background = 'rgba(0,0,0,0.4)';
-        input.style.color = '#fff';
-        input.style.border = '1px solid var(--accent)';
-        
-        input.onblur = () => {
-          manualData[field] = input.value || '0';
-          localStorage.setItem(lsKey, JSON.stringify(manualData));
-          window.renderDashboard();
-        };
-        input.onkeydown = (e) => {
-          if (e.key === 'Enter') input.blur();
-        };
-        
-        el.parentNode.replaceChild(input, el);
-        input.focus();
-      };
-
-      const manualSection = document.createElement('div');
-      manualSection.style.marginBottom = '24px';
-      manualSection.innerHTML = `
-        <div style="margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
-          <h2 style="font-size: 18px; font-weight: 700; color: #fff; margin: 0;">Daily KPIs (Manual)</h2>
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
-          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 16px; border-radius: 12px; text-align: center;">
-            <div id="manual-kpi-split" style="font-size: 20px; font-weight: 800; color: #fff; cursor: pointer; transition: 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='#fff'" onclick="window.updateManualKpi('split')">${manualData.split}</div>
-            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-top: 8px;">Tarif / Großkunden Calls Split</div>
-          </div>
-          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 16px; border-radius: 12px; text-align: center;">
-            <div id="manual-kpi-offers" style="font-size: 20px; font-weight: 800; color: #fff; cursor: pointer; transition: 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='#fff'" onclick="window.updateManualKpi('offers')">${manualData.offers}</div>
-            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-top: 8px;">Angebote versendet</div>
-          </div>
-          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 16px; border-radius: 12px; text-align: center;">
-            <div id="manual-kpi-revenue" style="font-size: 20px; font-weight: 800; color: #fff; cursor: pointer; transition: 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='#fff'" onclick="window.updateManualKpi('revenue')">${manualData.revenue}</div>
-            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-top: 8px;">Monatliches Umsatzziel</div>
-          </div>
-        </div>
-      `;
-      container.appendChild(manualSection);
       
       const teamSection = document.createElement('div');
       teamSection.innerHTML = `

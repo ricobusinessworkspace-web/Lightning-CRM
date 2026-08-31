@@ -4,6 +4,10 @@ window.setPipeline = async (type) => {
     let r = parseInt(document.getElementById('sys-r').value) || 0;
     let k = parseInt(document.getElementById('sys-k').value) || 0;
 
+    if (type === 'cold') {
+       e = 0; t = 0; r = 0; k = 0;
+    }
+
     if (type === 'e') {
        e = e ? 0 : 1;
        if (e === 0) { t = 0; r = 0; k = 0; }
