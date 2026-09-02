@@ -403,7 +403,7 @@ window.setPipeline = async (type) => {
       // ACTUAL DATABASE SAVE ---
       await window.api.saveLead({ 
         id, name: sName, phone: sPhone, website_url: sWeb, google_maps_url: '', 
-        notes, entscheider, termin, rechnung, size, snooze_until_ms: snoozeMs, 
+        notes, stage: stage, size, snooze_until_ms: snoozeMs, 
         task_text: taskTxt, status: status, maps_city: city, lat, lng, 
         google_place_id: finalPlaceId, umsatz: umsatz, starred: isStarred,
         claimed_by: claimedByVal,
@@ -451,7 +451,7 @@ window.setPipeline = async (type) => {
           const patched = {
             ...window.store.state.leads[idx],
             name: sName, phone: sPhone, website_url: sWeb, email: sEmail,
-            notes, entscheider, termin, rechnung, size,
+            notes, stage: stage, size,
             status: status, maps_city: city,
             starred: isStarred
           };
@@ -935,8 +935,8 @@ window.setPipeline = async (type) => {
       const stats = await window.api.getStats(range);
       
       document.getElementById('stat-calls').innerText = stats.totalDone || 0;
-      document.getElementById('stat-ent').innerText = stats.entscheider || 0;
-      document.getElementById('stat-term').innerText = stats.termin || 0;
+      document.getElementById('stat-ent').innerText = stats.pitch || 0;
+      document.getElementById('stat-term').innerText = stats.data || 0;
       
       const elUmsatz = document.getElementById('stat-umsatz');
       if (elUmsatz) elUmsatz.innerText = (stats.umsatz || 0).toLocaleString('de-DE');

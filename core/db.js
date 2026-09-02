@@ -229,7 +229,7 @@ export const db = {
     // Minion Access Control
     if (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'developer' && !filters.all) {
       // Agent sieht alle Kalten (unassigned), aber NUR seine EIGENEN in der Pipeline
-      query = query.or(`and(status.eq.Lead,entscheider.eq.0,termin.eq.0,rechnung.eq.0),claimed_by.eq.${currentUser.id}`);
+      query = query.or(`and(status.eq.Lead,stage.eq.cold),claimed_by.eq.${currentUser.id}`);
     }
 
     // Since we need relational sorting for crm_calls, keep this:
@@ -295,7 +295,7 @@ export const db = {
 
     const ALLOWED_COLUMNS = [
       'stage',
-      'name', 'phone', 'notes', 'size', 'entscheider', 'termin', 'rechnung', 'snooze_until_ms',
+      'name', 'phone', 'notes', 'size', 'stage', 'snooze_until_ms',
       'status', 'task_text', 'maps_city', 'lat', 'lng', 'website_url', 'google_maps_url',
       'google_place_id', 'umsatz', 'starred', 'interest_strom', 'interest_gas', 'closed_strom',
       'closed_gas', 'zaehlernummern', 'abschlussdatum', 'provi_umsatz', 'last_edited_ms',
@@ -411,13 +411,16 @@ export const db = {
 
       // Phase 3.3: Statuswechsel-Logging (entkoppelt von window.api)
       try {
-        if (pEnt === 1 && existing.entscheider !== 1) await db.logStatusChange(lead.id, 'PITCH');
-        if (pTer === 1 && existing.termin !== 1) await db.logStatusChange(lead.id, 'FOLLOW-UP');
-        if (pRech === 1 && existing.rechnung !== 1) await db.logStatusChange(lead.id, 'OFFER');
-        if (pStat === 'Kunde' && existing.status !== 'Kunde') await db.logStatusChange(lead.id, 'CLOSED');
-        if (pEnt === 0 && pTer === 0 && pRech === 0 && pStat === 'Lead' && (existing.entscheider !== 0 || existing.termin !== 0 || existing.rechnung !== 0)) {
-          await db.logStatusChange(lead.id, 'COLD');
-        }
+        // Determine what advanced status changed based on stage
+        const oldStage = existing.stage || 'cold';
+        const newStage = lead.stage || oldStage;
+        
+        if (newStage === 'pitch' && oldStage !== 'pitch') await db.logStatusChange(lead.id, 'PITCH');
+        if (newStage === 'data' && oldStage !== 'data') await db.logStatusChange(lead.id, 'FOLLOW-UP');
+        if (newStage === 'offer' && oldStage !== 'offer') await db.logStatusChange(lead.id, 'OFFER');
+        if (newStage === 'closed' && oldStage !== 'closed') await db.logStatusChange(lead.id, 'CLOSED');
+        if (newStage === 'cold' && oldStage !== 'cold') await db.logStatusChange(lead.id, 'COLD');
+
       } catch(e) {
         console.warn('Could not log status change', e);
       }
@@ -709,12 +712,7 @@ export const db = {
   getStage: (lead) => {
     if (lead.status === 'Uninteressant') return 'UNINTERESSANT';
     if (lead.stage) return lead.stage.toUpperCase();
-    
-    // Fallback solange die DB-Migration (Backfill) noch nicht durchgelaufen ist
     if (lead.status === 'Kunde') return 'CLOSED';
-    if (lead.rechnung === 1) return 'DATA';
-    if (lead.termin === 1) return 'PITCH';
-    if (lead.entscheider === 1) return 'PITCH'; // entscheider ist fachlich tot
     return 'COLD';
   },
 

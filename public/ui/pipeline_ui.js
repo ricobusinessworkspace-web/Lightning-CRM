@@ -156,7 +156,7 @@ window.handleLeadAssignmentChange = (val) => {
     else if (stage === 'OFFER') res = { color: 'p-rechnung', label: 'OFFER', mapPin: 'pin-rechnung' };
     else if (stage === 'DATA') res = { color: 'p-termin', label: 'DATA', mapPin: 'pin-termin' };
     else if (stage === 'PITCH') res = { color: 'p-kalt', label: 'PITCH', mapPin: 'pin-kalt' }; // Using p-kalt color for pitch for now?
-    else if (l.entscheider) res = { color: 'p-entscheider', label: 'PITCH', mapPin: 'pin-entscheider' };
+    else if (stage === 'PITCH') res = { color: 'p-entscheider', label: 'PITCH', mapPin: 'pin-entscheider' };
     
     let hasActive = false;
     if (typeof l.task_text === 'string' && l.task_text.trim() !== '') {
@@ -968,7 +968,7 @@ if (typeof window.renderDashboard === 'function') {
       `;
     } else if (window.store.state.currentTab === 'cold' && !window.store.state.currentSearch) {
       // COLD CALLING STATION VIEW
-      let coldLeads = leads.filter(l => !l.entscheider && !l.termin && !l.rechnung && l.status === 'Lead');
+      let coldLeads = leads.filter(l => window.api.getStage(l) === 'COLD' && l.status === 'Lead');
 
       // F6: Apply call status filter
       let filteredByStatus = coldLeads;
@@ -1664,10 +1664,7 @@ if (typeof window.renderDashboard === 'function') {
           </div>
 
           <!-- Hidden System Fields -->
-          <input type="hidden" id="sys-e" value="${e ? 1 : 0}">
           <input type="hidden" id="sys-stage" value="${window.api.getStage(l).toLowerCase()}">
-          <input type="hidden" id="sys-t" value="${t ? 1 : 0}">
-          <input type="hidden" id="sys-r" value="${r ? 1 : 0}">
           <input type="hidden" id="sys-k" value="${isKunde ? 1 : 0}">
           <input type="hidden" id="sys-web" value="${escapeHtml(l.website_url||'')}">
           <input type="hidden" id="sys-placeid" value="${l.google_place_id||''}">
