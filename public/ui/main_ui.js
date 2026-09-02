@@ -402,7 +402,8 @@ window.setPipeline = async (type) => {
         phone_source: lData ? lData.phone_source : '',
         estimated_kwh: lData ? (lData.estimated_kwh || 0) : 0,
         locations: lData ? lData.locations : [],
-        linked_leads: lData ? lData.linked_leads : []
+        linked_leads: lData ? lData.linked_leads : [],
+        last_edited_ms: lData ? lData.last_edited_ms : undefined
       });
 
       // SALES BELL TRIGGER
