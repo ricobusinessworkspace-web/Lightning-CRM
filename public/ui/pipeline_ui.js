@@ -1667,7 +1667,7 @@ if (typeof window.renderDashboard === 'function') {
         </div>
         
         <div class="sidebar-footer" style="padding: 16px 24px max(24px, env(safe-area-inset-bottom)) 24px; flex-shrink: 0; border-top: 1px solid var(--color-border-base, #2c2c2e); background: var(--color-bg-panel, #0d0d0f); z-index: 10;">
-          <button class="action-btn success-bold ${isSaving ? 'btn-success-flash' : ''}" id="main-save-btn" style="width:100%; padding: 14px; font-size:15px; font-weight:600; border-radius: var(--radius-lg, 12px);" onclick="saveLeadMain(${l.id}, true)">${isSaving ? '✓ Gespeichert' : 'Speichern'}</button>
+          <!-- Speichern Button removed for Auto-Save -->
         </div>
       </div>
     `;
@@ -1684,6 +1684,55 @@ if (typeof window.renderDashboard === 'function') {
       }, 2000);
     }
   };
+
+
+    // --- AUTO-SAVE (Phase 7) ---
+    const sidebarBody = document.querySelector('.sidebar-body');
+    const headerTitle = document.querySelector('.sidebar-header');
+    
+    window._triggerAutoSave = window.debounce(() => {
+       if (window.store.state.currentSelectedLeadId === l.id) {
+           window.saveLeadMain(l.id, true, true).then(() => {
+               const toast = document.createElement('div');
+               toast.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(48,209,88,0.9); color:white; padding:8px 16px; border-radius:20px; font-size:12px; font-weight:600; z-index:9999; pointer-events:none; opacity:1; transition:opacity 0.3s;';
+               toast.textContent = 'Automatisch gespeichert ✓';
+               document.body.appendChild(toast);
+               setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 1500);
+           }).catch(err => {
+               if (err.message !== 'OCC_LOCKED') {
+                   showToast('Fehler beim Auto-Save: ' + err.message, 'error');
+               }
+           });
+       }
+    }, 1500);
+    
+    if (sidebarBody) {
+       sidebarBody.addEventListener('input', window._triggerAutoSave);
+       sidebarBody.addEventListener('change', window._triggerAutoSave);
+    }
+    if (headerTitle) {
+       headerTitle.addEventListener('input', window._triggerAutoSave);
+       headerTitle.addEventListener('change', window._triggerAutoSave);
+    }
+    
+
+    // Avoid wrapping global functions multiple times
+    if (!window._autosaveWrappersInstalled) {
+       const origSetPipeline = window.setPipeline;
+       window.setPipeline = async (type) => {
+          await origSetPipeline(type);
+          if (window._triggerAutoSave) window._triggerAutoSave();
+       };
+       
+       const origSelectSnooze = window.selectSnooze;
+       window.selectSnooze = (hrs) => {
+          origSelectSnooze(hrs);
+          if (window._triggerAutoSave) window._triggerAutoSave();
+       };
+       window._autosaveWrappersInstalled = true;
+    }
+
+    
 
   // --- NEW FEATURES: Pin Click, Call Tracking & Calendar ---
   

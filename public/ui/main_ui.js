@@ -1,3 +1,11 @@
+
+window.debounce = function(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+};
 window.setPipeline = async (type) => {
     let t = parseInt(document.getElementById('sys-t').value) || 0;
     let r = parseInt(document.getElementById('sys-r').value) || 0;
@@ -91,9 +99,9 @@ window.setPipeline = async (type) => {
       }
       
       if (hrs > 24) {
-         showToast(`Follow-Up in +${hrs/24} Tagen vorgemerkt. Klicke auf Speichern.`);
+         showToast(`Follow-Up in +${hrs/24} Tagen vorgemerkt. (Wird automatisch gespeichert)`);
       } else {
-         showToast(`Follow-Up in +${hrs}h vorgemerkt. Klicke auf Speichern.`);
+         showToast(`Follow-Up in +${hrs}h vorgemerkt. (Wird automatisch gespeichert)`);
       }
     }
   };
@@ -463,7 +471,7 @@ window.setPipeline = async (type) => {
           }
         }, 2000);
       }
-      showToast("Lead gespeichert!");
+      if (!noRender) showToast("Lead gespeichert!");
 
       if (!noClose) {
         setTimeout(() => {
@@ -506,7 +514,7 @@ window.setPipeline = async (type) => {
     if (cancelContainer) {
       cancelContainer.style.display = 'none';
     }
-    showToast("Snooze-Aufhebung vorgemerkt. Klicke auf Speichern.");
+    showToast("Snooze-Aufhebung vorgemerkt. (Wird automatisch gespeichert)");
   };
 
   window.renderTasksList = () => {
