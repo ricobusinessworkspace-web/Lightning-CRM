@@ -437,6 +437,7 @@ window.setPipeline = async (type) => {
           window.store.state.leads[idx] = patched;
         }
       }
+      if (typeof window.loadUi === 'function') window.loadUi(true);
 
       // Update the lead card in the list silently (just update the active-lead-card highlight)
       document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
@@ -1177,17 +1178,33 @@ window.setPipeline = async (type) => {
     sidebarEl.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
   };
 
-  window.openNewLeadForm = async () => {
-    const res = await window.api.saveLead({ name: "Neuer Lead" });
-    await loadUi();
+    window.openNewLeadForm = async () => {
+    const searchVal = document.getElementById('search-input') ? document.getElementById('search-input').value.trim() : '';
+    const newName = searchVal || "Neuer Lead";
+    
+    if (document.getElementById('search-input')) {
+        document.getElementById('search-input').value = '';
+        if (window.store && window.store.state) window.store.state.currentSearch = '';
+    }
+
+    const res = await window.api.saveLead({ name: newName, status: 'Lead' });
+    
+    if (window.store && window.store.state && window.store.state.leads) {
+        window.store.state.leads.unshift(res);
+    }
+    
+    if (typeof window.loadUi === 'function') {
+        window.loadUi(true); // render locally immediately
+    } else if (typeof loadUi === 'function') {
+        loadUi();
+    }
     openLead(res.id);
     
-    // Focus the name input automatically so user can directly start typing
     setTimeout(() => {
       const nameEl = document.getElementById('sys-name');
       if (nameEl) {
         nameEl.focus();
-        document.execCommand('selectAll', false, null);
+        nameEl.select();
       }
     }, 300);
   };

@@ -510,7 +510,7 @@ if (typeof window.renderDashboard === 'function') {
     }
   };
 
-  async function loadUi() {
+  async function loadUi(optimistic = false) {
     if (typeof window.updateExcludedCount === 'function') {
       window.updateExcludedCount();
     }
@@ -535,8 +535,63 @@ if (typeof window.renderDashboard === 'function') {
 
     } else {
       let leads = [];
+      const renderWithFilters = (leadsToRender) => {
+          let filtered = leadsToRender.filter(l => l.status !== 'Uninteressant');
+          const st = window.store.state;
+          if (st.advFilterStatus && st.advFilterStatus !== 'all') {
+             if (st.advFilterStatus === 'Lead') filtered = filtered.filter(l => window.api.getStage(l) === 'COLD');
+             else if (st.advFilterStatus === 'PITCH') filtered = filtered.filter(l => window.api.getStage(l) === 'PITCH');
+             else if (st.advFilterStatus === 'FOLLOWUP') filtered = filtered.filter(l => window.api.getStage(l) === 'DATA');
+             else if (st.advFilterStatus === 'OFFER') filtered = filtered.filter(l => window.api.getStage(l) === 'OFFER');
+             else if (st.advFilterStatus === 'CLOSE') filtered = filtered.filter(l => window.api.getStage(l) === 'CLOSED');
+          }
+          if (st.advFilterAssign && st.advFilterAssign !== 'all') {
+             if (st.advFilterAssign === 'me') {
+                filtered = filtered.filter(l => l.claimed_by === (window.globalUser ? window.globalUser.id : null));
+             } else if (st.advFilterAssign === 'unassigned') {
+                filtered = filtered.filter(l => !l.claimed_by);
+             } else {
+                filtered = filtered.filter(l => String(l.claimed_by) === String(st.advFilterAssign));
+             }
+          }
+          if (st.advFilterTask && st.advFilterTask !== 'all') {
+             filtered = filtered.filter(l => {
+                let open = false;
+                if (l.task_text) {
+                   try { 
+                      const ts = JSON.parse(l.task_text);
+                      open = ts.some(t => !t.done);
+                   } catch(e){}
+                }
+                return st.advFilterTask === 'open' ? open : !open;
+             });
+          }
+          if (st.advFilterLink && st.advFilterLink !== 'all') {
+             filtered = filtered.filter(l => {
+                const hasLinks = l.linked_leads && l.linked_leads.length > 0;
+                return st.advFilterLink === 'linked' ? hasLinks : !hasLinks;
+             });
+          }
+          renderQueue(filtered);
+      };
+
+      if (optimistic && window.store.state.leads) {
+          renderWithFilters(window.store.state.leads);
+          return;
+      } else {
+          // Stale while revalidate
+          if (window.store.state.leads && window.store.state.leads.length > 0) {
+              renderWithFilters(window.store.state.leads);
+          } else {
+              const qList = document.querySelector('.kanban-scroll-area');
+              if (qList) qList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">Lade Leads...</div></div>`;
+          }
+      }
+
       try {
          leads = await window.api.getLeads(filters);
+         window.store.state.leads = leads;
+         renderWithFilters(leads);
       } catch(err) {
          console.error('getLeads crash in renderPipeline:', err);
          showToast('Lade-Fehler: ' + err.message, 'error', 10000);
@@ -544,48 +599,16 @@ if (typeof window.renderDashboard === 'function') {
          if (qList) qList.innerHTML = `<div style="padding: 20px; color: red;">Fehler beim Laden der Leads:<br>${err.message}</div>`;
          return;
       }
-
-      // Frontend-level safeguard: Ensure Uninteressant leads are never shown in active CRM tabs
-      leads = leads.filter(l => l.status !== 'Uninteressant');
       
-      // Apply Advanced Filters
-      const st = window.store.state;
-      if (st.advFilterStatus && st.advFilterStatus !== 'all') {
-         if (st.advFilterStatus === 'Lead') leads = leads.filter(l => window.api.getStage(l) === 'COLD');
-         else if (st.advFilterStatus === 'PITCH') leads = leads.filter(l => window.api.getStage(l) === 'PITCH');
-         else if (st.advFilterStatus === 'FOLLOWUP') leads = leads.filter(l => window.api.getStage(l) === 'DATA');
-         else if (st.advFilterStatus === 'OFFER') leads = leads.filter(l => window.api.getStage(l) === 'OFFER');
-         else if (st.advFilterStatus === 'CLOSE') leads = leads.filter(l => window.api.getStage(l) === 'CLOSED');
+      // We return here because renderWithFilters is called above
+      if (!window.store.state.currentSelectedLeadId) {
+        if (typeof window.renderEmptySidebar === 'function') {
+          window.renderEmptySidebar();
+        }
       }
-      if (st.advFilterAssign && st.advFilterAssign !== 'all') {
-         if (st.advFilterAssign === 'me') {
-            leads = leads.filter(l => l.claimed_by === (window.globalUser ? window.globalUser.id : null));
-         } else if (st.advFilterAssign === 'unassigned') {
-            leads = leads.filter(l => !l.claimed_by);
-         } else {
-            leads = leads.filter(l => String(l.claimed_by) === String(st.advFilterAssign));
-         }
-      }
-      if (st.advFilterTask && st.advFilterTask !== 'all') {
-         leads = leads.filter(l => {
-            let open = false;
-            if (l.task_text) {
-               try { 
-                  const ts = JSON.parse(l.task_text);
-                  open = ts.some(t => !t.done);
-               } catch(e){}
-            }
-            return st.advFilterTask === 'open' ? open : !open;
-         });
-      }
-      if (st.advFilterLink && st.advFilterLink !== 'all') {
-         leads = leads.filter(l => {
-            const hasLinks = l.linked_leads && l.linked_leads.length > 0;
-            return st.advFilterLink === 'linked' ? hasLinks : !hasLinks;
-         });
-      }
+      return;
 
-      renderQueue(leads);
+
     }
     
     if (!window.store.state.currentSelectedLeadId) {
@@ -1456,17 +1479,7 @@ if (typeof window.renderDashboard === 'function') {
         lastCallTs = Math.max(...timeline.filter(a => a.activity_type === 'call').map(a => a.ts));
       }
       const lastCallText = lastCallTs ? `Letzter Anruf: ${new Date(lastCallTs).toLocaleDateString()}` : 'Noch nie angerufen';
-      pitchCounterHtml = `
-        <div style="margin-top: 16px; padding: 12px; background: rgba(255, 159, 10, 0.15); border: 1px solid rgba(255, 159, 10, 0.3); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 18px;">🔥</span>
-            <div>
-              <div style="color: var(--color-brand-orange, #ff9f0a); font-weight: 600; font-size: 13px;">Bisher ${callsInPitch} mal angerufen</div>
-              <div style="color: rgba(255,255,255,0.6); font-size: 11px; margin-top: 2px;">${lastCallText}</div>
-            </div>
-          </div>
-        </div>
-      `;
+      pitchCounterHtml = '';
     }
 
     const timeline = window.getTimeline(l);
