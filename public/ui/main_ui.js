@@ -47,6 +47,18 @@ window.setPipeline = async (type) => {
     if (stage === 'offer' && s3) s3.classList.add('active-offer');
     if (stage === 'closed' && s4) s4.classList.add('active-kunde');
     
+    // Push live activity to sidebar
+    const currentLeadId = window.store?.state?.currentSelectedLeadId;
+    if (currentLeadId && typeof window.pushLeadActivity === 'function') {
+      const uName = window.currentUser?.name || window.globalUser?.name || 'Ich';
+      window.pushLeadActivity(currentLeadId, {
+        activity_type: 'status_change',
+        details: `Status geändert: ${stage.toUpperCase()}`,
+        ts: Date.now(),
+        by_user_name: uName
+      });
+    }
+
     // Trigger Auto-Save instantly when pipeline status changes
     if (window._triggerAutoSave) window._triggerAutoSave();
   };
@@ -437,6 +449,14 @@ window.setPipeline = async (type) => {
           window.store.state.leads[idx] = patched;
         }
       }
+      if (window.store && window.store.state && window.store.state.tabCache) {
+        for (const k of Object.keys(window.store.state.tabCache)) {
+          if (Array.isArray(window.store.state.tabCache[k])) {
+            const cIdx = window.store.state.tabCache[k].findIndex(x => x.id === id);
+            if (cIdx !== -1) window.store.state.tabCache[k][cIdx] = { ...window.store.state.tabCache[k][cIdx], ...patched };
+          }
+        }
+      }
       if (typeof window.loadUi === 'function') window.loadUi(true);
 
       // Update the lead card in the list silently (just update the active-lead-card highlight)
@@ -776,6 +796,15 @@ window.setPipeline = async (type) => {
     try {
       await window.api.logCall(id);
       await window.updateTrayCount();
+      if (typeof window.pushLeadActivity === 'function') {
+        const uName = window.currentUser?.name || window.globalUser?.name || 'Ich';
+        window.pushLeadActivity(id, {
+          activity_type: 'call',
+          call_status: 'answered',
+          ts: Date.now(),
+          by_user_name: uName
+        });
+      }
     } catch(err) { console.warn('Call log failed:', err); }
     
     // Quick UI feedback for the copy button
@@ -814,6 +843,15 @@ window.setPipeline = async (type) => {
     try {
       await window.api.logEmail(id);
       await window.updateTrayCount();
+      if (typeof window.pushLeadActivity === 'function') {
+        const uName = window.currentUser?.name || window.globalUser?.name || 'Ich';
+        window.pushLeadActivity(id, {
+          activity_type: 'email',
+          details: 'E-Mail gesendet',
+          ts: Date.now(),
+          by_user_name: uName
+        });
+      }
     } catch(err) { console.warn('Email log failed:', err); }
     
     const btn = e.currentTarget || e.target;
@@ -855,11 +893,26 @@ window.setPipeline = async (type) => {
       'Der Lead verschwindet komplett und kann nicht wiederhergestellt werden.',
       'Ja, endgültig löschen',
       async () => {
+        // Block Realtime echo from reloading the page
+        if (typeof window !== 'undefined' && window.pendingLocalWrites) {
+          window.pendingLocalWrites.add(id);
+          setTimeout(() => window.pendingLocalWrites.delete(id), 5000);
+        }
+
         await window.api.deleteLead(id);
         
-        // Remove locally immediately to ensure UI reflects the deletion
-        if (window.store && window.store.state && window.store.state.allLeads) {
-          window.store.state.allLeads = window.store.state.allLeads.filter(l => l.id !== id);
+        // Remove locally immediately from state.leads and tabCache
+        if (window.store && window.store.state) {
+          if (Array.isArray(window.store.state.leads)) {
+            window.store.state.leads = window.store.state.leads.filter(l => l.id !== id);
+          }
+          if (window.store.state.tabCache) {
+            for (const k of Object.keys(window.store.state.tabCache)) {
+              if (Array.isArray(window.store.state.tabCache[k])) {
+                window.store.state.tabCache[k] = window.store.state.tabCache[k].filter(l => l.id !== id);
+              }
+            }
+          }
         }
 
         if (typeof window.renderEmptySidebar === 'function') {
@@ -868,7 +921,11 @@ window.setPipeline = async (type) => {
           const sidebar = document.getElementById('main-sidebar');
           if (sidebar) sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
         }
-        await loadUi();
+        if (typeof window.loadUi === 'function') {
+          window.loadUi(true);
+        } else if (typeof loadUi === 'function') {
+          loadUi();
+        }
       }
     );
   };

@@ -66,6 +66,12 @@ window.handleLeadAssignmentChange = (val) => {
         btn.style.color = 'var(--text-muted)';
       }
     });
+
+    if (typeof window.saveLeadMain === 'function') {
+      window.saveLeadMain(id, true, true);
+    } else if (window.api && window.api.saveLead) {
+      window.api.saveLead({ id, size: newSize });
+    }
   };
 
   window.handleLeadClick = (id) => {
@@ -575,13 +581,17 @@ if (typeof window.renderDashboard === 'function') {
           renderQueue(filtered);
       };
 
-      if (optimistic && window.store.state.leads) {
-          renderWithFilters(window.store.state.leads);
+      window.store.state.tabCache = window.store.state.tabCache || {};
+      const cacheKey = `${filters.tab}_${filters.filter1 || 'all'}_${filters.filter2 || 'all'}_${filters.search || ''}`;
+      const cachedLeads = window.store.state.tabCache[cacheKey];
+
+      if (optimistic) {
+          renderWithFilters(cachedLeads || window.store.state.leads || []);
           return;
       } else {
-          // Stale while revalidate
-          if (window.store.state.leads && window.store.state.leads.length > 0) {
-              renderWithFilters(window.store.state.leads);
+          // Stale while revalidate with TAB-SPECIFIC cache
+          if (cachedLeads && cachedLeads.length > 0) {
+              renderWithFilters(cachedLeads);
           } else {
               const qList = document.querySelector('.kanban-scroll-area');
               if (qList) qList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-text">Lade Leads...</div></div>`;
@@ -591,6 +601,7 @@ if (typeof window.renderDashboard === 'function') {
       try {
          leads = await window.api.getLeads(filters);
          window.store.state.leads = leads;
+         window.store.state.tabCache[cacheKey] = leads;
          renderWithFilters(leads);
       } catch(err) {
          console.error('getLeads crash in renderPipeline:', err);
@@ -1556,8 +1567,8 @@ if (typeof window.renderDashboard === 'function') {
           <!-- Aktivitäten Historie -->
           <div class="apple-section">
             <h4 class="apple-section-title">Aktivitäten Historie</h4>
-            <div style="display: flex; flex-direction: column;">
-              ${activitiesHtml}
+            <div id="sidebar-activities-container-${l.id}" style="display: flex; flex-direction: column;">
+              ${window.renderSidebarActivities(l)}
             </div>
           </div>
 
@@ -2698,11 +2709,15 @@ window.renderActivity = function(act) {
     
     if (act.activity_type === 'call') {
       icon = '📞';
-      text = act.call_status ? `Anruf (${act.call_status})` : 'Anruf';
+      let statusText = '';
+      if (act.call_status === 'not_answered') statusText = 'Nicht erreicht';
+      else if (act.call_status === 'answered') statusText = 'Erreicht';
+      text = statusText ? `Anruf (${statusText})` : 'Anruf';
       if (uname) text += ` – ${uname}`;
     } else if (act.activity_type === 'email') {
       icon = '✉️';
-      text = act.details || 'E-Mail';
+      text = act.details || 'E-Mail gesendet';
+      if (uname) text += ` – ${uname}`;
     } else if (act.activity_type === 'whatsapp') {
       icon = '💬';
       text = 'WhatsApp Nachricht gesendet';
@@ -2724,7 +2739,43 @@ window.renderActivity = function(act) {
         </div>
       </div>
     `;
-}
+};
+
+window.renderSidebarActivities = function(l) {
+    const rawTimeline = window.getTimeline(l) || [];
+    const sorted = [...rawTimeline].sort((a,b) => (b.ts || 0) - (a.ts || 0));
+    if (sorted.length === 0) {
+      return `<div style="font-size: 12px; color: var(--text-muted); opacity: 0.5;">Noch keine Aktivitäten vorhanden.</div>`;
+    }
+    const first3 = sorted.slice(0, 3);
+    const rest = sorted.slice(3);
+    let html = first3.map(act => window.renderActivity(act)).join('');
+    if (rest.length > 0) {
+      html += `
+        <div id="sidebar-activities-rest-${l.id}" style="display:none;">
+          ${rest.map(act => window.renderActivity(act)).join('')}
+        </div>
+        <button id="sidebar-activities-toggle-${l.id}" onclick="const r = document.getElementById('sidebar-activities-rest-${l.id}'); if(r) r.style.display = (r.style.display === 'none' ? 'block' : 'none'); this.innerText = (r && r.style.display === 'none') ? '+ ${rest.length} weitere anzeigen...' : 'Weniger anzeigen';" 
+                style="background:transparent; border:none; color:var(--color-brand-accent, #0a84ff); font-size:12px; font-weight:500; cursor:pointer; margin-top:8px; padding:4px 0; text-align:left;">
+          + ${rest.length} weitere anzeigen...
+        </button>
+      `;
+    }
+    return html;
+};
+
+window.pushLeadActivity = function(leadId, activity) {
+    const leads = window.store?.state?.leads || [];
+    const lead = leads.find(x => x.id === leadId);
+    if (lead) {
+      lead.timeline = lead.timeline || [];
+      lead.timeline.unshift(activity);
+    }
+    const container = document.getElementById(`sidebar-activities-container-${leadId}`);
+    if (container && lead) {
+      container.innerHTML = window.renderSidebarActivities(lead);
+    }
+};
 
 window._triggerAutoSave = () => {
     if (!window._debouncedSave) {

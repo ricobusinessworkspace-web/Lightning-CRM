@@ -152,9 +152,9 @@ function postProcessAndSort(rows, filters = {}) {
 
     const getScore = l => {
       if (l.status === 'Kunde') return 4;
-      if (l.rechnung)           return 3;
-      if (l.termin)             return 2;
-      if (l.entscheider)        return 1;
+      if (l.stage === 'offer')  return 3;
+      if (l.stage === 'data')   return 2;
+      if (l.stage === 'pitch')  return 1;
       return 0;
     };
     const scoreA = getScore(a), scoreB = getScore(b);
@@ -188,13 +188,13 @@ export const db = {
       // Filter Group 1: Pipeline Status
       if (filters.filter1 && filters.filter1 !== 'all') {
         if (filters.filter1 === 'kalt') {
-          query = query.eq('status', 'Lead').eq('entscheider', 0).eq('termin', 0).eq('rechnung', 0);
-        } else if (filters.filter1 === 'entscheider') {
-          query = query.eq('status', 'Lead').eq('entscheider', 1).eq('termin', 0).eq('rechnung', 0);
-        } else if (filters.filter1 === 'termin') {
-          query = query.eq('status', 'Lead').eq('termin', 1).eq('rechnung', 0);
-        } else if (filters.filter1 === 'rechnung') {
-          query = query.eq('status', 'Lead').eq('rechnung', 1);
+          query = query.eq('status', 'Lead').eq('stage', 'cold');
+        } else if (filters.filter1 === 'entscheider' || filters.filter1 === 'pitch') {
+          query = query.eq('status', 'Lead').eq('stage', 'pitch');
+        } else if (filters.filter1 === 'termin' || filters.filter1 === 'data') {
+          query = query.eq('status', 'Lead').eq('stage', 'data');
+        } else if (filters.filter1 === 'rechnung' || filters.filter1 === 'offer') {
+          query = query.eq('status', 'Lead').eq('stage', 'offer');
         } else if (filters.filter1 === 'kunden') {
           query = query.eq('status', 'Kunde');
         }
@@ -330,9 +330,7 @@ export const db = {
         phone:              lead.phone               ?? '',
         notes:              lead.notes               ?? '',
         size:               lead.size                ?? 'Tarifkunde',
-        entscheider:        lead.entscheider         ?? 0,
-        termin:             lead.termin              ?? 0,
-        rechnung:           lead.rechnung            ?? 0,
+        stage:              lead.stage               ?? 'cold',
         snooze_until_ms:    lead.snooze_until_ms     ?? 0,
         status:             lead.status              ?? 'Lead',
         task_text:          lead.task_text           ?? '',
@@ -374,7 +372,7 @@ export const db = {
       // Phase 3.1: Check error on .single()!
       const { data: existing, error } = await supabase
         .from(TABLE)
-        .select('created_at_ms, claimed_by, entscheider, termin, rechnung, status, last_edited_ms')
+        .select('created_at_ms, claimed_by, stage, status, last_edited_ms')
         .eq('id', lead.id)
         .single();
         
