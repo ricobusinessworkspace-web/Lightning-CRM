@@ -22,8 +22,12 @@ export default async function handler(req, res) {
   // Set up web-push VAPID details
   // Note: These should ideally be in Vercel environment variables.
   // We hardcode them here temporarily for testing the Sales Bell.
-  const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || 'BHyEIPrHyhQCvVghKL1_mMGsoAU7mdprcWHxzMpXA8txelYBkjE0c4XLzDtwrOapXTbsCpaL9Zg3nI9Nh4YO4hI';
-  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || 'qCy5XgQup-y-PwuIeUA-0j3T9by9RgkFX8idtUYzeYs';
+  const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    return res.status(500).json({ error: 'Missing VAPID Keys' });
+  }
   
   webpush.setVapidDetails(
     'mailto:test@lightning-crm.com',
