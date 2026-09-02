@@ -1,36 +1,43 @@
 window.setPipeline = async (type) => {
-    let e = parseInt(document.getElementById('sys-e').value) || 0;
     let t = parseInt(document.getElementById('sys-t').value) || 0;
     let r = parseInt(document.getElementById('sys-r').value) || 0;
     let k = parseInt(document.getElementById('sys-k').value) || 0;
+    let stage = document.getElementById('sys-stage').value || 'cold';
 
     if (type === 'cold') {
-       e = 0; t = 0; r = 0; k = 0;
+       t = 0; r = 0; k = 0; stage = 'cold';
     }
-
-    if (type === 'e') {
-       e = e ? 0 : 1;
-       if (e === 0) { t = 0; r = 0; k = 0; }
-    }
-    if (type === 't') {
+    if (type === 'pitch') {
        t = t ? 0 : 1;
-       if (t) e = 1;
-       if (t === 0) { r = 0; k = 0; }
+       if (t) { stage = 'pitch'; }
+       if (t === 0) { r = 0; k = 0; stage = 'cold'; }
     }
-    if (type === 'r') {
+    if (type === 'data') {
        r = r ? 0 : 1;
-       if (r) { e = 1; t = 1; }
-       if (r === 0) k = 0;
+       if (r) { t = 1; stage = 'data'; }
+       if (r === 0) { k = 0; stage = 'pitch'; }
     }
-    if (type === 'k') {
+    if (type === 'offer') {
+       // OFFER is a new stage. In the booleans, we can't reflect it except by setting rechnung=1.
+       // The DB expects stage='offer' and rechnung=1.
+       if (stage === 'offer') {
+          stage = 'data'; // rollback to data
+          k = 0;
+       } else {
+          stage = 'offer';
+          t = 1; r = 1;
+       }
+    }
+    if (type === 'closed') {
        k = k ? 0 : 1;
-       if (k) { e = 1; t = 1; r = 1; }
+       if (k) { t = 1; r = 1; stage = 'closed'; }
+       else { stage = 'offer'; }
     }
 
-    document.getElementById('sys-e').value = e;
     document.getElementById('sys-t').value = t;
     document.getElementById('sys-r').value = r;
     document.getElementById('sys-k').value = k;
+    document.getElementById('sys-stage').value = stage;
 
     const s0 = document.getElementById('seg-0');
     const s1 = document.getElementById('seg-1');
@@ -44,12 +51,11 @@ window.setPipeline = async (type) => {
     if (s3) s3.className = 'pipe-seg';
     if (s4) s4.className = 'pipe-seg';
 
-    if (!e && !t && !r && !k && s0) s0.classList.add('active-cold');
-    if (e && !t && !r && !k && s1) s1.classList.add('active-pitch');
-    if (t && !r && !k && s2) s2.classList.add('active-data');
-    if (r && !k && s3) s3.classList.add('active-offer');
-    if (k && s4) s4.classList.add('active-kunde');
-    // Status is only persisted when the user presses the Save button
+    if (stage === 'cold' && s0) s0.classList.add('active-cold');
+    if (stage === 'pitch' && s1) s1.classList.add('active-pitch');
+    if (stage === 'data' && s2) s2.classList.add('active-data');
+    if (stage === 'offer' && s3) s3.classList.add('active-offer');
+    if (stage === 'closed' && s4) s4.classList.add('active-kunde');
   };
 
   window.selectCustomSnooze = () => {
@@ -277,7 +283,7 @@ window.setPipeline = async (type) => {
         email: sEmailNode?.value?.trim() ?? '',
         website_url: sWebNode?.value?.trim() ?? '',
         notes: noteEl ? noteEl.value : '',
-        entscheider: parseInt(document.getElementById('sys-e')?.value) || 0,
+        entscheider: parseInt(document.getElementById('sys-e')?.value) || 0, stage: document.getElementById('sys-stage')?.value,
         termin: parseInt(document.getElementById('sys-t')?.value) || 0,
         rechnung: parseInt(document.getElementById('sys-r')?.value) || 0,
         maps_city: document.getElementById('sys-city')?.value || '',
@@ -321,6 +327,7 @@ window.setPipeline = async (type) => {
       const notes = noteEl ? noteEl.value : (lData ? (lData.notes || '') : '');
 
       let entscheider = parseInt(document.getElementById('sys-e')?.value) || 0;
+      let stage = document.getElementById('sys-stage')?.value || lData?.stage || 'cold';
       let termin = parseInt(document.getElementById('sys-t')?.value) || 0;
       let rechnung = parseInt(document.getElementById('sys-r')?.value) || 0;
       let isKundeVal = parseInt(document.getElementById('sys-k')?.value) || 0;

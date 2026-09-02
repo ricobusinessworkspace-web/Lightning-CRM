@@ -150,10 +150,12 @@ window.handleLeadAssignmentChange = (val) => {
 
   window.getLeadStatusMap = (l) => {
     let res = { color: 'p-kalt', label: 'COLD', mapPin: 'pin-kalt' };
-    if (l.status === 'Kunde') res = { color: 'p-kunde', label: 'CLOSED', mapPin: 'pin-kunde' };
-    else if (l.status === 'Uninteressant') res = { color: 'p-excluded', label: 'Ausgeschlossen 🚫', mapPin: 'pin-excluded' };
-    else if (l.rechnung) res = { color: 'p-rechnung', label: 'OFFER', mapPin: 'pin-rechnung' };
-    else if (l.termin) res = { color: 'p-termin', label: 'DATA', mapPin: 'pin-termin' };
+    const stage = window.api.getStage(l);
+    if (stage === 'CLOSED') res = { color: 'p-kunde', label: 'CLOSED', mapPin: 'pin-kunde' };
+    else if (stage === 'UNINTERESSANT') res = { color: 'p-excluded', label: 'Ausgeschlossen 🚫', mapPin: 'pin-excluded' };
+    else if (stage === 'OFFER') res = { color: 'p-rechnung', label: 'OFFER', mapPin: 'pin-rechnung' };
+    else if (stage === 'DATA') res = { color: 'p-termin', label: 'DATA', mapPin: 'pin-termin' };
+    else if (stage === 'PITCH') res = { color: 'p-kalt', label: 'PITCH', mapPin: 'pin-kalt' }; // Using p-kalt color for pitch for now?
     else if (l.entscheider) res = { color: 'p-entscheider', label: 'PITCH', mapPin: 'pin-entscheider' };
     
     let hasActive = false;
@@ -538,11 +540,11 @@ if (typeof window.renderDashboard === 'function') {
       // Apply Advanced Filters
       const st = window.store.state;
       if (st.advFilterStatus && st.advFilterStatus !== 'all') {
-         if (st.advFilterStatus === 'Lead') leads = leads.filter(l => !l.entscheider && !l.termin && !l.rechnung && l.status !== 'Kunde');
-         else if (st.advFilterStatus === 'PITCH') leads = leads.filter(l => l.entscheider && !l.termin && !l.rechnung && l.status !== 'Kunde');
-         else if (st.advFilterStatus === 'FOLLOWUP') leads = leads.filter(l => l.termin && !l.rechnung && l.status !== 'Kunde');
-         else if (st.advFilterStatus === 'OFFER') leads = leads.filter(l => l.rechnung && l.status !== 'Kunde');
-         else if (st.advFilterStatus === 'CLOSE') leads = leads.filter(l => l.status === 'Kunde');
+         if (st.advFilterStatus === 'Lead') leads = leads.filter(l => window.api.getStage(l) === 'COLD');
+         else if (st.advFilterStatus === 'PITCH') leads = leads.filter(l => window.api.getStage(l) === 'PITCH');
+         else if (st.advFilterStatus === 'FOLLOWUP') leads = leads.filter(l => window.api.getStage(l) === 'DATA');
+         else if (st.advFilterStatus === 'OFFER') leads = leads.filter(l => window.api.getStage(l) === 'OFFER');
+         else if (st.advFilterStatus === 'CLOSE') leads = leads.filter(l => window.api.getStage(l) === 'CLOSED');
       }
       if (st.advFilterAssign && st.advFilterAssign !== 'all') {
          if (st.advFilterAssign === 'me') {
@@ -638,13 +640,13 @@ if (typeof window.renderDashboard === 'function') {
 
         <div style="margin-bottom:12px;">
           <label style="display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase;">Pipeline Status</label>
-          <select class="modern-input" style="width:100%; padding:6px 8px; font-size:13px; border-radius:6px; background:var(--color-surface-hover, #1c1c1e); color:white; border:none; outline:none;" onchange="window.setAdvFilter('advFilterStatus', this.value)">
+                    <select class="modern-input" style="width:100%; padding:6px 8px; font-size:13px; border-radius:6px; background:var(--color-surface-hover, #1c1c1e); color:white; border:none; outline:none;" onchange="window.setAdvFilter('advFilterStatus', this.value)">
             <option value="all" ${st.advFilterStatus === 'all' ? 'selected' : ''}>Alle Status</option>
-            <option value="Lead" ${st.advFilterStatus === 'Lead' ? 'selected' : ''}>Lead</option>
+            <option value="Lead" ${st.advFilterStatus === 'Lead' ? 'selected' : ''}>KALT</option>
             <option value="PITCH" ${st.advFilterStatus === 'PITCH' ? 'selected' : ''}>PITCH</option>
-            <option value="FOLLOWUP" ${st.advFilterStatus === 'FOLLOWUP' ? 'selected' : ''}>FOLLOW-UP</option>
+            <option value="FOLLOWUP" ${st.advFilterStatus === 'FOLLOWUP' ? 'selected' : ''}>DATA</option>
             <option value="OFFER" ${st.advFilterStatus === 'OFFER' ? 'selected' : ''}>OFFER</option>
-            <option value="CLOSE" ${st.advFilterStatus === 'CLOSE' ? 'selected' : ''}>CLOSE</option>
+            <option value="CLOSE" ${st.advFilterStatus === 'CLOSE' ? 'selected' : ''}>CLOSED</option>
           </select>
         </div>
 
@@ -922,11 +924,11 @@ if (typeof window.renderDashboard === 'function') {
         });
       };
 
-      const crmLeads = leads.filter(l => window.api.getStage(l) === 'GATE' || window.api.getStage(l) === 'PITCH' || window.api.getStage(l) === 'DATA');
+      const crmLeads = leads.filter(l => window.api.getStage(l) === 'PITCH' || window.api.getStage(l) === 'DATA' || window.api.getStage(l) === 'OFFER');
 
-      const gateList = sortKanban(crmLeads.filter(l => window.api.getStage(l) === 'GATE'));
       const pitchList = sortKanban(crmLeads.filter(l => window.api.getStage(l) === 'PITCH'));
       const dataList = sortKanban(crmLeads.filter(l => window.api.getStage(l) === 'DATA'));
+      const offerList = sortKanban(crmLeads.filter(l => window.api.getStage(l) === 'OFFER'));
 
       const colHtml = (title, list) => `
         <div class="kanban-column">
@@ -948,9 +950,9 @@ if (typeof window.renderDashboard === 'function') {
           </button>
         </div>
         <div class="kanban-board">
-          ${colHtml('GATE', gateList)}
           ${colHtml('PITCH', pitchList)}
           ${colHtml('DATA', dataList)}
+          ${colHtml('OFFER', offerList)}
         </div>
       `;
     } else if (window.store.state.currentTab === 'cold' && !window.store.state.currentSearch) {
@@ -1485,11 +1487,11 @@ if (typeof window.renderDashboard === 'function') {
              </div>
           </div>
           <div class="pipeline-bar" style="margin-top: 12px; display: flex; gap: 4px; overflow-x: auto;">
-            <div id="seg-0" class="pipe-seg ${!e && !t && !r && !isKunde ? 'active-cold' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('cold')">COLD</div>
-            <div id="seg-1" class="pipe-seg ${e && !t && !r && !isKunde ? 'active-pitch' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('e')">GATE</div>
-            <div id="seg-2" class="pipe-seg ${t && !r && !isKunde ? 'active-data' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('t')">PITCH</div>
-            <div id="seg-3" class="pipe-seg ${r && !isKunde ? 'active-offer' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('r')">DATA</div>
-            <div id="seg-4" class="pipe-seg ${isKunde ? 'active-kunde' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('k')">CLOSED</div>
+            <div id="seg-0" class="pipe-seg ${window.api.getStage(l) === 'COLD' ? 'active-cold' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('cold')">COLD</div>
+            <div id="seg-1" class="pipe-seg ${window.api.getStage(l) === 'PITCH' ? 'active-pitch' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('pitch')">PITCH</div>
+            <div id="seg-2" class="pipe-seg ${window.api.getStage(l) === 'DATA' ? 'active-data' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('data')">DATA</div>
+            <div id="seg-3" class="pipe-seg ${window.api.getStage(l) === 'OFFER' ? 'active-offer' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('offer')">OFFER</div>
+            <div id="seg-4" class="pipe-seg ${window.api.getStage(l) === 'CLOSED' ? 'active-kunde' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('closed')">CLOSED</div>
           </div>
           ${pitchCounterHtml}
         </div>
@@ -1652,6 +1654,7 @@ if (typeof window.renderDashboard === 'function') {
 
           <!-- Hidden System Fields -->
           <input type="hidden" id="sys-e" value="${e ? 1 : 0}">
+          <input type="hidden" id="sys-stage" value="${window.api.getStage(l).toLowerCase()}">
           <input type="hidden" id="sys-t" value="${t ? 1 : 0}">
           <input type="hidden" id="sys-r" value="${r ? 1 : 0}">
           <input type="hidden" id="sys-k" value="${isKunde ? 1 : 0}">

@@ -229,7 +229,7 @@ export const db = {
     // Minion Access Control
     if (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'developer' && !filters.all) {
       // Agent sieht alle Kalten (unassigned), aber NUR seine EIGENEN in der Pipeline
-      query = query.or(`and(status.eq.Lead,entscheider.eq.0,termin.eq.0,rechnung.eq.0),claimed_by.eq.${currentUser.id}`);
+      query = query.or(`and(status.eq.Lead,stage.eq.cold),claimed_by.eq.${currentUser.id}`);
     }
 
     // Since we need relational sorting for crm_calls, keep this:
@@ -294,6 +294,7 @@ export const db = {
     };
 
     const ALLOWED_COLUMNS = [
+      'stage',
       'name', 'phone', 'notes', 'size', 'entscheider', 'termin', 'rechnung', 'snooze_until_ms',
       'status', 'task_text', 'maps_city', 'lat', 'lng', 'website_url', 'google_maps_url',
       'google_place_id', 'umsatz', 'starred', 'interest_strom', 'interest_gas', 'closed_strom',
@@ -389,12 +390,8 @@ export const db = {
       }
 
       // Phase 2.4: claimed_by logic
-      const pEnt = 'entscheider' in payload ? payload.entscheider : existing.entscheider;
-      const pTer = 'termin' in payload ? payload.termin : existing.termin;
-      const pRech = 'rechnung' in payload ? payload.rechnung : existing.rechnung;
-      const pStat = 'status' in payload ? payload.status : existing.status;
-      
-      const isInPipeline = pEnt === 1 || pTer === 1 || pRech === 1 || pStat === 'Kunde';
+      const pStage = 'stage' in payload ? payload.stage : existing.stage;
+      const isInPipeline = pStage !== 'cold';
       
       let finalClaimedBy = 'claimed_by' in lead ? (lead.claimed_by === 'unassigned' ? null : lead.claimed_by) : existing.claimed_by;
       
@@ -710,15 +707,15 @@ export const db = {
 
   // ── Utils ───────────────────────────────────────────────────────────
   getStage: (lead) => {
-    if (lead.status === 'Kunde') return 'CLOSED';
     if (lead.status === 'Uninteressant') return 'UNINTERESSANT';
-    if (lead.status === 'Lead') {
-      if (lead.rechnung === 1) return 'DATA';
-      if (lead.termin === 1) return 'PITCH';
-      if (lead.entscheider === 1) return 'GATE';
-      return 'COLD';
-    }
-    return lead.status;
+    if (lead.stage) return lead.stage.toUpperCase();
+    
+    // Fallback solange die DB-Migration (Backfill) noch nicht durchgelaufen ist
+    if (lead.status === 'Kunde') return 'CLOSED';
+    if (lead.rechnung === 1) return 'DATA';
+    if (lead.termin === 1) return 'PITCH';
+    if (lead.entscheider === 1) return 'PITCH'; // entscheider ist fachlich tot
+    return 'COLD';
   },
 
   // ── Auth Methods ───────────────────────────────────────────────────────────
