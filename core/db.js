@@ -355,6 +355,14 @@ export const db = {
         }
       }
 
+      const registerLocalWrite = (id) => {
+        if (typeof window !== 'undefined' && window.pendingLocalWrites) {
+          window.pendingLocalWrites.add(id);
+          setTimeout(() => window.pendingLocalWrites.delete(id), 2000);
+        }
+      };
+
+      registerLocalWrite(lead.id);
       const { error } = await supabase.from(TABLE).update(payload).eq('id', lead.id);
       if (error) throw new Error(error.message || error.details || JSON.stringify(error));
       return { id: lead.id, updated: 1 };
@@ -383,6 +391,15 @@ export const db = {
          
          if (Object.keys(updatePayload).length > 0) {
             updatePayload.last_edited_ms = now;
+            
+            const registerLocalWrite = (id) => {
+              if (typeof window !== 'undefined' && window.pendingLocalWrites) {
+                window.pendingLocalWrites.add(id);
+                setTimeout(() => window.pendingLocalWrites.delete(id), 2000);
+              }
+            };
+            registerLocalWrite(existingDup.id);
+
             const { error: updErr } = await supabase.from(TABLE).update(updatePayload).eq('id', existingDup.id);
             if (updErr) throw new Error(updErr.message || updErr.details || JSON.stringify(updErr));
          }
@@ -396,6 +413,15 @@ export const db = {
 
       const { data, error } = await supabase.from(TABLE).insert(payload).select('id').single();
       if (error) throw new Error(error.message || error.details || JSON.stringify(error));
+      
+      const registerLocalWrite = (id) => {
+        if (typeof window !== 'undefined' && window.pendingLocalWrites) {
+          window.pendingLocalWrites.add(id);
+          setTimeout(() => window.pendingLocalWrites.delete(id), 2000);
+        }
+      };
+      if (data && data.id) registerLocalWrite(data.id);
+
       return { id: data.id, inserted: true };
     }
   },
@@ -592,7 +618,11 @@ export const db = {
         { event: '*', schema: 'public', table: TABLE },
         payload => {
           const { eventType, new: newRow, old: oldRow } = payload;
-          callback(eventType, newRow ? normalizeRow(newRow) : null, oldRow || null);
+          callback({
+            eventType,
+            newRow: newRow ? normalizeRow(newRow) : null,
+            oldRow: oldRow || null
+          });
         }
       )
       .subscribe();

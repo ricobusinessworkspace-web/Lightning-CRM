@@ -451,12 +451,25 @@ window.addEventListener('online', () => {
   initProfileModal();
 
   // ── Supabase Realtime Integration ──────────────────────────────────────────
+  window.pendingLocalWrites = window.pendingLocalWrites || new Set();
+
   if (window.api && window.api.onLeadsChanged) {
+    let realtimeDebounceTimer = null;
     window.api.onLeadsChanged(({ eventType, newRow, oldRow }) => {
       console.log('⚡ Supabase Realtime Update:', eventType, newRow?.name || oldRow?.name);
-      // Auto-refresh the current tab and the call tracker badge
-      if (typeof loadUi === 'function') loadUi();
-      if (typeof updateTrayCount === 'function') updateTrayCount();
-      if (typeof updateRPUI === 'function') updateRPUI();
+      
+      const rowId = newRow?.id || oldRow?.id;
+      if (rowId && window.pendingLocalWrites.has(rowId)) {
+        window.pendingLocalWrites.delete(rowId);
+        return; // Ignore our own write
+      }
+
+      if (realtimeDebounceTimer) clearTimeout(realtimeDebounceTimer);
+      realtimeDebounceTimer = setTimeout(() => {
+        // Auto-refresh the current tab and the call tracker badge
+        if (typeof loadUi === 'function') loadUi();
+        if (typeof updateTrayCount === 'function') updateTrayCount();
+        if (typeof updateRPUI === 'function') updateRPUI();
+      }, 500);
     });
   }
