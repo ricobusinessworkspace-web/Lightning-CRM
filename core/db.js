@@ -252,16 +252,30 @@ export const db = {
   // ── saveLead ───────────────────────────────────────────────────────────────
 
   getLeadHistory: async (leadId) => {
-    const { data: calls, error: err1 } = await supabase.from('crm_calls').select('*').eq('lead_id', leadId).order('ts', { ascending: true });
-    const { data: acts, error: err2 } = await supabase.from('lead_activities').select('*').eq('lead_id', leadId).order('ts', { ascending: true });
+    // Phase 6: Fetch from unified timeline view
+    const { data: timeline, error } = await supabase
+      .from('lead_timeline')
+      .select('*')
+      .eq('lead_id', leadId)
+      .order('ts', { ascending: true });
+      
+    if (error) {
+       // Fallback for Phase 6 transition if the view doesn't exist yet
+       console.warn('lead_timeline view missing, falling back to split tables', error);
+       const { data: calls, error: err1 } = await supabase.from('crm_calls').select('*').eq('lead_id', leadId).order('ts', { ascending: true });
+       const { data: acts, error: err2 } = await supabase.from('lead_activities').select('*').eq('lead_id', leadId).order('ts', { ascending: true });
+       
+       if (err1) console.warn('Failed to fetch crm_calls', err1);
+       if (err2) console.warn('Failed to fetch lead_activities', err2);
+       
+       const mappedCalls = (calls || []).map(c => ({ ...c, activity_type: 'call', call_status: c.status }));
+       const mappedActs = (acts || []).map(a => ({ ...a, activity_type: a.type }));
+       const combined = [...mappedCalls, ...mappedActs].sort((a, b) => a.ts - b.ts);
+       
+       return { timeline: combined };
+    }
     
-    if (err1) console.warn('Failed to fetch crm_calls', err1);
-    if (err2) console.warn('Failed to fetch lead_activities', err2);
-    
-    return { 
-      crm_calls: calls || [], 
-      lead_activities: acts || [] 
-    };
+    return { timeline: timeline || [] };
   },
   
   saveLead: async (lead) => {
@@ -692,6 +706,19 @@ export const db = {
       .subscribe();
 
     return () => supabase.removeChannel(channel);
+  },
+
+  // ── Utils ───────────────────────────────────────────────────────────
+  getStage: (lead) => {
+    if (lead.status === 'Kunde') return 'CLOSED';
+    if (lead.status === 'Uninteressant') return 'UNINTERESSANT';
+    if (lead.status === 'Lead') {
+      if (lead.rechnung === 1) return 'DATA';
+      if (lead.termin === 1) return 'PITCH';
+      if (lead.entscheider === 1) return 'GATE';
+      return 'COLD';
+    }
+    return lead.status;
   },
 
   // ── Auth Methods ───────────────────────────────────────────────────────────

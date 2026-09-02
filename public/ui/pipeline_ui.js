@@ -759,18 +759,8 @@ if (typeof window.renderDashboard === 'function') {
          }
 
          // 2. Last Call (only the most recent call matters for the list view)
-         // Note: getLeads returns 'crm_calls', getLeadHistory returns stored in 'call_history'
-         let allActs = [];
-         const callSource = l.call_history || l.crm_calls || [];
-         callSource.forEach(c => { if(typeof c !== 'number') allActs.push(c); });
-         if (l.lead_activities && l.lead_activities.length > 0) {
-           l.lead_activities.forEach(a => allActs.push(a));
-         }
-         // Sort newest first
-         allActs.sort((a,b) => (b.ts || 0) - (a.ts || 0));
-
-         // Only care about calls for the list view metric
-         const lastCall = allActs.find(act => act.type === 'call');
+         const timeline = window.getTimeline(l);
+         const lastCall = timeline.find(act => act.activity_type === 'call');
 
          let recentActivitiesHtml = '';
          if (lastCall) {
@@ -932,11 +922,11 @@ if (typeof window.renderDashboard === 'function') {
         });
       };
 
-      const crmLeads = leads.filter(l => l.entscheider || l.termin || l.rechnung);
+      const crmLeads = leads.filter(l => window.api.getStage(l) === 'GATE' || window.api.getStage(l) === 'PITCH' || window.api.getStage(l) === 'DATA');
 
-      const pitchList = sortKanban(crmLeads.filter(l => l.entscheider === 1 && !l.termin && !l.rechnung && l.status === 'Lead'));
-      const dataList = sortKanban(crmLeads.filter(l => l.termin === 1 && !l.rechnung && l.status === 'Lead'));
-      const offerList = sortKanban(crmLeads.filter(l => l.rechnung === 1 && l.status === 'Lead'));
+      const gateList = sortKanban(crmLeads.filter(l => window.api.getStage(l) === 'GATE'));
+      const pitchList = sortKanban(crmLeads.filter(l => window.api.getStage(l) === 'PITCH'));
+      const dataList = sortKanban(crmLeads.filter(l => window.api.getStage(l) === 'DATA'));
 
       const colHtml = (title, list) => `
         <div class="kanban-column">
@@ -958,9 +948,9 @@ if (typeof window.renderDashboard === 'function') {
           </button>
         </div>
         <div class="kanban-board">
+          ${colHtml('GATE', gateList)}
           ${colHtml('PITCH', pitchList)}
           ${colHtml('DATA', dataList)}
-          ${colHtml('OFFER', offerList)}
         </div>
       `;
     } else if (window.store.state.currentTab === 'cold' && !window.store.state.currentSearch) {
@@ -1289,8 +1279,9 @@ if (typeof window.renderDashboard === 'function') {
 
     try {
       const fullHistory = await window.api.getLeadHistory(l.id);
-      l.call_history = fullHistory.crm_calls || [];
-      l.lead_activities = fullHistory.lead_activities || [];
+      l.timeline = fullHistory.timeline || [];
+      l.call_history = fullHistory.crm_calls || []; // Legacy fallback
+      l.lead_activities = fullHistory.lead_activities || []; // Legacy fallback
     } catch(e) {
       console.error(e);
     }
@@ -1447,12 +1438,10 @@ if (typeof window.renderDashboard === 'function') {
     if (t) { // If lead is in PITCH
       let callsInPitch = 0;
       let lastCallTs = 0;
-      let allActsForCount = [];
-      const callSrcForCount = l.call_history || l.crm_calls || [];
-      allActsForCount = callSrcForCount.filter(c => typeof c !== 'number');
-      callsInPitch = allActsForCount.filter(a => a.type === 'call').length;
+      const timeline = window.getTimeline(l);
+      callsInPitch = timeline.filter(a => a.activity_type === 'call').length;
       if (callsInPitch > 0) {
-        lastCallTs = Math.max(...allActsForCount.filter(a => a.type === 'call').map(a => a.ts));
+        lastCallTs = Math.max(...timeline.filter(a => a.activity_type === 'call').map(a => a.ts));
       }
       const lastCallText = lastCallTs ? `Letzter Anruf: ${new Date(lastCallTs).toLocaleDateString()}` : 'Noch nie angerufen';
       pitchCounterHtml = `
@@ -1468,49 +1457,10 @@ if (typeof window.renderDashboard === 'function') {
       `;
     }
 
-    let allActs = [];
-    // Note: getLeads returns 'crm_calls', getLeadHistory stores in 'call_history'
-    const callSrc = l.call_history || l.crm_calls || [];
-    callSrc.forEach(c => { if(typeof c !== 'number') allActs.push(c); });
-    if (l.lead_activities && l.lead_activities.length > 0) {
-      l.lead_activities.forEach(a => allActs.push(a));
-    }
-    allActs.sort((a,b) => (b.ts || 0) - (a.ts || 0));
-    
+    const timeline = window.getTimeline(l);
     let activitiesHtml = '';
-    if (allActs.length > 0) {
-      activitiesHtml = allActs.map(act => {
-        const uname = act.by_user_name && act.by_user_name !== 'Unbekannt' ? act.by_user_name : null;
-        const dateStr = new Date(act.ts).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-        let icon = '📞';
-        let text = '';
-        if (act.type === 'call') {
-          icon = '📞';
-          text = uname ? `Anruf – ${uname}` : 'Anruf';
-        } else if (act.type === 'email') {
-          icon = '✉️';
-          text = act.details || 'E-Mail';
-        } else if (act.type === 'status_change') {
-          icon = '🔄';
-          // Make status change text readable in German
-          const detail = act.details || '';
-          const statusMap = { 'PITCH': 'Status → Pitch', 'FOLLOW-UP': 'Status → Follow-Up', 'OFFER': 'Status → Angebot', 'CLOSED': 'Status → Abschluss ✅', 'COLD': 'Status → Kalt' };
-          const matched = Object.entries(statusMap).find(([k]) => detail.includes(k));
-          text = matched ? matched[1] : (uname ? `${detail} – ${uname}` : detail);
-        } else {
-          text = act.details || act.type;
-        }
-        
-        return `
-          <div style="display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-            <div style="font-size: 16px; margin-top: 2px;">${icon}</div>
-            <div style="flex: 1;">
-              <div style="font-size: 13px; color: var(--color-text-primary, #f2f2f7); font-weight: 500;">${escapeHtml(text)}</div>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${dateStr}${uname && act.type !== 'call' ? ` · ${escapeHtml(uname)}` : ''}</div>
-            </div>
-          </div>
-        `;
-      }).join('');
+    if (timeline.length > 0) {
+      activitiesHtml = timeline.map(act => window.renderActivity(act)).join('');
     } else {
       activitiesHtml = `<div style="font-size: 12px; color: var(--text-muted); opacity: 0.5;">Noch keine Aktivitäten vorhanden.</div>`;
     }
@@ -1536,9 +1486,9 @@ if (typeof window.renderDashboard === 'function') {
           </div>
           <div class="pipeline-bar" style="margin-top: 12px; display: flex; gap: 4px; overflow-x: auto;">
             <div id="seg-0" class="pipe-seg ${!e && !t && !r && !isKunde ? 'active-cold' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('cold')">COLD</div>
-            <div id="seg-1" class="pipe-seg ${e && !t && !r && !isKunde ? 'active-pitch' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('e')">PITCH</div>
-            <div id="seg-2" class="pipe-seg ${t && !r && !isKunde ? 'active-data' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('t')">DATA</div>
-            <div id="seg-3" class="pipe-seg ${r && !isKunde ? 'active-offer' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('r')">OFFER</div>
+            <div id="seg-1" class="pipe-seg ${e && !t && !r && !isKunde ? 'active-pitch' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('e')">GATE</div>
+            <div id="seg-2" class="pipe-seg ${t && !r && !isKunde ? 'active-data' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('t')">PITCH</div>
+            <div id="seg-3" class="pipe-seg ${r && !isKunde ? 'active-offer' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('r')">DATA</div>
             <div id="seg-4" class="pipe-seg ${isKunde ? 'active-kunde' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('k')">CLOSED</div>
           </div>
           ${pitchCounterHtml}
@@ -2665,3 +2615,50 @@ window.removeLeadLink = async (sourceId, targetId) => {
     else window.openLead(sourceId, true);
   }
 };
+
+
+window.getTimeline = function(l) {
+    if (l.timeline) return l.timeline;
+    // Fallback if not loaded
+    const calls = l.call_history || l.crm_calls || [];
+    const acts = l.lead_activities || [];
+    const mappedCalls = calls.filter(c => typeof c !== 'number').map(c => ({ ...c, activity_type: 'call', call_status: c.status }));
+    const mappedActs = acts.map(a => ({ ...a, activity_type: a.type }));
+    return [...mappedCalls, ...mappedActs].sort((a,b) => (b.ts || 0) - (a.ts || 0));
+}
+
+window.renderActivity = function(act) {
+    const uname = act.by_user_name && act.by_user_name !== 'Unbekannt' ? act.by_user_name : null;
+    const dateStr = new Date(act.ts).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    let icon = '📌';
+    let text = act.details || act.activity_type || 'Aktivität';
+    
+    if (act.activity_type === 'call') {
+      icon = '📞';
+      text = act.call_status ? `Anruf (${act.call_status})` : 'Anruf';
+      if (uname) text += ` – ${uname}`;
+    } else if (act.activity_type === 'email') {
+      icon = '✉️';
+      text = act.details || 'E-Mail';
+    } else if (act.activity_type === 'whatsapp') {
+      icon = '💬';
+      text = 'WhatsApp Nachricht gesendet';
+      if (uname) text += ` – ${uname}`;
+    } else if (act.activity_type === 'status_change') {
+      icon = '🔄';
+      text = act.details || 'Status geändert';
+      if (uname) text += ` – ${uname}`;
+    } else {
+      if (uname) text += ` – ${uname}`;
+    }
+    
+    return `
+      <div style="display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <div style="font-size: 16px; margin-top: 2px;">${icon}</div>
+        <div style="flex: 1;">
+          <div style="font-size: 13px; color: var(--color-text-primary, #f2f2f7); font-weight: 500;">${escapeHtml(text)}</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${dateStr}</div>
+        </div>
+      </div>
+    `;
+}

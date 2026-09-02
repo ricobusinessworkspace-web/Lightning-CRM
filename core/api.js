@@ -40,6 +40,7 @@ window.api = {
   makeMeDeveloper: () => db.makeMeDeveloper(),
   getAgentStats: () => db.getAgentStats(),
   getLeadHistory: (id) => db.getLeadHistory(id),
+  getStage: (lead) => db.getStage(lead),
 
   // Call Tracking
   logCall: (id) => db.logCall(id),
