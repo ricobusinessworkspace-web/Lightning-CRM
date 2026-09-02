@@ -1699,9 +1699,9 @@ if (typeof window.renderDashboard === 'function') {
     const sBody = document.querySelector('.sidebar-body');
     const hTitle = document.querySelector('.sidebar-header');
     if (sBody) {
-       sBody.removeEventListener('input', window._triggerAutoSave);
+       sBody.removeEventListener('focusout', window._triggerAutoSave);
        sBody.removeEventListener('change', window._triggerAutoSave);
-       sBody.addEventListener('input', window._triggerAutoSave);
+       sBody.addEventListener('focusout', window._triggerAutoSave);
        sBody.addEventListener('change', window._triggerAutoSave);
     }
     if (hTitle) {
@@ -2724,11 +2724,7 @@ window._triggerAutoSave = () => {
             if (id) {
                 window.saveLeadMain(id, true, true).then((success) => {
                     if (success === false) return;
-                    const toast = document.createElement('div');
-                    toast.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(48,209,88,0.9); color:white; padding:8px 16px; border-radius:20px; font-size:12px; font-weight:600; z-index:9999; pointer-events:none; opacity:1; transition:opacity 0.3s;';
-                    toast.textContent = 'Automatisch gespeichert ✓';
-                    document.body.appendChild(toast);
-                    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 1500);
+/* Saved silently */
                 });
             }
         }, 1500);

@@ -64,6 +64,9 @@ window.setPipeline = async (type) => {
     if (stage === 'data' && s2) s2.classList.add('active-data');
     if (stage === 'offer' && s3) s3.classList.add('active-offer');
     if (stage === 'closed' && s4) s4.classList.add('active-kunde');
+    
+    // Trigger Auto-Save instantly when pipeline status changes
+    if (window._triggerAutoSave) window._triggerAutoSave();
   };
 
   window.selectCustomSnooze = () => {
@@ -310,6 +313,8 @@ window.setPipeline = async (type) => {
     // Add to session history only when explicitly saved/edited
     window._sessionRecentLeads = window._sessionRecentLeads || new Set();
     window._sessionRecentLeads.add(id);
+    window.pendingLocalWrites = window.pendingLocalWrites || new Set();
+    window.pendingLocalWrites.add(id);
 
     const saveBtn = document.getElementById('main-save-btn');
     try {
