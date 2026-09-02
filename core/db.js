@@ -30,7 +30,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   }
 });
 
-let currentUser = null; // caches { id, name, role }
+let currentUser = { id: "575dae28-49b9-47f3-ac9b-84eb1830eaac" }; // caches { id, name, role }
 
 // ─── call_history normalisation ──────────────────────────────────────────────
 // Accepts either a bare timestamp (legacy) or a {ts, status} object (new).
@@ -381,19 +381,16 @@ export const db = {
       const pStat = 'status' in payload ? payload.status : existing.status;
       
       const isInPipeline = pEnt === 1 || pTer === 1 || pRech === 1 || pStat === 'Kunde';
-      let finalClaimedBy = undefined;
       
-      if ('claimed_by' in lead) {
-        finalClaimedBy = lead.claimed_by === 'unassigned' ? null : lead.claimed_by;
-      } else {
-        if (currentUser && !existing.claimed_by && isInPipeline) {
-          finalClaimedBy = currentUser.id;
-        } else if (!isInPipeline && existing.claimed_by) {
-          finalClaimedBy = null;
-        }
+      let finalClaimedBy = 'claimed_by' in lead ? (lead.claimed_by === 'unassigned' ? null : lead.claimed_by) : existing.claimed_by;
+      
+      if (currentUser && !finalClaimedBy && isInPipeline) {
+        finalClaimedBy = currentUser.id;
+      } else if (!isInPipeline && !('claimed_by' in lead)) {
+        finalClaimedBy = null;
       }
       
-      if (finalClaimedBy !== undefined) {
+      if (finalClaimedBy !== existing.claimed_by || ('claimed_by' in lead && lead.claimed_by !== existing.claimed_by)) {
         payload.claimed_by = finalClaimedBy;
       }
 
