@@ -574,8 +574,9 @@ export const db = {
 
       // Update snooze logic
       const { data: row, error: fetchErr } = await supabase
-        .from(TABLE).select('snooze_until_ms').eq('id', leadId).single();
-      if (fetchErr) throw fetchErr;
+        .from(TABLE).select('snooze_until_ms').eq('id', leadId).maybeSingle();
+      if (fetchErr) { console.warn('markCallNotAnswered:', fetchErr); return null; }
+      if (!row) return null;
 
       const now = Date.now();
       let snoozeUntilMs = row.snooze_until_ms || 0;
@@ -704,7 +705,7 @@ export const db = {
     if (!session) return null;
     
     // Fetch profile
-    const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single();
+    const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).maybeSingle();
     if (profile) {
       if (profile.daily_call_goal === -1) {
         await supabase.auth.signOut();
@@ -720,7 +721,7 @@ export const db = {
     if (error) throw new Error(error.message);
     
     // Fetch profile
-    const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', data.session.user.id).single();
+    const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', data.session.user.id).maybeSingle();
     if (profile && profile.daily_call_goal === -1) {
       await supabase.auth.signOut();
       throw new Error('Dein Account wurde vom Administrator deaktiviert.');

@@ -10,6 +10,7 @@ CREATE TABLE user_profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   name TEXT NOT NULL,
   role user_role DEFAULT 'agent'::user_role NOT NULL,
+  daily_call_goal INTEGER DEFAULT 100 NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -56,11 +57,12 @@ EXECUTE FUNCTION handle_updated_at();
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.user_profiles (id, name, role)
+  INSERT INTO public.user_profiles (id, name, role, daily_call_goal)
   VALUES (
     NEW.id, 
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)), 
-    'agent'
+    'agent',
+    100
   );
   RETURN NEW;
 END;
