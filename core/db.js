@@ -241,6 +241,10 @@ export const db = {
     if (error) throw new Error(error.message || error.details || JSON.stringify(error));
 
     let leads = data || [];
+    
+    if (leads.length > 1000) {
+      console.warn(`⚠️ Warnung: getLeads hat ${leads.length} Datensätze geladen. Limit/Pagination sollte erwogen werden!`);
+    }
 
     return postProcessAndSort(leads, filters);
   },
@@ -662,7 +666,7 @@ export const db = {
       id: data.session.user.id, 
       email: data.session.user.email, 
       name: profile ? profile.name : 'Unknown', 
-      role: profile ? profile.role : 'minion',
+      role: profile ? profile.role : 'agent',
       daily_call_goal: profile ? (profile.daily_call_goal || 100) : 100
     };
     return currentUser;
@@ -672,14 +676,17 @@ export const db = {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw new Error(error.message);
     
-    // Fallback: If trigger doesn't exist, try to insert profile manually
+    // Fallback: Upsert profile manually in case the database trigger hasn't fired yet or failed
     if (data.user) {
-       await supabase.from('user_profiles').insert({ id: data.user.id, name: email.split('@')[0], role: 'minion', daily_call_goal: 100 });
+       await supabase.from('user_profiles').upsert(
+         { id: data.user.id, name: email.split('@')[0], role: 'agent', daily_call_goal: 100 }, 
+         { onConflict: 'id', ignoreDuplicates: true }
+       );
        currentUser = { 
          id: data.user.id, 
          email: data.user.email, 
          name: email.split('@')[0], 
-         role: 'minion',
+         role: 'agent',
          daily_call_goal: 100
        };
        return currentUser;
