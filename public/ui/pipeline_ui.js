@@ -1168,9 +1168,8 @@ if (typeof window.renderDashboard === 'function') {
 
           let leadColor = 'var(--text-main)';
           if (lead.status === 'Kunde') leadColor = 'var(--color-crm-customer, #30d158)';
-          else if (lead.rechnung) leadColor = 'var(--color-crm-invoice, #ff453a)';
-          else if (lead.termin) leadColor = 'var(--color-crm-contact, #ff9f0a)';
-          else if (lead.entscheider) leadColor = 'var(--color-crm-decision, #0a84ff)';
+          else if (lead.stage === 'offer' || lead.stage === 'data') leadColor = 'var(--color-crm-invoice, #ff453a)';
+          else if (lead.stage === 'pitch') leadColor = 'var(--color-crm-contact, #ff9f0a)';
 
           gridHtml += `
             <div class="task-item" style="display:flex; flex-direction:column; align-items: stretch; background: var(--color-surface-base, #161618); border-radius: var(--radius-lg, 12px); padding: 16px; position: relative; box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.3)); height: 100%; box-sizing: border-box; cursor: pointer;" onclick="openLead(${lead.id})">

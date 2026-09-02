@@ -7,45 +7,27 @@ window.debounce = function(func, wait) {
     };
 };
 window.setPipeline = async (type) => {
-    let t = parseInt(document.getElementById('sys-t').value) || 0;
-    let r = parseInt(document.getElementById('sys-r').value) || 0;
     let k = parseInt(document.getElementById('sys-k').value) || 0;
     let stage = document.getElementById('sys-stage').value || 'cold';
 
     if (type === 'cold') {
-       t = 0; r = 0; k = 0; stage = 'cold';
-    }
-    if (type === 'pitch') {
-       t = t ? 0 : 1;
-       if (t) { stage = 'pitch'; }
-       if (t === 0) { r = 0; k = 0; stage = 'cold'; }
-    }
-    if (type === 'data') {
-       r = r ? 0 : 1;
-       if (r) { t = 1; stage = 'data'; }
-       if (r === 0) { k = 0; stage = 'pitch'; }
-    }
-    if (type === 'offer') {
-       // OFFER is a new stage. In the booleans, we can't reflect it except by setting rechnung=1.
-       // The DB expects stage='offer' and rechnung=1.
-       if (stage === 'offer') {
-          stage = 'data'; // rollback to data
-          k = 0;
-       } else {
-          stage = 'offer';
-          t = 1; r = 1;
-       }
-    }
-    if (type === 'closed') {
+       k = 0; stage = 'cold';
+    } else if (type === 'pitch') {
+       stage = (stage === 'pitch') ? 'cold' : 'pitch';
+       if (stage === 'cold') k = 0;
+    } else if (type === 'data') {
+       stage = (stage === 'data') ? 'pitch' : 'data';
+       if (stage === 'pitch') k = 0;
+    } else if (type === 'offer') {
+       stage = (stage === 'offer') ? 'data' : 'offer';
+       if (stage === 'data') k = 0;
+    } else if (type === 'closed') {
        k = k ? 0 : 1;
-       if (k) { t = 1; r = 1; stage = 'closed'; }
-       else { stage = 'offer'; }
+       stage = k ? 'closed' : 'offer';
     }
 
-    document.getElementById('sys-t').value = t;
-    document.getElementById('sys-r').value = r;
-    document.getElementById('sys-k').value = k;
-    document.getElementById('sys-stage').value = stage;
+    if (document.getElementById('sys-k')) document.getElementById('sys-k').value = k;
+    if (document.getElementById('sys-stage')) document.getElementById('sys-stage').value = stage;
 
     const s0 = document.getElementById('seg-0');
     const s1 = document.getElementById('seg-1');
@@ -339,10 +321,7 @@ window.setPipeline = async (type) => {
       const noteEl = document.getElementById('note-input');
       const notes = noteEl ? noteEl.value : (lData ? (lData.notes || '') : '');
 
-      let entscheider = parseInt(document.getElementById('sys-e')?.value) || 0;
-      let stage = document.getElementById('sys-stage')?.value || lData?.stage || 'cold';
-      let termin = parseInt(document.getElementById('sys-t')?.value) || 0;
-      let rechnung = parseInt(document.getElementById('sys-r')?.value) || 0;
+      let stage = document.getElementById('sys-stage')?.value || 'cold';
       let isKundeVal = parseInt(document.getElementById('sys-k')?.value) || 0;
       const size = document.getElementById('m-size')?.value || (lData ? (lData.size || 'Tarifkunde') : 'Tarifkunde');
 

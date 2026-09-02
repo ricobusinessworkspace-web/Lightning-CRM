@@ -913,7 +913,7 @@ export const db = {
     const { data: leads, error } = await supabase.from(TABLE).select('claimed_by, created_at_ms');
     if (error) throw new Error(error.message);
 
-    const { data: allCalls } = await supabase.from('crm_calls').select('by_user_id, ts, status, crm_leads!inner(entscheider, termin, rechnung, status, size)');
+    const { data: allCalls } = await supabase.from('crm_calls').select('by_user_id, ts, status, crm_leads!inner(stage, status, size)');
     const { data: allActs } = await supabase.from('lead_activities').select('by_user_id, ts, type, details');
 
     const now = new Date();
@@ -936,7 +936,7 @@ export const db = {
         const isToday = call.ts >= startOfDay;
         const isWeek = call.ts >= startOfWeek;
         const l = call.crm_leads;
-        const isWarm = l && (l.entscheider === 1 || l.termin === 1 || l.rechnung === 1 || l.status === 'Kunde');
+        const isWarm = l && (l.stage === 'pitch' || l.stage === 'data' || l.stage === 'offer' || l.status === 'Kunde');
         const isGross = l && l.size === 'Großkunde';
 
         stats[call.by_user_id].total.calls++;
