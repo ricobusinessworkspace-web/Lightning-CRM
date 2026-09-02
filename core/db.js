@@ -30,7 +30,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   }
 });
 
-let currentUser = { id: "575dae28-49b9-47f3-ac9b-84eb1830eaac" }; // caches { id, name, role }
+let currentUser = null; // caches { id, name, role }
 
 // ─── call_history normalisation ──────────────────────────────────────────────
 // Accepts either a bare timestamp (legacy) or a {ts, status} object (new).
