@@ -532,8 +532,19 @@ if (typeof window.renderDashboard === 'function') {
 
     if (window.store.state.currentTab === 'map') {
       await loadMapData(filters);
+
     } else {
-      let leads = await window.api.getLeads(filters);
+      let leads = [];
+      try {
+         leads = await window.api.getLeads(filters);
+      } catch(err) {
+         console.error('getLeads crash in renderPipeline:', err);
+         showToast('Lade-Fehler: ' + err.message, 'error', 10000);
+         const qList = document.querySelector('.kanban-scroll-area');
+         if (qList) qList.innerHTML = `<div style="padding: 20px; color: red;">Fehler beim Laden der Leads:<br>${err.message}</div>`;
+         return;
+      }
+
       // Frontend-level safeguard: Ensure Uninteressant leads are never shown in active CRM tabs
       leads = leads.filter(l => l.status !== 'Uninteressant');
       
