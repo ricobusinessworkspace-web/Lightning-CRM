@@ -255,12 +255,13 @@ export const db = {
     const { data: calls, error: err1 } = await supabase.from('crm_calls').select('*').eq('lead_id', leadId).order('ts', { ascending: true });
     const { data: acts, error: err2 } = await supabase.from('lead_activities').select('*').eq('lead_id', leadId).order('ts', { ascending: true });
     
-    if (err1 || err2) {
-      console.warn('Failed to fetch full history', err1 || err2);
-      return { crm_calls: [], lead_activities: [] };
-    }
+    if (err1) console.warn('Failed to fetch crm_calls', err1);
+    if (err2) console.warn('Failed to fetch lead_activities', err2);
     
-    return { crm_calls: calls || [], lead_activities: acts || [] };
+    return { 
+      crm_calls: calls || [], 
+      lead_activities: acts || [] 
+    };
   },
   
   saveLead: async (lead) => {
@@ -436,7 +437,7 @@ export const db = {
          throw new Error('Konflikt: Lead wurde exakt beim Speichern durch eine Fremdänderung überschrieben.');
       }
       
-      return { id: lead.id, updated: 1 };
+      return { id: lead.id, updated: 1, last_edited_ms: payload.last_edited_ms || now };
       
     } else {
       // DEDUPLICATION CHECK: Never allow a duplicate to be inserted
@@ -474,7 +475,7 @@ export const db = {
             if (updErr) throw new Error(updErr.message || updErr.details || JSON.stringify(updErr));
          }
          
-         return { id: existingDup.id, inserted: false, updated: 1, duplicate_prevented: true };
+         return { id: existingDup.id, inserted: false, updated: 1, duplicate_prevented: true, last_edited_ms: updatePayload.last_edited_ms || now };
       }
 
       // No duplicate found, safe to insert!
@@ -489,7 +490,7 @@ export const db = {
       };
       if (data && data.id) registerLocalWrite(data.id);
 
-      return { id: data.id, inserted: true };
+      return { id: data.id, inserted: true, last_edited_ms: payload.last_edited_ms || now };
     }
   },
   logCall: async (id, status = 'answered') => {
@@ -696,6 +697,10 @@ export const db = {
   },
 
   // ── Auth Methods ───────────────────────────────────────────────────────────
+  getSessionToken: async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session ? session.access_token : null;
+  },
   getCurrentUser: async () => {
     if (currentUser) return currentUser;
     const { data: { session } } = await supabase.auth.getSession();

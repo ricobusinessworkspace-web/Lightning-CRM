@@ -7,7 +7,17 @@ window.api = {
   // Leads
   openExternal: (url) => window.open(url, '_blank'),
   getLeads: (filters) => db.getLeads(filters),
-  saveLead: (lead) => db.saveLead(lead),
+  saveLead: async (lead) => {
+    const res = await db.saveLead(lead);
+    if (res && res.last_edited_ms) {
+       lead.last_edited_ms = res.last_edited_ms;
+       if (typeof window !== 'undefined' && window.store && window.store.state.leads) {
+          const stored = window.store.state.leads.find(x => x.id === res.id);
+          if (stored) stored.last_edited_ms = res.last_edited_ms;
+       }
+    }
+    return res;
+  },
   deleteLead: (id) => db.deleteLead(id),
   deleteLeads: (ids) => db.deleteLeads(ids),
   importLeads: (leadsArray) => db.importLeads(leadsArray),
@@ -50,9 +60,13 @@ window.api = {
       return false;
     }
   },
-  fetchApi: async (url, options) => {
+  fetchApi: async (url, options = {}) => {
     try {
       const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+      const token = await db.getSessionToken();
+      if (token) {
+        options.headers = { ...options.headers, Authorization: `Bearer ${token}` };
+      }
       const res = await fetch(proxyUrl, options);
       const text = await res.text();
       let data;
