@@ -1692,16 +1692,13 @@ if (typeof window.renderDashboard === 'function') {
     
     window._triggerAutoSave = window.debounce(() => {
        if (window.store.state.currentSelectedLeadId === l.id) {
-           window.saveLeadMain(l.id, true, true).then(() => {
+           window.saveLeadMain(l.id, true, true).then((success) => {
+               if (success === false) return; // Error was already handled by saveLeadMain
                const toast = document.createElement('div');
                toast.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(48,209,88,0.9); color:white; padding:8px 16px; border-radius:20px; font-size:12px; font-weight:600; z-index:9999; pointer-events:none; opacity:1; transition:opacity 0.3s;';
                toast.textContent = 'Automatisch gespeichert ✓';
                document.body.appendChild(toast);
                setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 1500);
-           }).catch(err => {
-               if (err.message !== 'OCC_LOCKED') {
-                   showToast('Fehler beim Auto-Save: ' + err.message, 'error');
-               }
            });
        }
     }, 1500);

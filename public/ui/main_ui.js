@@ -176,7 +176,7 @@ window.setPipeline = async (type) => {
   };
 
 
-  window.showToast = (msg, type = 'success') => {
+  window.showToast = (msg, type = 'success', duration = 4500) => {
     if (type === true) type = 'error';
     if (type === false) type = 'success';
     
@@ -202,7 +202,7 @@ window.setPipeline = async (type) => {
       t.style.bottom = '-100px'; 
       t.style.opacity = '0'; 
       setTimeout(() => t.remove(), 400); 
-    }, 4500);
+    }, duration);
   };
 
   window.showConfirmDialog = (title, message, confirmLabel, onConfirm) => {
@@ -495,7 +495,11 @@ window.setPipeline = async (type) => {
         saveBtn.textContent = 'Speichern';
       }
       console.error('saveLeadMain error:', err);
-      showToast(`Speicher-Fehler: ${err.message}`, true);
+      if (err.message && err.message.includes('Konflikt')) {
+        showToast(`⚠️ ${err.message}`, true, 9999999);
+      } else {
+        showToast(`Speicher-Fehler: ${err.message}`, true);
+      }
       return false;
     }
   };
