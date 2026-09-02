@@ -255,9 +255,9 @@
       <!-- Right Column: Search, Filters, Lead List and Map -->
       <div class="main-container" style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
         <div class="filters-row-global" id="filters-container" style="padding: 16px 48px; border-bottom: 1px solid var(--border); background: var(--bg); display: flex; align-items: center; gap: 16px;">
-          <input type="text" id="search-input" class="modern-input-small search-bar" style="max-width:300px;" placeholder="Global Suchen..." oninput="handleSearch(event)" />
+          <input type="text" id="search-input" class="modern-input-small search-bar" style="max-width:300px;" placeholder="Global Suchen..." oninput="handleSearch(event)" onkeydown="if(event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); openNewLeadForm(); }" />
           
-          <button onclick="openNewLeadForm()" class="action-btn-small outline" style="padding: 0 12px; height: 32px; border-color: var(--border); color: var(--text-muted); font-size: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; margin-left: -8px;" title="Neuen Lead erstellen">
+          <button onclick="openNewLeadForm()" class="action-btn-small outline" style="padding: 0 12px; height: 32px; border-color: var(--border); color: var(--text-muted); font-size: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; margin-left: -8px; position: relative; z-index: 10; cursor: pointer;" title="Neuen Lead erstellen">
             +
           </button>
           <div class="filter-chips" id="chip-container" style="display:flex; align-items:center; gap:8px;">

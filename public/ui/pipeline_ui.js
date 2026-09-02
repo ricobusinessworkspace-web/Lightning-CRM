@@ -2088,39 +2088,62 @@ if (typeof window.renderDashboard === 'function') {
 
   window.linkLeadLocation = async (leadId, encodedData) => {
     try {
-      const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
       const data = JSON.parse(decodeURIComponent(encodedData));
-      const fullList = await window.api.getLeads({ all: true });
-      const l = fullList.find(x => x.id === leadId);
-      if (!l) return;
-
-      // Restrict to max 1 location as requested ("Wenn kein standort hinterlegt ist...")
-      l.locations = [{
-        place_id: data.placeId || '',
-        name: data.name || '',
-        address: data.address || '',
-        lat: data.lat,
-        lng: data.lng,
-        source: 'manual'
-      }];
-
-      if (data.website && !l.website_url) l.website_url = data.website;
-      if (data.mapsUrl && !l.google_maps_url) l.google_maps_url = data.mapsUrl;
-      if (data.placeId && !l.google_place_id) l.google_place_id = data.placeId;
-      if (data.phone && !l.phone) l.phone = data.phone;
       
-      // Update the main properties as well so they don't get overwritten with old data when saving again later
-      l.maps_city = data.address || '';
-      l.lat = data.lat;
-      l.lng = data.lng;
-      l.opening_hours = data.opening_hours || '';
+      // Adopt the Google Maps name into the UI text field immediately
+      const nameNode = document.getElementById('sys-name');
+      if (nameNode) {
+         if (nameNode.tagName === 'INPUT' || nameNode.tagName === 'TEXTAREA') nameNode.value = data.name || nameNode.value;
+         else nameNode.innerText = data.name || nameNode.innerText;
+      }
+      const cityNode = document.getElementById('sys-city');
+      if (cityNode) cityNode.value = data.address || '';
+      
+      const phoneNode = document.getElementById('sys-phone');
+      if (phoneNode && data.phone && !phoneNode.value.trim()) phoneNode.value = data.phone;
+      
+      const webNode = document.getElementById('sys-web');
+      if (webNode && data.website && !webNode.value.trim()) webNode.value = data.website;
+
+      // Update the local store so saveLeadMain picks up the deep properties (locations, lat, lng, opening_hours)
+      if (window.store && window.store.state && window.store.state.leads) {
+         const storeLead = window.store.state.leads.find(x => x.id === leadId);
+         if (storeLead) {
+             storeLead.locations = [{
+                place_id: data.placeId || '',
+                name: data.name || '',
+                address: data.address || '',
+                lat: data.lat,
+                lng: data.lng,
+                source: 'manual'
+             }];
+             if (data.website && !storeLead.website_url) storeLead.website_url = data.website;
+             if (data.mapsUrl && !storeLead.google_maps_url) storeLead.google_maps_url = data.mapsUrl;
+             if (data.placeId && !storeLead.google_place_id) storeLead.google_place_id = data.placeId;
+             if (data.phone && !storeLead.phone) storeLead.phone = data.phone;
+             
+             storeLead.maps_city = data.address || '';
+             storeLead.lat = data.lat;
+             storeLead.lng = data.lng;
+             storeLead.opening_hours = data.opening_hours || '';
+         }
+      }
 
       window._forceLocationSearch = false;
-      await window.api.saveLead(l);
+      
+      // Save all drafted UI changes + the new location data together
+      if (typeof window.saveLeadMain === 'function') {
+         await window.saveLeadMain(leadId, true, true);
+      }
+      
       showToast("Standort erfolgreich verknüpft! 🗺️");
-      await loadUi();
-      if (window.openLeadDirectly) await window.openLeadDirectly(leadId, false, false, draft);
-      else await openLead(leadId);
+      
+      // Re-render the sidebar to show the new location UI
+      if (window.openLeadDirectly) {
+         await window.openLeadDirectly(leadId, false, false, typeof window.getDomDraft === 'function' ? window.getDomDraft() : null);
+      } else if (typeof window.openLead === 'function') {
+         await window.openLead(leadId);
+      }
 
       setTimeout(() => {
         if(window.map) {
@@ -2769,6 +2792,13 @@ window.pushLeadActivity = function(leadId, activity) {
     const lead = leads.find(x => x.id === leadId);
     if (lead) {
       lead.timeline = lead.timeline || [];
+      // Deduplicate rapid clicks
+      if (lead.timeline.length > 0) {
+        const last = lead.timeline[0];
+        if (last.activity_type === activity.activity_type && last.details === activity.details && (Date.now() - (last.ts || 0) < 5000)) {
+           return; // Ignore duplicate identical activity within 5 seconds
+        }
+      }
       lead.timeline.unshift(activity);
     }
     const container = document.getElementById(`sidebar-activities-container-${leadId}`);
