@@ -84,13 +84,20 @@
   }
 
   /**
-   * Render clickable WhatsApp icon (returns HTML string)
+   * Klickbares WhatsApp-Symbol (liefert HTML als Text).
+   *
+   * Mit leadId wird der Klick zusaetzlich als schriftlicher Kontakt
+   * festgehalten — genau wie der E-Mail-Knopf. Ohne leadId (z. B. im Scout,
+   * wo der Lead noch gar nicht existiert) oeffnet es nur WhatsApp.
    */
-  function renderWhatsAppIcon(rawNumber) {
+  function renderWhatsAppIcon(rawNumber, leadId) {
     if (!rawNumber) return '';
     const url = getWhatsAppUrl(rawNumber);
     if (!url) return '';
-    return '<a href="' + url + '" target="_blank" rel="noopener" class="wa-icon" title="WhatsApp \u00f6ffnen" onclick="event.stopPropagation();">' + WHATSAPP_SVG + '</a>';
+    const log = (leadId !== undefined && leadId !== null)
+      ? ' if (window.logWhatsAppContact) window.logWhatsAppContact(' + leadId + ');'
+      : '';
+    return '<a href="' + url + '" target="_blank" rel="noopener" class="wa-icon" title="WhatsApp schreiben" onclick="event.stopPropagation();' + log + '">' + WHATSAPP_SVG + '</a>';
   }
 
   window.PhoneUtil = {

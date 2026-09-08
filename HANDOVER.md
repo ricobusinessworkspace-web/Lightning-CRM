@@ -84,28 +84,49 @@ er hat monatelang stillschweigend nichts getan. **Nie Funktionen aus
 
 ```
 index.html              Layout, Modals, Navigation, Skript-Reihenfolge
-core/db.js       (1003) Supabase-Zugriff, gesamte Datenlogik
-core/api.js       (91)  window.api — dünne Fassade über db.js
+core/db.js      (1023) Supabase-Zugriff, gesamte Datenlogik
+core/api.js       (92)  window.api — dünne Fassade über db.js
 core/auth.js      (33)  Passkey-Stub, Developer-Unlock
 public/core/config.js   DER SCHALTER (multiUser)
 public/core/store.js    Proxy-Store, window.store.state
-public/ui/pipeline_ui.js (2872) Listen, Karten, Sidebar, Karte, Dashboard
-public/ui/main_ui.js     (1479) Speichern, Aufgaben, Snooze, Toasts, Bulk
+public/core/leadstore.js (149) DER EINZIGE SCHREIBWEG (siehe §4)
+public/ui/pipeline_ui.js (2842) Listen, Karten, Sidebar, Karte, Dashboard
+public/ui/main_ui.js    (1412) Speichern, Aufgaben, Snooze, Toasts, Bulk
 public/modules/scraper.js (746) Radar Scout (Google Places / OSM)
 ui/init.js        (513) Bootstrap, Login, Realtime-Abo
 api/              Vercel Functions + api/_lib/auth.js
 admin_scripts/    SQL für Wartung (siehe §8)
-tests/ui.test.mjs 45 Prüfungen, ohne Browser
+tests/ui.test.mjs 70 Prüfungen, ohne Browser
 ```
 
 ---
 
 ## 4. Speichern — das Wichtigste
 
-**Alle Schreibvorgänge laufen durch `window.queueSave()`** (in `main_ui.js`).
-Eine Kette, die sie nacheinander ausführt. Ohne sie überholen sich gleichzeitige
-Speichervorgänge und die Konfliktprüfung in `db.js` meldet fälschlich eine
-Fremdänderung. **Neue Schreibpfade immer in `queueSave` einreihen.**
+**Es gibt genau einen Schreibweg: `window.leadStore.save()`** in
+`public/core/leadstore.js`. Neue Schreibpfade gehen dort durch, nicht direkt
+über `api.saveLead`. Einzige Ausnahme sind *neue* Leads (ohne `id` —
+Scout-Import und „Neuer Lead"), die legt `api.saveLead` an.
+
+```js
+await window.leadStore.save(leadId, { task_text: '…' }, { label: 'Aufgabe' });
+```
+
+`save` erledigt vier Dinge, die vorher jede Funktion selbst machen musste — und
+manche eben nicht:
+
+1. **Warteschlange.** Gleichzeitige Speichervorgänge laufen nacheinander.
+2. **Nur die genannten Spalten.** `db.js` beherrscht Teil-Updates. Nicht
+   genannte Spalten bleiben unangetastet.
+3. **Zeitstempel-Selbstheilung.** Meldet die Datenbank einen Konflikt, holt
+   `save` einmal den echten Stand und wiederholt. Das war die Ursache für
+   „speichert erst nach einem Neuladen".
+4. **Speicher nachziehen.** `store.state.leads` **und** jeder
+   Reiter-Zwischenspeicher (`tabCache`) werden gemeinsam aktualisiert — per
+   `Object.assign`, damit vorhandene Verweise gültig bleiben.
+
+`window.leadStore.diff(id, wunschwerte)` liefert nur die Spalten, die sich vom
+bekannten Stand unterscheiden. `saveLeadMain` baut damit sein Update.
 
 Drei Einstiegspunkte:
 
@@ -113,19 +134,32 @@ Drei Einstiegspunkte:
 |---|---|---|
 | `persistTasks()` | `task_text` | jede Aufgaben-Änderung, sofort |
 | `persistSnooze(ms)` | `snooze_until_ms` | Snooze setzen/aufheben, sofort |
-| `saveLeadMain(id)` | alle Spalten | Feld verlassen, Stufenwechsel |
+| `saveLeadMain(id)` | nur geänderte Spalten | Feld verlassen, Stufenwechsel |
+
+### Zwei Bindungen, die nicht wegdürfen
+
+Beide verhindern, dass beim **Lead-Wechsel** auf den falschen Lead geschrieben
+wird. Zwischen „anderer Lead ausgewählt" und „Seitenleiste neu gezeichnet"
+liegt ein Netzwerkaufruf. In diesem Fenster zeigt die Auswahl schon auf den
+neuen Lead, die Formularfelder aber noch auf den alten.
+
+- **Aufgaben:** `window.currentTasks` gehört immer zu `window.currentTasksLeadId`.
+  Gesetzt wird beides nur über `window.bindTasksToLead(lead)`, und zwar
+  **sofort** beim Lead-Wechsel, vor dem Laden des Verlaufs. `persistTasks` und
+  `capturePendingTasks` verweigern ohne Bindung die Arbeit; `saveLeadMain`
+  schreibt `task_text` nur, wenn die Bindung auf denselben Lead zeigt.
+- **Formular:** die Seitenleiste trägt `data-lead-id` auf `.focused-lead`.
+  `saveLeadMain` bricht ab, wenn die ID nicht zum gespeicherten Lead passt.
+
+Ohne diese beiden Prüfungen sind zwei Fehler sofort wieder da: Aufgaben
+verschwinden, und man findet Aufgaben bei Leads, für die man sie nie angelegt
+hat.
 
 Nach dem Speichern **nur die betroffene Karte** neu zeichnen:
 `refreshLeadCard(id)` → `patchLeadCard(id)` tauscht einen DOM-Knoten.
 Nur wenn die Karte nicht im DOM ist, wird auf `loadUi(true)` zurückgefallen.
 **Nicht auf `loadUi()` zurückbauen** — das ersetzt die ganze Liste, kostet
 Scrollposition und fühlt sich kaputt an.
-
-Aufgabenlisten hängen an `window.currentTasks` **plus**
-`window.currentTasksLeadId`. Die Bindung ist zwingend — ohne sie schreiben
-verzögerte Speichervorgänge die Aufgaben eines anderen Leads.
-
----
 
 ## 5. Bewusste Entscheidungen — bitte nicht zurückbauen
 
@@ -146,6 +180,11 @@ Das sind Antworten auf konkrete Beschwerden, keine Zufälle.
   **nicht** in `store.state.currentSnoozeOffset`, das liest `saveLeadMain` aus
   und würde die Wiedervorlage bei jedem Speichern weiter nach vorn schieben.
 - **Erledigte Aufgaben werden abgehakt, nicht gelöscht.**
+- **E-Mail und WhatsApp sind dieselbe Aktivität.** Der Knopf „Schreiben" neben
+  der E-Mail-Adresse und das WhatsApp-Symbol neben der Telefonnummer halten
+  beide fest: „Ich habe dem Kunden geschrieben." Der Typ heißt `message`, der
+  genaue Weg steht in `details`. Alte Einträge stehen als `email` in der
+  Tabelle, werden gleich angezeigt und gleich gezählt.
 - **Zusammenführen nur bei gleicher Google-Place-ID.** Namensgleichheit gibt
   einen Hinweis. Früher wurde über Name + Stadt still zusammengeführt — zwei
   Mal „Neuer Lead" öffnete beim zweiten Klick den ersten.
@@ -188,22 +227,21 @@ unverändert.
    PostgREST liefert max. 1000 Zeilen — darüber zählt das Dashboard **still
    falsch**. Aktuell ~300 Anrufe, also Monate Puffer. Gehört in eine SQL-View
    mit `GROUP BY`. Das ist der einzige Posten mit Ablaufdatum.
-2. **`saveLeadMain` schreibt alle ~25 Spalten zurück**, obwohl `db.js`
-   Teil-Updates beherrscht. Bei einem Nutzer folgenlos, bei zweien
-   überschreibt man Kollegen-Änderungen.
-3. **`crm_calls.by_user_id` von `text` auf `uuid` + Foreign Key ziehen.**
+2. **`crm_calls.by_user_id` von `text` auf `uuid` + Foreign Key ziehen.**
    Bei ~300 Zeilen harmlos, später nicht mehr.
-4. **`echtes Schema versioniert ablegen`** und `scratch/schema.sql` löschen.
+3. **Echtes Schema versioniert ablegen** und `scratch/schema.sql` löschen.
    Zehn Minuten, verhindert Falle §2.1 dauerhaft.
-5. **`pipeline_ui.js` mit 2872 Zeilen aufteilen.** Listen / Sidebar / Karte /
+4. **`lead_activities`: alte `email`-Einträge auf `message` ziehen.** Kosmetik,
+   der Code kommt mit beidem klar (§5). Vorher prüfen, ob auf der Spalte `type`
+   eine Prüfregel liegt — `logMessage` weicht sonst still auf `email` aus.
+5. **`pipeline_ui.js` mit ~2800 Zeilen aufteilen.** Listen / Sidebar / Karte /
    Dashboard sind vier unabhängige Themen in einer Datei.
-6. **Toter Code:** `toggleAnalytics` ruft ein nicht existierendes
-   `api.getStats` auf und ist nirgends verdrahtet. `autoGeocode` ist bewusst
-   nicht exportiert (würde beim Login eine Massen-Geocoding-Schleife mit
-   Full-Record-Saves starten). Im Wurzelverzeichnis liegen neun Einmal-Skripte
-   (`fix_*.py`, `test_*.js`), die nach `scratch/` gehören.
+6. **`autoGeocode` ist bewusst nicht exportiert** — es würde beim Login eine
+   Massen-Geocoding-Schleife starten.
 
----
+**Erledigt seit dem letzten Stand:** Teil-Updates statt aller ~25 Spalten,
+der tote `toggleAnalytics`, die neun Einmal-Skripte aus dem Wurzelverzeichnis
+(liegen jetzt in `scratch/einmal_skripte/`).
 
 ## 8. Admin-Skripte
 
@@ -226,15 +264,17 @@ vorher Backup über Supabase → Database → Backups.
 ```bash
 npm install
 npm run dev      # Vite, Port 3000
-npm test         # 45 Prüfungen, ohne Browser, ~1 Sekunde
+npm test         # 70 Prüfungen, ohne Browser, ~1 Sekunde
 npm run build
 ```
 
 `npm test` (`tests/ui.test.mjs`) läuft über jsdom und deckt ab: Pipeline-Stufen,
 eindeutige Aufgaben-IDs, Speichern beim Abhaken/Löschen, Snooze setzen und
 aufheben, dass keine Reste im Store bleiben, Einzelkarten-Aktualisierung und
-die Reihenfolge in der Speicher-Warteschlange. **Nach jeder Änderung an
-`main_ui.js` laufen lassen.**
+die Reihenfolge in der Speicher-Warteschlange, die Lead-Bindung der Aufgaben,
+die Selbstheilung bei veraltetem Zeitstempel und dass wirklich nur geänderte
+Spalten geschrieben werden. **Nach jeder Änderung an `main_ui.js`,
+`pipeline_ui.js` oder `leadstore.js` laufen lassen.**
 
 Die `/api/*`-Funktionen serviert Vite **nicht**. Änderungen dort lassen sich nur
 nach dem Deploy prüfen (oder mit `vercel dev`).
@@ -253,3 +293,6 @@ Deployment: Push auf `master` → Vercel deployt automatisch.
   darum wurde ausdrücklich gebeten.
 - **Bestehende, funktionierende Lösungen nicht ersetzen.** Siehe §5.
 - **Nicht ungefragt pushen.** Der Push auf `master` geht direkt live.
+- **SQL immer einzeln.** Eine Anweisung geben, auf das Ergebnis warten, dann
+  die nächste. Nie mehrere SQL-Blöcke in einer Nachricht, auch nicht bei
+  reinen Abfragen. Ausdrücklich so gewünscht.

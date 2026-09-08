@@ -47,7 +47,8 @@ window.api = {
 
   // Call Tracking
   logCall: (id) => db.logCall(id),
-  logEmail: (id) => db.logEmail(id),
+  logMessage: (id, kanal) => db.logMessage(id, kanal),
+  logEmail: (id) => db.logMessage(id, 'email'),
   logStatusChange: (id, status) => db.logStatusChange(id, status),
   deleteActivity: (id, type) => db.deleteActivity(id, type),
   getCallsToday: () => db.getCallsToday(),

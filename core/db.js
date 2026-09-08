@@ -526,30 +526,48 @@ export const db = {
     }
   },
 
-  // ── logEmail ───────────────────────────────────────────────────────────────
-  logEmail: async (id) => {
+  // ── logMessage ─────────────────────────────────────────────────────────────
+  // Schriftlicher Kontakt — E-Mail ODER WhatsApp. Fuer die Nachverfolgung ist
+  // beides dasselbe: "Ich habe dem Kunden geschrieben". Der genaue Weg steht in
+  // details, damit man ihn im Verlauf noch sieht.
+  //
+  // Der Typ heisst 'message'. Aeltere Eintraege stehen noch als 'email' in der
+  // Tabelle und werden in der Oberflaeche gleich dargestellt. Sollte die
+  // Tabelle den neuen Typ ablehnen (Pruefregel aus der Anfangszeit), wird
+  // einmalig auf 'email' zurueckgefallen, damit kein Kontakt verloren geht.
+  logMessage: async (id, kanal = 'email') => {
     const now = Date.now();
-    try {
-      const entry = { lead_id: id, ts: now, type: 'email', details: 'E-Mail gesendet' };
-      if (currentUser) {
-        entry.by_user_id = currentUser.id;
-        entry.by_user_name = currentUser.name;
-      }
-      await supabase.from('lead_activities').insert(entry);
+    const label = kanal === 'whatsapp' ? 'WhatsApp geschrieben' : 'E-Mail geschrieben';
+    const basis = { lead_id: id, ts: now, details: label };
+    if (currentUser) {
+      basis.by_user_id = currentUser.id;
+      basis.by_user_name = currentUser.name;
+    }
 
-      const { data, error } = await supabase
+    try {
+      let { error } = await supabase.from('lead_activities').insert({ ...basis, type: 'message' });
+      if (error) {
+        console.warn('lead_activities akzeptiert "message" nicht, weiche auf "email" aus:', error.message);
+        const zweiterVersuch = await supabase.from('lead_activities').insert({ ...basis, type: 'email' });
+        if (zweiterVersuch.error) throw zweiterVersuch.error;
+      }
+
+      const { data, error: updErr } = await supabase
         .from(TABLE)
         .update({ last_contact_ms: now })
         .eq('id', id)
         .select('*, crm_calls(*), lead_activities(*)');
 
-      if (error) throw error;
+      if (updErr) throw updErr;
       return Array.isArray(data) ? data[0] : data;
     } catch (e) {
-      console.error('logEmail error:', e);
+      console.error('logMessage error:', e);
       return null;
     }
   },
+
+  // Altname, damit nichts bricht, was noch logEmail aufruft.
+  logEmail: async (id) => db.logMessage(id, 'email'),
 
   // ── logStatusChange ────────────────────────────────────────────────────────
   logStatusChange: async (id, newStatus) => {
@@ -925,7 +943,9 @@ export const db = {
         const isToday = act.ts >= startOfDay;
         const isWeek = act.ts >= startOfWeek;
         
-        if (act.type === 'email') {
+        // Schriftlicher Kontakt: 'message' ist der heutige Typ, 'email' und
+        // 'whatsapp' sind Altbestand. Alle drei zaehlen gleich.
+        if (act.type === 'message' || act.type === 'email' || act.type === 'whatsapp') {
           stats[act.by_user_id].total.emails++;
           if (isToday) stats[act.by_user_id].today.emails++;
           if (isWeek) stats[act.by_user_id].week.emails++;

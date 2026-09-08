@@ -40,22 +40,12 @@ window.handleLeadAssignmentChange = (val) => {
       loadUi();
   };
 
+  // Unternehmensgroesse. Speichert sofort und fuer sich allein.
+  //
+  // Vorher wurde der Wert in ein verstecktes Feld #m-size geschrieben, das an
+  // document.body haengen blieb. Beim naechsten Lead stand dort noch die
+  // Groesse des vorherigen — und wurde beim Speichern uebernommen.
   window.updateLeadSize = (id, newSize) => {
-    // Just update DOM/Draft instead of auto-saving
-    let hiddenInput = document.getElementById('m-size');
-    if (!hiddenInput) {
-      hiddenInput = document.createElement('input');
-      hiddenInput.type = 'hidden';
-      hiddenInput.id = 'm-size';
-      document.body.appendChild(hiddenInput);
-    }
-    hiddenInput.value = newSize;
-
-    const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
-    if (draft) draft.size = newSize;
-
-    const lead = window.store.state.leads.find(l => l.id === id);
-    if (lead) lead.size = newSize;
 
     document.querySelectorAll('.size-btn').forEach(btn => {
       if (btn.getAttribute('data-size') === newSize) {
@@ -67,11 +57,7 @@ window.handleLeadAssignmentChange = (val) => {
       }
     });
 
-    if (typeof window.saveLeadMain === 'function') {
-      window.saveLeadMain(id, true, true);
-    } else if (window.api && window.api.saveLead) {
-      window.api.saveLead({ id, size: newSize });
-    }
+    window.leadStore.save(id, { size: newSize }, { label: 'Unternehmensgröße' });
   };
 
   window.handleLeadClick = (id) => {
@@ -354,9 +340,10 @@ window.handleLeadAssignmentChange = (val) => {
         });
         const data = await res.json();
         if (data && data.length > 0) {
-          l.lat = parseFloat(data[0].lat);
-          l.lng = parseFloat(data[0].lon);
-          await window.api.saveLead(l);
+          await window.leadStore.save(l.id, {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon)
+          }, { silent: true, noRefresh: true });
           console.log(`Geocoded: ${l.name} -> ${l.lat}, ${l.lng}`);
           await loadMapData();
         }
@@ -1297,6 +1284,12 @@ if (typeof window.renderDashboard === 'function') {
 
     if(!l) return;
 
+    // Die Aufgabenliste MUSS zusammen mit der Lead-Auswahl umgestellt werden.
+    // Zwischen "anderer Lead ausgewaehlt" und "Seitenleiste neu gezeichnet"
+    // liegt ein Netzwerkaufruf. Wer in diesem Fenster gespeichert hat, hat
+    // vorher die Aufgaben des alten Leads auf den neuen geschrieben.
+    window.bindTasksToLead(l);
+
     try {
       const fullHistory = await window.api.getLeadHistory(l.id);
       l.timeline = fullHistory.timeline || [];
@@ -1333,35 +1326,6 @@ if (typeof window.renderDashboard === 'function') {
     // Call History Dropdown Removed.
     let historyHtml = '';
     
-    // Aufgabenliste gehört immer zu GENAU diesem Lead. Ohne diese Bindung
-    // konnte ein verzögertes Speichern die Aufgaben eines anderen Leads
-    // schreiben — daher die "Aufgaben, die ich nie erstellt habe".
-    window.currentTasks = [];
-    window.currentTasksLeadId = l.id;
-    if (l.task_text) {
-      if (l.task_text.trim().startsWith('[')) {
-        try {
-          const parsed = JSON.parse(l.task_text);
-          if (Array.isArray(parsed)) window.currentTasks = parsed;
-        } catch(e) {
-          console.warn('Aufgaben von Lead ' + l.id + ' nicht lesbar:', e);
-        }
-      } else if (l.task_text.trim() !== '') {
-        // Altbestand: freier Text -> eine Aufgabe. Feste ID aus der Lead-ID,
-        // damit sie beim erneuten Öffnen nicht jedes Mal eine neue bekommt.
-        window.currentTasks = [{ id: l.id, text: l.task_text, done: false, deadline: '', subtasks: [] }];
-      }
-    }
-    // Fehlende Felder ergänzen, damit Altbestand nicht durch die Anzeige fällt
-    window.currentTasks = window.currentTasks
-      .filter(t => t && typeof t.text === 'string')
-      .map(t => ({
-        id: (typeof t.id === 'number' && !isNaN(t.id)) ? t.id : window.newTaskId(),
-        text: t.text,
-        done: !!t.done,
-        deadline: t.deadline || '',
-        subtasks: Array.isArray(t.subtasks) ? t.subtasks : []
-      }));
 
     // --- Snooze Block (Native) ---
     const gCalText = encodeURIComponent(`Follow-Up: ${l.name}`);
@@ -1495,7 +1459,7 @@ if (typeof window.renderDashboard === 'function') {
     }
 
     sidebarEl.innerHTML = `
-      <div class="focused-lead" style="display:flex; flex-direction:column; height:100%;">
+      <div class="focused-lead" data-lead-id="${l.id}" style="display:flex; flex-direction:column; height:100%;">
         
         <!-- HEADER ROW: Unternehmen -->
         <div class="sidebar-header" style="padding: 24px 24px 16px 24px; flex-shrink: 0; background: rgba(13, 13, 15, 0.7); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-bottom: 1px solid var(--color-border-base, #2c2c2e); z-index: 20; position: sticky; top: 0;">
@@ -1533,14 +1497,14 @@ if (typeof window.renderDashboard === 'function') {
                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 8px;">
                  <input type="text" id="sys-phone" style="font-family:ui-monospace, monospace; font-size:14px; padding:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; min-width: 150px;" value="${escapeHtml(l.phone || '')}" placeholder="Keine Nummer" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
                  <div style="display:flex; gap: 8px; align-items: center;">
-                   ${(l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone).replace('<a', '<a style=\"background: rgba(37, 211, 102, 0.1); color: #25D366 !important; padding: 8px 12px; border-radius: 8px;\"') : ''}
+                   ${(l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone, l.id).replace('<a', '<a style=\"background: rgba(37, 211, 102, 0.1); color: #25D366 !important; padding: 8px 12px; border-radius: 8px;\"') : ''}
                    <button style="background:transparent; border:none; padding:8px 12px; font-size:12px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 8px;" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')">Copy</button>
                  </div>
                </div>
                
                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 8px;">
                  <input type="text" id="sys-email" style="font-family:ui-monospace, monospace; font-size:14px; padding:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; min-width: 150px;" value="${escapeHtml(l.email || '')}" placeholder="Keine E-Mail" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
-                 <button style="background:transparent; border:none; padding:8px 12px; font-size:12px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 8px;" onclick="copyEmail(event, ${l.id}, '${escapeHtml(l.email || '')}')">Copy</button>
+                 <button style="background:transparent; border:none; padding:8px 12px; font-size:12px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 8px;" onclick="copyEmail(event, ${l.id}, '${escapeHtml(l.email || '')}')" title="Adresse kopieren und schriftlichen Kontakt festhalten">Schreiben</button>
                </div>
             </div>
           </div>
@@ -1746,30 +1710,27 @@ if (typeof window.renderDashboard === 'function') {
   // --- NEW FEATURES: Pin Click, Call Tracking & Calendar ---
   
   window.closeLeadSidebar = () => {
-    if (window.store.state.currentSelectedLeadId) {
-      if (typeof window.checkUnsavedChangesBeforeClose === 'function') {
-        window.checkUnsavedChangesBeforeClose(window.store.state.currentSelectedLeadId, () => {
-          window.store.state.currentSelectedLeadId = null;
-          document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
-          if (typeof window.renderEmptySidebar === 'function') {
-            window.renderEmptySidebar();
-          } else {
-            sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
-          }
-        });
-        return;
+    const schliessen = () => {
+      window.store.state.currentSelectedLeadId = null;
+      // Aufgaben-Bindung mit loesen. Ohne das zeigt currentTasksLeadId noch auf
+      // den geschlossenen Lead, und ein nachlaufender Speichervorgang schreibt
+      // dorthin zurueck.
+      window.bindTasksToLead(null);
+      document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
+      if (typeof window.renderEmptySidebar === 'function') {
+        window.renderEmptySidebar();
+      } else {
+        const sb = document.querySelector('.sidebar');
+        if (sb) sb.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
       }
+    };
+
+    if (window.store.state.currentSelectedLeadId
+        && typeof window.checkUnsavedChangesBeforeClose === 'function') {
+      window.checkUnsavedChangesBeforeClose(window.store.state.currentSelectedLeadId, schliessen);
+      return;
     }
-    
-    window.store.state.currentSelectedLeadId = null;
-    window.currentTasks = [];
-    window.currentTasksLeadId = null;
-    document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
-    if (typeof window.renderEmptySidebar === 'function') {
-      window.renderEmptySidebar();
-    } else {
-      sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
-    }
+    schliessen();
   };
 
   window.handleTaskDragStart = (e, leadId, taskId) => {
@@ -1840,8 +1801,8 @@ if (typeof window.renderDashboard === 'function') {
       const t = tasks.find(x => x.id === taskId);
       if (t) {
         t.text = newText.trim();
-        l.task_text = JSON.stringify(tasks);
-        await window.api.saveLead({ id: l.id, task_text: l.task_text, last_edited_ms: l.last_edited_ms });
+        await window.leadStore.save(l.id, { task_text: JSON.stringify(tasks) }, { label: 'Aufgabe' });
+        if (window.currentTasksLeadId === l.id) window.currentTasks = tasks;
       }
     } catch(e) {
       console.error("Fehler beim Aktualisieren der Aufgabe", e);
@@ -1867,8 +1828,8 @@ if (typeof window.renderDashboard === 'function') {
            }
          }
          
-         l.task_text = JSON.stringify(tasks);
-         await window.api.saveLead({ id: l.id, task_text: l.task_text, last_edited_ms: l.last_edited_ms });
+         const ok = await window.leadStore.save(l.id, { task_text: JSON.stringify(tasks) }, { label: 'Aufgabe' });
+         if (!ok) return;
          // Falls derselbe Lead gerade in der Seitenleiste offen ist, dort mitziehen
          if (window.currentTasksLeadId === l.id) {
            window.currentTasks = tasks;
@@ -1948,17 +1909,19 @@ if (typeof window.renderDashboard === 'function') {
       const l = fullList.find(x => x.id === id);
       if (!l) return;
       if (Array.isArray(l.locations)) {
-        l.locations.splice(index, 1);
-        
-        // Sever Google Places API connection
-        l.google_place_id = '';
-        l.google_maps_url = '';
-        l.maps_city = '';
-        l.lat = null;
-        l.lng = null;
-        l.opening_hours = '';
-        
-        await window.api.saveLead(l);
+        const restLocations = l.locations.slice();
+        restLocations.splice(index, 1);
+
+        // Verbindung zu Google Places kappen
+        await window.leadStore.save(l.id, {
+          locations: restLocations,
+          google_place_id: '',
+          google_maps_url: '',
+          maps_city: '',
+          lat: null,
+          lng: null,
+          opening_hours: ''
+        }, { label: 'Standort' });
         showToast("Standort (Places-Verknüpfung) entfernt.");
         
         if (window.store.state.currentTab === 'map') {
@@ -2168,17 +2131,17 @@ if (typeof window.renderDashboard === 'function') {
       const l = fullList.find(x => x.id === id);
       if (!l) return;
       
-      l.starred = l.starred ? 0 : 1;
+      const neuStarred = l.starred ? 0 : 1;
       const starBtn = document.getElementById('sidebar-star-btn');
       if (starBtn) {
-        starBtn.setAttribute('data-starred', l.starred ? '1' : '0');
-        starBtn.style.color = l.starred ? '#ffcc00' : 'var(--text-muted)';
-        starBtn.innerText = l.starred ? '★' : '☆';
+        starBtn.setAttribute('data-starred', neuStarred ? '1' : '0');
+        starBtn.style.color = neuStarred ? '#ffcc00' : 'var(--text-muted)';
+        starBtn.innerText = neuStarred ? '★' : '☆';
       }
-      
-      await window.api.saveLead(l);
-      showToast(l.starred ? "Lead priorisiert! ⭐" : "Priorisierung aufgehoben.");
-      await loadUi();
+
+      const ok = await window.leadStore.save(l.id, { starred: neuStarred }, { label: 'Priorisierung' });
+      if (!ok) return;
+      showToast(neuStarred ? "Lead priorisiert! ⭐" : "Priorisierung aufgehoben.");
       // toggleLeadStar didn't call openLead, but if it did, we'd pass draft.
       // Wait, toggleLeadStar just calls loadUi(). It doesn't re-render the sidebar.
       // We don't need to do anything else!
@@ -2206,6 +2169,10 @@ if (typeof window.renderDashboard === 'function') {
       
       for (let i = 0; i < allLeads.length; i++) {
         const l = allLeads[i];
+        // Nur die tatsaechlich nachgetragenen Spalten sammeln — nicht den
+        // ganzen Lead zurueckschreiben.
+        const neueWerte = {};
+        const setze = (feld, wert) => { l[feld] = wert; neueWerte[feld] = wert; };
         let changed = false;
 
         if (btn) btn.innerText = `Prüfe ${i + 1} von ${allLeads.length}...`;
@@ -2226,17 +2193,17 @@ if (typeof window.renderDashboard === 'function') {
                const data = await res.json();
                if (data) {
                  if (!l.phone && (data.nationalPhoneNumber || data.internationalPhoneNumber)) {
-                    l.phone = data.nationalPhoneNumber || data.internationalPhoneNumber;
+                    setze('phone', data.nationalPhoneNumber || data.internationalPhoneNumber);
                     changed = true;
                  }
                  const bestAddress = data.formattedAddress || data.displayName?.text;
                  if (!l.maps_city && bestAddress) {
-                    l.maps_city = bestAddress;
+                    setze('maps_city', bestAddress);
                     changed = true;
                  }
                  if ((!l.lat || !l.lng) && data.location) {
-                    l.lat = data.location.latitude;
-                    l.lng = data.location.longitude;
+                    setze('lat', data.location.latitude);
+                    setze('lng', data.location.longitude);
                     changed = true;
                  }
                  if (data.regularOpeningHours) {
@@ -2245,11 +2212,11 @@ if (typeof window.renderDashboard === 'function') {
                       l.locations.push({
                          address: l.maps_city, lat: l.lat, lng: l.lng, place_id: l.google_place_id, opening_hours: data.regularOpeningHours.weekdayDescriptions
                       });
-                      changed = true;
                     } else if (!l.locations[0].opening_hours) {
                       l.locations[0].opening_hours = data.regularOpeningHours.weekdayDescriptions;
-                      changed = true;
                     }
+                    neueWerte.locations = l.locations;
+                    changed = true;
                  }
                }
              }
@@ -2263,7 +2230,7 @@ if (typeof window.renderDashboard === 'function') {
            try {
              const email = await scrapeEmailFromWebsite(l.website_url);
              if (email) {
-               l.email = email;
+               setze('email', email);
                changed = true;
                emailEnrichedCount++;
              }
@@ -2274,7 +2241,7 @@ if (typeof window.renderDashboard === 'function') {
 
         if (changed) {
           apiEnrichedCount++;
-          await window.api.saveLead(l);
+          await window.leadStore.save(l.id, neueWerte, { silent: true, noRefresh: true });
         }
       }
       
@@ -2385,13 +2352,7 @@ if (typeof window.renderDashboard === 'function') {
 
   window.saveAdminAssignment = async (leadId, assignedUserId) => {
     try {
-      const leads = await window.api.getLeads({ all: true });
-      const lead = leads.find(x => x.id === leadId);
-      if(lead) {
-         lead.claimed_by = assignedUserId;
-         await window.api.saveLead(lead);
-         if (typeof loadUi === 'function') loadUi();
-      }
+      await window.leadStore.save(leadId, { claimed_by: assignedUserId }, { label: 'Zuweisung' });
     } catch(e) { console.error(e); }
   };
 
@@ -2415,8 +2376,12 @@ if (typeof window.renderDashboard === 'function') {
       const callsToday = myStats.today.calls;
       const emailsToday = myStats.today.emails;
       
-      document.getElementById('gm-calls').innerText = `${callsToday} / ${goal}`;
-      document.getElementById('gm-emails').innerText = `${emailsToday}`;
+      const setzeText = (id, txt) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = txt;
+      };
+      setzeText('gm-calls', `${callsToday} / ${goal}`);
+      setzeText('gm-emails', `${emailsToday}`);
       
       const todayStr = new Date().toISOString().split('T')[0];
       const lsKey = `dashboard_manual_kpis_${todayStr}`;
@@ -2673,9 +2638,9 @@ window.saveInlineLeadLink = async (sourceId, targetId) => {
     target.linked_leads.push({ id: sourceId, type: reverseType });
   }
 
-  await window.api.saveLead(source);
-  await window.api.saveLead(target);
-  
+  await window.leadStore.save(source.id, { linked_leads: source.linked_leads }, { label: 'Verknüpfung' });
+  await window.leadStore.save(target.id, { linked_leads: target.linked_leads }, { label: 'Verknüpfung' });
+
   if (typeof window.showToast === 'function') window.showToast('Leads verknüpft');
   
   if (window.store.state.currentLeadId === sourceId) {
@@ -2692,12 +2657,12 @@ window.removeLeadLink = async (sourceId, targetId) => {
   const target = leads.find(l => l.id === targetId);
   
   if (source) {
-    source.linked_leads = (source.linked_leads || []).filter(x => x.id !== targetId);
-    await window.api.saveLead(source);
+    const rest = (source.linked_leads || []).filter(x => x.id !== targetId);
+    await window.leadStore.save(source.id, { linked_leads: rest }, { label: 'Verknüpfung' });
   }
   if (target) {
-    target.linked_leads = (target.linked_leads || []).filter(x => x.id !== sourceId);
-    await window.api.saveLead(target);
+    const rest = (target.linked_leads || []).filter(x => x.id !== sourceId);
+    await window.leadStore.save(target.id, { linked_leads: rest }, { label: 'Verknüpfung' });
   }
   
   if (typeof window.showToast === 'function') window.showToast('Verknüpfung entfernt');
@@ -2727,11 +2692,16 @@ window.renderActivity = function(act) {
     if (act.activity_type === 'call') {
       text = 'Anruf';
       if (uname) text += ` – ${uname}`;
+    } else if (act.activity_type === 'message') {
+      // Schriftlicher Kontakt — E-Mail oder WhatsApp, steht in details.
+      text = act.details || 'Nachricht geschrieben';
+      if (uname) text += ` – ${uname}`;
     } else if (act.activity_type === 'email') {
-      text = act.details || 'E-Mail gesendet';
+      // Altbestand aus der Zeit, als nur E-Mail festgehalten wurde
+      text = act.details || 'E-Mail geschrieben';
       if (uname) text += ` – ${uname}`;
     } else if (act.activity_type === 'whatsapp') {
-      text = 'WhatsApp Nachricht gesendet';
+      text = act.details || 'WhatsApp geschrieben';
       if (uname) text += ` – ${uname}`;
     } else if (act.activity_type === 'status_change') {
       text = act.details || 'Status geändert';

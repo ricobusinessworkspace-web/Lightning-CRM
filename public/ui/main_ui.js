@@ -73,47 +73,24 @@ window.setPipeline = async (type) => {
   // Vorher wurde nur ein Wert im Speicher vorgemerkt und darauf gehofft, dass
   // ein Auto-Save ihn aufsammelt. Der zustaendige Wrapper lief aber ins Leere
   // (falsche Ladereihenfolge), also ging die Wiedervorlage immer verloren.
-  window.persistSnooze = async (snoozeMs) => window.queueSave(async () => {
+  window.persistSnooze = async (snoozeMs) => {
     const id = window.store.state.currentSelectedLeadId;
     if (!id) return false;
 
-    const leads = (window.store.state.leads) || [];
-    const lead = leads.find(x => x.id === id);
+    const ok = await window.leadStore.save(id, { snooze_until_ms: snoozeMs }, {
+      label: 'Wiedervorlage'
+    });
+    if (!ok) return false;
 
-    try {
-      await window.api.saveLead({
-        id,
-        snooze_until_ms: snoozeMs,
-        last_edited_ms: lead ? lead.last_edited_ms : undefined
-      });
+    // Vorgemerkte Werte zuruecksetzen, damit saveLeadMain nichts anderes schreibt
+    window.store.state.currentSnoozeOffset = 0;
+    window.store.state.currentSnoozeTargetMs = 0;
+    window.store.state.clearSnooze = false;
 
-      if (lead) lead.snooze_until_ms = snoozeMs;
-      const tc = window.store.state.tabCache;
-      if (tc) {
-        for (const k of Object.keys(tc)) {
-          if (Array.isArray(tc[k])) {
-            const i = tc[k].findIndex(x => x.id === id);
-            if (i !== -1) tc[k][i] = { ...tc[k][i], snooze_until_ms: snoozeMs };
-          }
-        }
-      }
-
-      // Vorgemerkte Werte zuruecksetzen, damit saveLeadMain nichts anderes schreibt
-      window.store.state.currentSnoozeOffset = 0;
-      window.store.state.currentSnoozeTargetMs = 0;
-      window.store.state.clearSnooze = false;
-
-      const cancelContainer = document.getElementById('cancel-snooze-container');
-      if (cancelContainer) cancelContainer.style.display = snoozeMs > Date.now() ? 'block' : 'none';
-
-      window.refreshLeadCard(id);
-      return true;
-    } catch (err) {
-      console.error('persistSnooze:', err);
-      showToast('Wiedervorlage konnte nicht gespeichert werden: ' + err.message, true);
-      return false;
-    }
-  });
+    const cancelContainer = document.getElementById('cancel-snooze-container');
+    if (cancelContainer) cancelContainer.style.display = snoozeMs > Date.now() ? 'block' : 'none';
+    return true;
+  };
 
   // Klick auf eine Auswahl setzt sie. Klick auf die bereits markierte Auswahl
   // hebt sie wieder auf. Beides wird sofort gespeichert.
@@ -294,9 +271,14 @@ window.setPipeline = async (type) => {
     }
   };
 
+  // Angefangene, aber nicht mit Enter bestaetigte Eingaben uebernehmen.
+  // Die Bindung an den Lead ist zwingend: window.currentTasks gehoert immer zu
+  // GENAU einem Lead. Waehrend des Wechsels auf einen anderen Lead darf hier
+  // nichts eingesammelt werden, sonst landen die Aufgaben beim falschen.
   window.capturePendingTasks = () => {
     let changed = false;
-    // Auto-capture any text sitting in the input field when save is clicked (if they forgot to hit Enter)
+    if (!window.currentTasksLeadId) return false;
+
     const remInput = document.getElementById('new-task-input-rem');
     if (remInput && remInput.value.trim() !== '') {
       if (!window.currentTasks) window.currentTasks = [];
@@ -326,6 +308,7 @@ window.setPipeline = async (type) => {
     if (changed && typeof window.renderTasksList === 'function') {
       window.renderTasksList();
     }
+    return changed;
   };
 
   window.getDomDraft = () => {
@@ -352,224 +335,190 @@ window.setPipeline = async (type) => {
   };
 
   // Remove confirmEnrich, autoEnrich, cancelEnrich, etc. (deprecated)
-  window.saveLeadMain = async (id, noClose = false, noRender = false) => window.queueSave(async () => {
-    if (window.store.state.currentSelectedLeadId !== id) {
-        console.warn('saveLeadMain aborted: Lead ID mismatch or no lead selected.');
-        return false;
-    }
-    
-    // Add to session history only when explicitly saved/edited
-    window._sessionRecentLeads = window._sessionRecentLeads || new Set();
-    window._sessionRecentLeads.add(id);
-    window.pendingLocalWrites = window.pendingLocalWrites || new Set();
-    window.pendingLocalWrites.add(id);
-
-    const saveBtn = document.getElementById('main-save-btn');
-    try {
-      if (saveBtn) {
-        saveBtn.classList.add('btn-loading');
-        saveBtn.disabled = true;
-        saveBtn.textContent = 'Speichern...';
-      }
-
-      // Use cached lead data from store, only fetch if missing
-      let lData = window.store.state.leads ? window.store.state.leads.find(x => x.id === id) : null;
-      if (!lData) {
-        lData = (await window.api.getLeads({all:true})).find(x => x.id === id);
-      }
-
-      let sNameNode = document.getElementById('sys-name');
-      const sName = sNameNode ? (sNameNode.innerText || sNameNode.value || '').trim() : (lData ? lData.name : '');
-      const sPhone = document.getElementById('sys-phone')?.value?.trim() ?? (lData ? (lData.phone || '') : '');
-      const sWeb = document.getElementById('sys-web')?.value?.trim() ?? (lData ? (lData.website_url || '') : '');
-      const sEmail = document.getElementById('sys-email')?.value?.trim() ?? (lData ? (lData.email || '') : '');
-
-      const noteEl = document.getElementById('note-input');
-      const notes = noteEl ? noteEl.value : (lData ? (lData.notes || '') : '');
-
-      let stage = document.getElementById('sys-stage')?.value || 'cold';
-      let isKundeVal = parseInt(document.getElementById('sys-k')?.value) || 0;
-      const size = document.getElementById('m-size')?.value || (lData ? (lData.size || 'Tarifkunde') : 'Tarifkunde');
-
-      const sysCityNode = document.getElementById('sys-city');
-      let city = sysCityNode ? sysCityNode.value : (lData ? lData.maps_city : '');
-    
-      // Auto-capture any text sitting in the input fields when save is clicked
-      if (typeof window.capturePendingTasks === 'function') {
-        window.capturePendingTasks();
-      }
-
-      // Erledigte Aufgaben bleiben erhalten — abgehakt, nicht gelöscht.
-      let finalTasks = (window.currentTasks || []);
-      let taskTxt = finalTasks.length > 0 ? JSON.stringify(finalTasks) : '';
-
-      let status = 'Lead';
-      if (isKundeVal) {
-        status = 'Kunde';
-      } else if (lData && lData.status !== 'Kunde') {
-        status = lData.status;
-      }
-
-      let abschlussdatum = lData ? (lData.abschlussdatum || '') : '';
-      let zaehlernummern = lData ? (lData.zaehlernummern || '') : '';
-      let umsatz = lData ? (lData.umsatz || 0) : 0;
-
-      let snoozeMs = lData ? lData.snooze_until_ms : 0;
-    
-      if (window.store.state.clearSnooze) {
-        snoozeMs = 0;
-      } else if (window.store.state.currentSnoozeTargetMs > 0) {
-        snoozeMs = window.store.state.currentSnoozeTargetMs;
-      } else if (window.store.state.currentSnoozeOffset > 0) {
-        snoozeMs = Date.now() + (window.store.state.currentSnoozeOffset * 60 * 60 * 1000);
-      }
-    
-      // Reset snooze state flags after reading
-      window.store.state.clearSnooze = false;
-      window.store.state.currentSnoozeOffset = 0;
-      window.store.state.currentSnoozeTargetMs = 0;
-
-      const latVal = document.getElementById('sys-lat')?.value;
-      const lngVal = document.getElementById('sys-lng')?.value;
-      const lat = latVal ? parseFloat(latVal) : (lData ? lData.lat : null);
-      const lng = lngVal ? parseFloat(lngVal) : (lData ? lData.lng : null);
-    
-      const htmlPlaceIdNode = document.getElementById('sys-placeid');
-      const existingPlaceId = htmlPlaceIdNode ? htmlPlaceIdNode.value.trim() : (lData ? lData.google_place_id : '');
-      const finalPlaceId = window._pendingPlaceId !== null && window._pendingPlaceId !== undefined ? window._pendingPlaceId : existingPlaceId;
-      window._pendingPlaceId = null;
-
-      const starBtn = document.getElementById('sidebar-star-btn');
-      const isStarred = starBtn ? (starBtn.getAttribute('data-starred') === '1' ? 1 : 0) : (lData ? lData.starred : 0);
-      
-      const claimedByNode = document.getElementById('sys-claimed-by');
-      const claimedByVal = claimedByNode ? claimedByNode.value : undefined;
-
-      // ACTUAL DATABASE SAVE ---
-      await window.api.saveLead({ 
-        id, name: sName, phone: sPhone, website_url: sWeb, google_maps_url: '', 
-        notes, stage: stage, size, snooze_until_ms: snoozeMs, 
-        task_text: taskTxt, status: status, maps_city: city, lat, lng, 
-        google_place_id: finalPlaceId, umsatz: umsatz, starred: isStarred,
-        claimed_by: claimedByVal,
-        interest_strom: lData ? lData.interest_strom : 0,
-        interest_gas: lData ? lData.interest_gas : 0,
-        closed_strom: lData ? lData.closed_strom : 0,
-        closed_gas: lData ? lData.closed_gas : 0,
-        zaehlernummern: zaehlernummern,
-        abschlussdatum: abschlussdatum,
-        provi_umsatz: lData ? (lData.provi_umsatz || 0) : 0,
-        opening_hours: lData ? lData.opening_hours : null,
-        email: sEmail,
-        impressum_phone: lData ? lData.impressum_phone : '',
-        legal_company_name: lData ? lData.legal_company_name : '',
-        director_name: lData ? lData.director_name : '',
-        phone_source: lData ? lData.phone_source : '',
-        estimated_kwh: lData ? (lData.estimated_kwh || 0) : 0,
-        locations: lData ? lData.locations : [],
-        linked_leads: lData ? lData.linked_leads : [],
-        last_edited_ms: lData ? lData.last_edited_ms : undefined
-      });
-
-      // SALES BELL TRIGGER — nur sinnvoll, wenn es mehrere Nutzer gibt
-      if (isKundeVal && lData && lData.status !== 'Kunde'
-          && window.isMultiUser && window.isMultiUser()) {
-        try {
-          const bellName = window.globalUser?.name || window.globalUser?.email?.split('@')[0] || 'Ein Agent';
-          window.api.getSessionToken().then(token => {
-            if (!token) return;
-            return fetch('/api/push_sales_bell', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`
-              },
-              body: JSON.stringify({
-                title: '🔔 Deal gewonnen!',
-                message: `${bellName} hat gerade "${sName}" abgeschlossen!`
-              })
-            });
-          }).catch(err => console.error('Sales bell fetch error', err));
-        } catch(e) { console.error('Sales Bell Error:', e); }
-      }
-
-      // ── Silent store patch: update in-memory lead so the card reflects changes ──
-      // We do NOT call loadUi() here to avoid full re-render & race conditions.
-      // Instead we patch the store entry and update just the relevant lead card.
-      let patched = null;
-      if (window.store.state.leads) {
-        const idx = window.store.state.leads.findIndex(x => x.id === id);
-        if (idx !== -1) {
-          // Patch the in-memory lead with what we just saved
-          patched = {
-            ...window.store.state.leads[idx],
-            name: sName, phone: sPhone, website_url: sWeb, email: sEmail,
-            notes, stage: stage, size,
-            status: status, maps_city: city,
-            starred: isStarred
-          };
-          window.store.state.leads[idx] = patched;
-        }
-      }
-      if (patched && window.store && window.store.state && window.store.state.tabCache) {
-        for (const k of Object.keys(window.store.state.tabCache)) {
-          if (Array.isArray(window.store.state.tabCache[k])) {
-            const cIdx = window.store.state.tabCache[k].findIndex(x => x.id === id);
-            if (cIdx !== -1) window.store.state.tabCache[k][cIdx] = { ...window.store.state.tabCache[k][cIdx], ...patched };
-          }
-        }
-      }
-      window.refreshLeadCard(id);
-
-      // Markierung der offenen Karte wiederherstellen
-      document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
-      const updatedCard = document.getElementById(`lead-card-${id}`);
-      if (updatedCard) updatedCard.classList.add('active-lead-card');
-
-      if (saveBtn) {
-        saveBtn.classList.remove('btn-loading');
-        saveBtn.classList.add('btn-success-flash');
-        saveBtn.disabled = false;
-        saveBtn.textContent = '✓ Gespeichert';
-        setTimeout(() => {
-          if (saveBtn) {
-            saveBtn.classList.remove('btn-success-flash');
-            saveBtn.textContent = 'Speichern';
-          }
-        }, 2000);
-      }
-      if (!noRender) showToast("Lead gespeichert!");
-
-      if (!noClose) {
-        setTimeout(() => {
-          if (typeof window.closeLeadSidebar === 'function') {
-            window.closeLeadSidebar();
-          } else {
-            window.store.state.currentSelectedLeadId = null;
-            document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
-            if (typeof window.renderEmptySidebar === 'function') {
-              window.renderEmptySidebar();
-            }
-          }
-        }, 2000);
-      }
-
-      return true;
-    } catch (err) {
-      if (saveBtn) {
-        saveBtn.classList.remove('btn-loading');
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'Speichern';
-      }
-      console.error('saveLeadMain error:', err);
-      if (err.message && err.message.includes('Konflikt')) {
-        showToast(`⚠️ ${err.message}`, true, 9999999);
-      } else {
-        showToast(`Speicher-Fehler: ${err.message}`, true);
-      }
+  // ── saveLeadMain — Formular der Seitenleiste speichern ──────────────────────
+  // Schreibt NUR die Spalten, die sich gegenüber dem bekannten Stand geändert
+  // haben. Vorher gingen alle ~25 Spalten mit — jeder Tastendruck im
+  // Notizfeld hat damit auch Umsatz, Zählernummern und Abschlussdatum neu
+  // geschrieben, obwohl sie niemand angefasst hatte.
+  window.saveLeadMain = async (id, noClose = false, noRender = false) => {
+    if (!id || window.store.state.currentSelectedLeadId !== id) {
+      // Die Seitenleiste zeigt einen anderen Lead — die Formularfelder gehören
+      // dann nicht zu diesem Lead.
       return false;
     }
-  });
+
+    window._sessionRecentLeads = window._sessionRecentLeads || new Set();
+    window._sessionRecentLeads.add(id);
+
+    const saveBtn = document.getElementById('main-save-btn');
+    const nameNode = document.getElementById('sys-name');
+    if (!nameNode) return false; // Seitenleiste zeigt kein Formular
+
+    // Das Formular traegt die ID des Leads, fuer den es gezeichnet wurde.
+    // Waehrend eines Lead-Wechsels steht die Auswahl schon auf dem neuen Lead,
+    // die Felder zeigen aber noch den alten. Ohne diese Pruefung hat ein
+    // Auto-Save in diesem Moment die alten Werte auf den neuen Lead geschrieben.
+    const formular = document.querySelector('.focused-lead[data-lead-id]');
+    if (formular && String(formular.getAttribute('data-lead-id')) !== String(id)) {
+      return false;
+    }
+
+    if (saveBtn) {
+      saveBtn.classList.add('btn-loading');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Speichern...';
+    }
+
+    const fertig = (erfolg) => {
+      if (!saveBtn) return;
+      saveBtn.classList.remove('btn-loading');
+      saveBtn.disabled = false;
+      if (erfolg) {
+        saveBtn.classList.add('btn-success-flash');
+        saveBtn.textContent = '✓ Gespeichert';
+        setTimeout(() => {
+          if (!saveBtn) return;
+          saveBtn.classList.remove('btn-success-flash');
+          saveBtn.textContent = 'Speichern';
+        }, 2000);
+      } else {
+        saveBtn.textContent = 'Speichern';
+      }
+    };
+
+    // Angefangene Eingaben in den Aufgabenfeldern übernehmen, bevor gelesen wird
+    if (typeof window.capturePendingTasks === 'function') window.capturePendingTasks();
+
+    const lData = window.leadStore.get(id);
+
+    // ── Wunschwerte aus dem Formular ─────────────────────────────────────────
+    const wert = (elId, fallback) => {
+      const n = document.getElementById(elId);
+      return n ? (n.value ?? '').trim() : fallback;
+    };
+
+    const stage = document.getElementById('sys-stage')?.value || (lData ? lData.stage : 'cold');
+    const istKunde = (parseInt(document.getElementById('sys-k')?.value) || 0) === 1;
+
+    const kandidat = {
+      name:        (nameNode.innerText || nameNode.value || '').trim(),
+      phone:       wert('sys-phone',  lData ? lData.phone : ''),
+      website_url: wert('sys-web',    lData ? lData.website_url : ''),
+      email:       wert('sys-email',  lData ? lData.email : ''),
+      stage,
+      maps_city:   document.getElementById('sys-city')?.value ?? undefined
+    };
+
+    // Unternehmensgroesse und Zuweisung haben eigene Knoepfe, die selbst
+    // speichern (updateLeadSize / saveAdminAssignment). Hier bewusst nicht
+    // mitlesen — das versteckte Feld #m-size hing frueher am Dokument und
+    // wanderte beim naechsten Lead mit.
+
+    const noteEl = document.getElementById('note-input');
+    if (noteEl) kandidat.notes = noteEl.value;
+
+    // Kunde-Status: einmal Kunde, immer Kunde — nur der Aufstieg wird gesetzt.
+    if (istKunde) kandidat.status = 'Kunde';
+
+    const latVal = document.getElementById('sys-lat')?.value;
+    const lngVal = document.getElementById('sys-lng')?.value;
+    if (latVal) kandidat.lat = parseFloat(latVal);
+    if (lngVal) kandidat.lng = parseFloat(lngVal);
+
+    const starBtn = document.getElementById('sidebar-star-btn');
+    if (starBtn) kandidat.starred = starBtn.getAttribute('data-starred') === '1' ? 1 : 0;
+
+
+    // ── Aufgaben nur schreiben, wenn die Liste zu GENAU diesem Lead gehört ───
+    // window.currentTasks wird beim Öffnen eines Leads neu befüllt. Zwischen
+    // "anderer Lead ist ausgewählt" und "seine Aufgaben sind geladen" liegt ein
+    // Netzwerkaufruf. Ein Auto-Save in diesem Moment hat vorher die Aufgaben des
+    // vorherigen Leads auf den neuen geschrieben — dessen eigene waren weg.
+    if (window.currentTasksLeadId === id) {
+      kandidat.task_text = window.serializeTasks(window.currentTasks);
+    }
+
+    // ── Google-Place-ID ─────────────────────────────────────────────────────
+    // Der Scout merkt eine neue ID unter _pendingPlaceId vor; von Hand
+    // eingetragene landen im versteckten Feld.
+    if (window._pendingPlaceId !== null && window._pendingPlaceId !== undefined) {
+      kandidat.google_place_id = window._pendingPlaceId;
+      window._pendingPlaceId = null;
+    } else {
+      const placeNode = document.getElementById('sys-placeid');
+      if (placeNode) kandidat.google_place_id = placeNode.value.trim();
+    }
+
+    // ── Wiedervorlage: nur wenn sie in dieser Runde vorgemerkt wurde ─────────
+    if (window.store.state.clearSnooze) {
+      kandidat.snooze_until_ms = 0;
+    } else if (window.store.state.currentSnoozeTargetMs > 0) {
+      kandidat.snooze_until_ms = window.store.state.currentSnoozeTargetMs;
+    } else if (window.store.state.currentSnoozeOffset > 0) {
+      kandidat.snooze_until_ms = Date.now() + (window.store.state.currentSnoozeOffset * 60 * 60 * 1000);
+    }
+    window.store.state.clearSnooze = false;
+    window.store.state.currentSnoozeOffset = 0;
+    window.store.state.currentSnoozeTargetMs = 0;
+
+    // Ein leerer Name würde den Lead unauffindbar machen
+    if (!kandidat.name) delete kandidat.name;
+
+    const aenderungen = window.leadStore.diff(id, kandidat);
+    const warVorherKunde = lData && lData.status === 'Kunde';
+
+    if (Object.keys(aenderungen).length === 0) {
+      fertig(true);
+      return true;   // nichts zu tun — kein Netzverkehr, kein Toast
+    }
+
+    const ok = await window.leadStore.save(id, aenderungen, { label: 'Lead' });
+    fertig(ok);
+    if (!ok) return false;
+
+    // Markierung der offenen Karte wiederherstellen
+    document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
+    const updatedCard = document.getElementById(`lead-card-${id}`);
+    if (updatedCard) updatedCard.classList.add('active-lead-card');
+
+    // Sales-Bell nur beim Aufstieg zum Kunden und nur mit mehreren Nutzern
+    if (istKunde && !warVorherKunde && window.isMultiUser && window.isMultiUser()) {
+      window.triggerSalesBell(kandidat.name || (lData ? lData.name : ''));
+    }
+
+    if (!noRender) showToast('Lead gespeichert!');
+
+    if (!noClose) {
+      setTimeout(() => {
+        if (typeof window.closeLeadSidebar === 'function') {
+          window.closeLeadSidebar();
+        } else {
+          window.store.state.currentSelectedLeadId = null;
+          document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
+          if (typeof window.renderEmptySidebar === 'function') window.renderEmptySidebar();
+        }
+      }, 2000);
+    }
+    return true;
+  };
+
+  // Push an alle anderen Nutzer, wenn ein Abschluss zustande kommt.
+  window.triggerSalesBell = (leadName) => {
+    try {
+      const bellName = window.globalUser?.name || window.globalUser?.email?.split('@')[0] || 'Ein Agent';
+      window.api.getSessionToken().then(token => {
+        if (!token) return;
+        return fetch('/api/push_sales_bell', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            title: '🔔 Deal gewonnen!',
+            message: `${bellName} hat gerade "${leadName}" abgeschlossen!`
+          })
+        });
+      }).catch(err => console.error('Sales bell fetch error', err));
+    } catch (e) { console.error('Sales Bell Error:', e); }
+  };
 
   window.cancelSnooze = async () => {
     const btnHours = document.getElementById('snz-hours');
@@ -584,22 +533,8 @@ window.setPipeline = async (type) => {
     }
   };
 
-  // ── Schreibvorgaenge nacheinander ausfuehren ───────────────────────────────
-  // Ein Klick kann mehrere Speichervorgaenge gleichzeitig ausloesen: der
-  // Snooze-Knopf schreibt selbst, und derselbe Klick nimmt den Fokus aus dem
-  // vorherigen Feld, was den Auto-Save startet. Beide schicken den Stand von
-  // VOR dem jeweils anderen mit — die Konfliktpruefung in db.js schlaegt dann
-  // an, obwohl es die eigene Aenderung war.
-  //
-  // Die Warteschlange laesst sie nacheinander laufen. Jeder Vorgang sieht
-  // damit den aktualisierten Stand des vorherigen.
-  window._saveChain = window._saveChain || Promise.resolve();
-  window.queueSave = (fn) => {
-    const next = window._saveChain.then(() => fn());
-    // Kette darf durch einen Fehler nicht abreissen
-    window._saveChain = next.then(() => {}, () => {});
-    return next;
-  };
+  // Warteschlange und der einzige Schreibweg liegen in core/leadstore.js.
+  // window.queueSave und window.leadStore stehen von dort bereit.
 
   // Nach dem Speichern nur die betroffene Karte auffrischen. Nur wenn die
   // Karte nicht im DOM ist (anderer Reiter, Aufgaben-Ansicht), wird die
@@ -625,42 +560,59 @@ window.setPipeline = async (type) => {
   // darauf gehofft, dass der Auto-Save durch ein Klick-Nebengeräusch ausgelöst
   // wird. Bei Buttons passiert das nicht — deshalb waren Aufgaben "nicht
   // löschbar" und tauchten nach dem Neuladen wieder auf.
-  window.persistTasks = async () => window.queueSave(async () => {
+  // ── Aufgabenliste an einen Lead binden ─────────────────────────────────────
+  // window.currentTasks gehoert immer zu GENAU einem Lead. Die Bindung
+  // (currentTasksLeadId) ist zwingend: ohne sie schreibt ein verzoegerter
+  // Speichervorgang die Aufgaben des zuletzt geoeffneten Leads auf den
+  // gerade ausgewaehlten — dessen eigene sind dann weg.
+  window.bindTasksToLead = (lead) => {
+    window.currentTasks = [];
+    window.currentTasksLeadId = lead ? lead.id : null;
+    if (!lead) return;
+
+    const txt = lead.task_text;
+    if (txt && txt.trim().startsWith('[')) {
+      try {
+        const parsed = JSON.parse(txt);
+        if (Array.isArray(parsed)) window.currentTasks = parsed;
+      } catch (e) {
+        console.warn('Aufgaben von Lead ' + lead.id + ' nicht lesbar:', e);
+      }
+    } else if (txt && txt.trim() !== '') {
+      // Altbestand: freier Text -> eine Aufgabe. Feste ID aus der Lead-ID,
+      // damit sie beim erneuten Öffnen nicht jedes Mal eine neue bekommt.
+      window.currentTasks = [{ id: lead.id, text: txt, done: false, deadline: '', subtasks: [] }];
+    }
+
+    // Fehlende Felder ergänzen, damit Altbestand nicht durch die Anzeige fällt
+    window.currentTasks = window.currentTasks
+      .filter(t => t && typeof t.text === 'string')
+      .map(t => ({
+        id: (typeof t.id === 'number' && !isNaN(t.id)) ? t.id : window.newTaskId(),
+        text: t.text,
+        done: !!t.done,
+        deadline: t.deadline || '',
+        subtasks: Array.isArray(t.subtasks) ? t.subtasks : []
+      }));
+  };
+
+  window.persistTasks = async () => {
     const leadId = window.currentTasksLeadId;
     if (!leadId) return false;
 
-    const tasks = window.currentTasks || [];
-    const taskTxt = tasks.length > 0 ? JSON.stringify(tasks) : '';
+    return window.leadStore.save(
+      leadId,
+      { task_text: window.serializeTasks(window.currentTasks) },
+      { label: 'Aufgabe' }
+    );
+  };
 
-    const leads = (window.store && window.store.state && window.store.state.leads) || [];
-    const lead = leads.find(x => x.id === leadId);
-
-    try {
-      await window.api.saveLead({
-        id: leadId,
-        task_text: taskTxt,
-        last_edited_ms: lead ? lead.last_edited_ms : undefined
-      });
-
-      // Karte in der Liste sofort mitziehen (Aufgaben-Symbol)
-      if (lead) lead.task_text = taskTxt;
-      const tc = window.store && window.store.state && window.store.state.tabCache;
-      if (tc) {
-        for (const k of Object.keys(tc)) {
-          if (Array.isArray(tc[k])) {
-            const i = tc[k].findIndex(x => x.id === leadId);
-            if (i !== -1) tc[k][i] = { ...tc[k][i], task_text: taskTxt };
-          }
-        }
-      }
-      window.refreshLeadCard(leadId);
-      return true;
-    } catch (err) {
-      console.error('persistTasks:', err);
-      showToast('Aufgabe konnte nicht gespeichert werden: ' + err.message, true);
-      return false;
-    }
-  });
+  // Aufgabenliste -> Datenbankfeld. Leere Liste wird als leerer Text
+  // gespeichert, damit die Karte kein Aufgaben-Zeichen mehr anzeigt.
+  window.serializeTasks = (tasks) => {
+    const list = Array.isArray(tasks) ? tasks : [];
+    return list.length > 0 ? JSON.stringify(list) : '';
+  };
 
   window.renderTasksList = () => {
     const listDiv = document.getElementById('tasks-list');
@@ -965,7 +917,34 @@ window.setPipeline = async (type) => {
     if (statusNode) statusNode.value = 'Erreicht';
   };
 
-  // ── copyEmail — F5: DOES NOT save lead data. Only copies + logs email. ───────
+  // ── Schriftlicher Kontakt festhalten ───────────────────────────────────────
+  // E-Mail und WhatsApp sind fuer die Nachverfolgung dasselbe Ereignis:
+  // "Ich habe dem Kunden geschrieben". Beide Wege landen hier.
+  // Lead-Daten werden dabei NICHT gespeichert — nur die Aktivitaet.
+  window.logContactMessage = async (id, kanal = 'email') => {
+    try {
+      await window.api.logMessage(id, kanal);
+      await window.updateTrayCount();
+      if (typeof window.pushLeadActivity === 'function') {
+        window.pushLeadActivity(id, {
+          activity_type: 'message',
+          details: kanal === 'whatsapp' ? 'WhatsApp geschrieben' : 'E-Mail geschrieben',
+          ts: Date.now(),
+          by_user_name: window.globalUser?.name || 'Ich'
+        });
+      }
+      return true;
+    } catch (err) {
+      console.warn('Nachricht konnte nicht festgehalten werden:', err);
+      return false;
+    }
+  };
+
+  // WhatsApp-Symbol neben der Telefonnummer: oeffnet wa.me UND haelt fest,
+  // dass geschrieben wurde. Vorher wurde der Kontakt nirgends vermerkt.
+  window.logWhatsAppContact = (id) => window.logContactMessage(id, 'whatsapp');
+
+  // E-Mail-Adresse kopieren und den Kontakt festhalten.
   window.copyEmail = async (e, id, email) => {
     const emailInput = document.getElementById('sys-email');
     const targetEmail = emailInput ? emailInput.value.trim() : email;
@@ -973,25 +952,12 @@ window.setPipeline = async (type) => {
 
     try {
       await window.api.copyText(targetEmail);
-    } catch(err) {
+    } catch (err) {
       console.log('Clipboard fallback error:', err);
     }
 
-    // Persist email log immediately
-    try {
-      await window.api.logEmail(id);
-      await window.updateTrayCount();
-      if (typeof window.pushLeadActivity === 'function') {
-        const uName = window.globalUser?.name || 'Ich';
-        window.pushLeadActivity(id, {
-          activity_type: 'email',
-          details: 'E-Mail gesendet',
-          ts: Date.now(),
-          by_user_name: uName
-        });
-      }
-    } catch(err) { console.warn('Email log failed:', err); }
-    
+    await window.logContactMessage(id, 'email');
+
     const btn = e.currentTarget || e.target;
     if (btn && btn.tagName === 'BUTTON') {
       const orig = btn.innerText;
@@ -1060,16 +1026,11 @@ window.setPipeline = async (type) => {
       try {
         const l = await window.resolveLead(id);
         if (l) {
-          l.status = 'Uninteressant';
-          l.task_text = '';
-          l.snooze_until_ms = 0;
-          await window.api.saveLead({
-            id: l.id,
+          await window.leadStore.save(id, {
             status: 'Uninteressant',
             task_text: '',
-            snooze_until_ms: 0,
-            last_edited_ms: l.last_edited_ms
-          });
+            snooze_until_ms: 0
+          }, { label: 'Archivieren', noRefresh: true });
           if (typeof window.renderEmptySidebar === 'function') {
             window.renderEmptySidebar();
           } else {
@@ -1085,33 +1046,6 @@ window.setPipeline = async (type) => {
         showToast("Fehler beim Archivieren.", true);
       }
     });
-  };
-
-  window.toggleAnalytics = async (isUpdate = false) => {
-    const modal = document.getElementById('analytics-modal');
-    if (!isUpdate) {
-        modal.classList.toggle('hidden');
-    }
-    
-    if (!modal.classList.contains('hidden')) {
-      const range = document.getElementById('stat-range') ? document.getElementById('stat-range').value : 'today';
-      const stats = await window.api.getStats(range);
-      
-      document.getElementById('stat-calls').innerText = stats.totalDone || 0;
-      document.getElementById('stat-ent').innerText = stats.pitch || 0;
-      document.getElementById('stat-term').innerText = stats.data || 0;
-      
-      const elUmsatz = document.getElementById('stat-umsatz');
-      if (elUmsatz) elUmsatz.innerText = (stats.umsatz || 0).toLocaleString('de-DE');
-      
-      const elEntConv = document.getElementById('stat-ent-conv');
-      if (elEntConv) elEntConv.innerText = `${stats.callsToEntscheider || 0}% C-t-E`;
-      
-      const elTermConv = document.getElementById('stat-term-conv');
-      if (elTermConv) elTermConv.innerText = `${stats.callsToTermin || 0}% C-t-T`;
-      
-      if (typeof updateGoals === 'function') updateGoals();
-    }
   };
 
   window.toggleSettings = () => {
@@ -1254,8 +1188,7 @@ window.setPipeline = async (type) => {
       const fullList = await window.api.getLeads({ all: true });
       const l = fullList.find(x => x.id === id);
       if (l) {
-        l.status = 'Lead';
-        await window.api.saveLead(l);
+        await window.leadStore.save(id, { status: 'Lead' }, { label: 'Reaktivieren', noRefresh: true });
         showToast("Lead erfolgreich reaktiviert! 🎉");
         
         await loadUi();
