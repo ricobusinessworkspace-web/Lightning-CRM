@@ -106,7 +106,7 @@ window.setPipeline = async (type) => {
       const cancelContainer = document.getElementById('cancel-snooze-container');
       if (cancelContainer) cancelContainer.style.display = snoozeMs > Date.now() ? 'block' : 'none';
 
-      if (typeof window.loadUi === 'function') window.loadUi(true);
+      window.refreshLeadCard(id);
       return true;
     } catch (err) {
       console.error('persistSnooze:', err);
@@ -519,9 +519,9 @@ window.setPipeline = async (type) => {
           }
         }
       }
-      if (typeof window.loadUi === 'function') window.loadUi(true);
+      window.refreshLeadCard(id);
 
-      // Update the lead card in the list silently (just update the active-lead-card highlight)
+      // Markierung der offenen Karte wiederherstellen
       document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
       const updatedCard = document.getElementById(`lead-card-${id}`);
       if (updatedCard) updatedCard.classList.add('active-lead-card');
@@ -584,6 +584,14 @@ window.setPipeline = async (type) => {
     }
   };
 
+  // Nach dem Speichern nur die betroffene Karte auffrischen. Nur wenn die
+  // Karte nicht im DOM ist (anderer Reiter, Aufgaben-Ansicht), wird die
+  // ganze Liste neu gezeichnet.
+  window.refreshLeadCard = (leadId) => {
+    if (window.patchLeadCard && window.patchLeadCard(leadId)) return;
+    if (typeof window.loadUi === 'function') window.loadUi(true);
+  };
+
   // ── Aufgaben: eindeutige IDs ───────────────────────────────────────────────
   // Vorher war die ID schlicht Date.now(). Zwei Aufgaben in derselben
   // Millisekunde bekamen dieselbe ID — dann traf jede Aktion die falsche.
@@ -628,7 +636,7 @@ window.setPipeline = async (type) => {
           }
         }
       }
-      if (typeof window.loadUi === 'function') window.loadUi(true);
+      window.refreshLeadCard(leadId);
       return true;
     } catch (err) {
       console.error('persistTasks:', err);

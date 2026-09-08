@@ -912,6 +912,9 @@ if (typeof window.renderDashboard === 'function') {
         `;
     };
 
+    // Fuer das gezielte Aktualisieren einer einzelnen Karte (siehe patchLeadCard)
+    window._renderLeadCard = renderSingleLead;
+
     const renderLeadList = (list) => {
         if (!list || list.length === 0) return '';
         const MAX_INITIAL = 50;
@@ -2814,6 +2817,35 @@ window.pushLeadActivity = function(leadId, activity) {
     if (container && lead) {
       container.innerHTML = window.renderSidebarActivities(lead);
     }
+};
+
+// ── Eine einzelne Karte aktualisieren ────────────────────────────────────────
+// Vorher wurde nach jedem Speichern die komplette Liste neu gezeichnet. Das
+// kostet Scrollposition, flackert und ordnet Karten unter dem Cursor um.
+// Hier wird nur der betroffene Knoten getauscht.
+// Rueckgabe false = Karte nicht im DOM (anderer Reiter, noch nicht nachgeladen),
+// dann faellt der Aufrufer auf das vollstaendige Neuzeichnen zurueck.
+window.patchLeadCard = (leadId) => {
+  try {
+    if (typeof window._renderLeadCard !== 'function') return false;
+    const el = document.getElementById(`lead-card-${leadId}`);
+    if (!el) return false;
+
+    const lead = ((window.store && window.store.state && window.store.state.leads) || [])
+      .find(x => x.id === leadId);
+    if (!lead) return false;
+
+    const tmp = document.createElement('div');
+    tmp.innerHTML = window._renderLeadCard(lead);
+    const fresh = tmp.firstElementChild;
+    if (!fresh) return false;
+
+    el.replaceWith(fresh);
+    return true;
+  } catch (e) {
+    console.warn('patchLeadCard:', e);
+    return false;
+  }
 };
 
 // Feld verlassen = Eingabe fertig -> sofort speichern, nicht erst nach der

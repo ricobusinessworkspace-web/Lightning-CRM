@@ -16,7 +16,7 @@ dom.window.eval(code);
 
 // _autoSaveNow / _triggerAutoSave liegen in pipeline_ui.js — nur diesen Teil laden
 const pipeSrc = fs.readFileSync('public/ui/pipeline_ui.js', 'utf8');
-const autoSaveBlock = pipeSrc.slice(pipeSrc.indexOf('window._autoSaveNow = () => {'));
+const autoSaveBlock = pipeSrc.slice(pipeSrc.indexOf('window.patchLeadCard = (leadId) => {'));
 dom.window.eval(autoSaveBlock.slice(0, autoSaveBlock.indexOf('window._debouncedSave();') + 30));
 
 const ok = [];
@@ -136,6 +136,36 @@ check('Kein Rest in clearSnooze', w.store.state.clearSnooze === false);
 // ── 7. Sofort-Speichern beim Verlassen eines Feldes ────────────────────────
 check('_autoSaveNow existiert', typeof w._autoSaveNow === 'function');
 check('debounce laesst sich abbrechen', typeof w.debounce(() => {}, 10).cancel === 'function');
+
+
+// ── 8. Speichern zeichnet nur die betroffene Karte neu ─────────────────────
+w.store.state.leads = [
+  { id: 7, name: 'Alpha', snooze_until_ms: 0, last_edited_ms: 1 },
+  { id: 8, name: 'Beta',  snooze_until_ms: 0, last_edited_ms: 1 }
+];
+let renderAufrufe = 0;
+w._renderLeadCard = (l) => { renderAufrufe++; return `<div class="lead-card" id="lead-card-${l.id}">${l.name}</div>`; };
+
+const liste = w.document.createElement('div');
+liste.innerHTML = '<div class="lead-card" id="lead-card-7">Alpha</div><div class="lead-card" id="lead-card-8">Beta</div>';
+w.document.body.appendChild(liste);
+const knotenVorher = w.document.getElementById('lead-card-8');
+
+w.store.state.leads[0].name = 'Alpha NEU';
+const getauscht = w.patchLeadCard(7);
+check('Karte wird getauscht', getauscht === true);
+check('Nur eine Karte neu gezeichnet', renderAufrufe === 1);
+check('Inhalt ist aktuell', w.document.getElementById('lead-card-7').textContent === 'Alpha NEU');
+check('Nachbarkarte bleibt derselbe Knoten', w.document.getElementById('lead-card-8') === knotenVorher);
+
+check('Unbekannte Karte meldet false', w.patchLeadCard(999) === false);
+
+let vollNeu = 0;
+w.loadUi = () => { vollNeu++; };
+w.refreshLeadCard(7);
+check('Vorhandene Karte loest kein Neuzeichnen aus', vollNeu === 0);
+w.refreshLeadCard(999);
+check('Fehlende Karte faellt auf Neuzeichnen zurueck', vollNeu === 1);
 
 console.log('\n✅ BESTANDEN (' + ok.length + ')');
 ok.forEach(t => console.log('   ' + t));
