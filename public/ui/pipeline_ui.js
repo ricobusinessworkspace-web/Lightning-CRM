@@ -764,10 +764,10 @@ if (typeof window.renderDashboard === 'function') {
         const sMap = getLeadStatusMap(l);
         let titleColor = sMap.color;
         let milestone = sMap.label;
-        // Offene Aufgaben sind in JEDEM Reiter am Symbol erkennbar.
-        const taskBadge = sMap.isTask
-          ? `<span title="Offene Aufgabe" style="display:inline-flex; align-items:center; gap:3px; font-size:10px; font-weight:700; color:#ffd60a; background:rgba(255,214,10,0.12); border:1px solid rgba(255,214,10,0.35); border-radius:5px; padding:1px 5px; margin-left:6px; vertical-align:middle; white-space:nowrap;">✓ Aufgabe</span>`
-          : '';
+        // Offene Aufgabe: kleines "+" hinter dem Pipeline-Status.
+        if (sMap.isTask) {
+           milestone += ' +';
+        }
 
         const isSnoozed = (l.snooze_until_ms || 0) > Date.now();
         let snoozeBadge = '';
@@ -888,7 +888,7 @@ if (typeof window.renderDashboard === 'function') {
           
           <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-start; min-width: 0;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
-              <div class="lead-prio ${titleColor}" style="margin-bottom:0; display:flex; align-items:center;">${milestone}${taskBadge}</div>
+              <div class="lead-prio ${titleColor}" style="margin-bottom:0;">${milestone}</div>
               <div style="display:flex; align-items:center; gap:6px;">
                 ${starHtml}
               </div>
