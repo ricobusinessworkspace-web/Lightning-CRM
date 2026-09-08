@@ -1,4 +1,22 @@
 -- ═══════════════════════════════════════════════════════════════════════════
+-- ⛔ NICHT AUSFÜHREN — durch Befund vom 08.09.2026 überholt.
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Die Prüfung der echten Zugriffsregeln hat ergeben: es gibt KEINE offene
+-- Regel für nicht eingeloggte Besucher. Jede Regel auf den CRM-Tabellen
+-- verlangt eine angemeldete Sitzung. Die Annahme "Allow all for anon" stammte
+-- aus scratch/schema.sql — die Datei ist veraltet und bildet den Live-Stand
+-- nicht ab.
+--
+-- Dieses Skript würde funktionierende, feiner abgestufte Regeln durch eine
+-- gröbere ersetzen. Es bleibt nur als Vorlage liegen, falls die Regeln einmal
+-- komplett neu aufgebaut werden müssen.
+--
+-- Der tatsächlich offene Punkt ist ein anderer: core_goals, core_intentions,
+-- core_metric_definitions und core_metric_sources haben gar keinen Schutz.
+-- Die gehören nicht zum CRM.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- Lightning CRM — Zugang auf den eigenen Account beschränken (Dev-Phase)
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Nutzer löschen allein reicht NICHT. Zwei Türen bleiben sonst offen:

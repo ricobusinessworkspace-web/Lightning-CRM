@@ -73,10 +73,15 @@ setzen und alles ist wieder da.
 1. `multiUser: true` setzen.
 2. Supabase → Authentication → Sign In / Providers → Email → "Allow new users to
    sign up" wieder an (nur nötig, wenn Selbst-Registrierung gewünscht ist).
-3. **Zugriffsregeln schärfen.** Die Regel `dev_authenticated_only` aus
-   `admin_scripts/lockdown_dev.sql` erlaubt jedem eingeloggten Nutzer alles —
-   inklusive fremder Leads und Rollenänderungen. Das ist für den Einzelbetrieb
-   in Ordnung, für zwei Nutzer nicht.
+3. **Zugriffsregeln schärfen.** Auf `crm_leads` liegt die Regel
+   `auth_full_access` (jeder Angemeldete darf alles). Sie steht neben feiner
+   abgestuften Regeln wie "Agents can read their own or unassigned leads" —
+   und weil solche Regeln additiv wirken, gewinnt immer die großzügigste.
+   Die Rollentrennung existiert also aktuell nur in der Oberfläche, nicht in
+   der Datenbank. Für einen Nutzer egal, ab dem zweiten nicht mehr.
+   Zusätzlich: die Datenbank wird von weiteren Apps mitbenutzt (jarvis_*,
+   g_*, tracker_*). Ein Login gilt überall — wer für den Tracker einen
+   Account bekommt, sieht damit auch die CRM-Leads.
 4. Vercel: `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` setzen, sonst bleibt der
    Sales-Bell-Push stumm.
 5. `saveLeadMain` in `public/ui/main_ui.js` schreibt beim Speichern alle Spalten
@@ -87,4 +92,5 @@ setzen und alles ist wieder da.
 
 - `admin_scripts/inspect_user_columns.sql` — zeigt, welche Spalten auf Nutzer verweisen
 - `admin_scripts/reset_users_dev.sql` — alle Nutzer außer einem entfernen (irreversibel)
-- `admin_scripts/lockdown_dev.sql` — Datenbank-Zugriff auf eingeloggte Nutzer beschränken
+- `admin_scripts/lockdown_dev.sql` — NICHT ausführen, durch Prüfung überholt (siehe Kopf der Datei)
+- `admin_scripts/check_shared_project.sql` — prüft, ob Daten auf gelöschte Accounts zeigen

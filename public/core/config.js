@@ -17,10 +17,11 @@
  *   2. In Supabase: Authentication → Sign In / Providers → Email →
  *      "Allow new users to sign up" wieder an (nur falls Selbst-Registrierung
  *      gewünscht ist; über Einladungen geht es auch ohne).
- *   3. In Supabase die Zugriffsregel schärfen: die Regel "dev_authenticated_only"
- *      aus admin_scripts/lockdown_dev.sql erlaubt JEDEM eingeloggten Nutzer
- *      ALLES — inklusive fremder Leads und Rollenänderungen. Vor dem zweiten
- *      Nutzer muss die durch echte Per-Nutzer-Regeln ersetzt werden.
+ *   3. In Supabase die Zugriffsregeln schärfen: auf crm_leads liegt die Regel
+ *      "auth_full_access" (jeder Angemeldete darf alles). Sie hebelt die feiner
+ *      abgestuften Agent-Regeln daneben aus, weil solche Regeln additiv wirken.
+ *      Die Rollentrennung existiert aktuell nur in der Oberfläche.
+ *      Zudem teilen sich mehrere Apps diese Datenbank — ein Login gilt überall.
  *   4. Vercel: VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY setzen, sonst bleibt der
  *      Sales-Bell-Push aus (siehe api/push_sales_bell.js).
  *   5. saveLeadMain in public/ui/main_ui.js schreibt beim Speichern ALLE Spalten
