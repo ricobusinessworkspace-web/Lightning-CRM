@@ -50,3 +50,41 @@ git add .
 git commit -m "feat/fix: description"
 git push origin master
 ```
+
+## Einzelplatz-Modus (aktuell aktiv)
+
+Das CRM läuft derzeit für genau einen Nutzer. Gesteuert wird das über **einen
+einzigen Schalter** in `public/core/config.js`:
+
+```js
+window.APP_CONFIG = { multiUser: false };
+```
+
+Bei `false` ist ausgeblendet: Registrierung, Einladungen, Nutzerverwaltung,
+Rollen-Anzeige, Lead-Zuweisung (inkl. Avatare und Zuweisungs-Filter),
+Sales-Bell-Push und das Punkte-/Level-System.
+
+**Nichts davon wurde gelöscht.** Weder der Code, noch die Serverfunktionen unter
+`/api`, noch die Datenbankspalten (`claimed_by`, `by_user_id`, …). Auf `true`
+setzen und alles ist wieder da.
+
+### Bevor wieder mehrere Leute damit arbeiten
+
+1. `multiUser: true` setzen.
+2. Supabase → Authentication → Sign In / Providers → Email → "Allow new users to
+   sign up" wieder an (nur nötig, wenn Selbst-Registrierung gewünscht ist).
+3. **Zugriffsregeln schärfen.** Die Regel `dev_authenticated_only` aus
+   `admin_scripts/lockdown_dev.sql` erlaubt jedem eingeloggten Nutzer alles —
+   inklusive fremder Leads und Rollenänderungen. Das ist für den Einzelbetrieb
+   in Ordnung, für zwei Nutzer nicht.
+4. Vercel: `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` setzen, sonst bleibt der
+   Sales-Bell-Push stumm.
+5. `saveLeadMain` in `public/ui/main_ui.js` schreibt beim Speichern alle Spalten
+   zurück. Bei einem Nutzer folgenlos, bei zweien überschreibt man sich
+   gegenseitig — vorher auf Teil-Updates umbauen.
+
+### Admin-Skripte
+
+- `admin_scripts/inspect_user_columns.sql` — zeigt, welche Spalten auf Nutzer verweisen
+- `admin_scripts/reset_users_dev.sql` — alle Nutzer außer einem entfernen (irreversibel)
+- `admin_scripts/lockdown_dev.sql` — Datenbank-Zugriff auf eingeloggte Nutzer beschränken

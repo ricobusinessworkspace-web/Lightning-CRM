@@ -55,7 +55,7 @@
         <div id="login-error" style="color: #ff453a; font-size: 12px; margin-top: 12px; display: none;"></div>
       </form>
       <div style="margin-top: 16px; font-size: 12px; color: var(--text-muted);">
-        Noch keinen Account? <a href="#" onclick="toggleAuthMode()" id="auth-mode-toggle" style="color: var(--accent); text-decoration: none; font-weight: 600;">Registrieren</a>
+        <span id="register-hint">Noch keinen Account? </span><a href="#" onclick="toggleAuthMode()" id="auth-mode-toggle" style="color: var(--accent); text-decoration: none; font-weight: 600;">Registrieren</a>
       </div>
     </div>
   </div>
@@ -205,7 +205,7 @@
         </div>
 
         <!-- Group: Notifications -->
-        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 18px; border-radius: 12px;">
+        <div id="settings-notifications-group" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 18px; border-radius: 12px;">
           <h3 style="margin: 0 0 10px 0; font-size: 13px; font-weight: 700; color: var(--text-main); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;">
             🔔 Sales Bell (Beta)
           </h3>
@@ -391,6 +391,7 @@
       </div>
     </div>
 
+  <script src="core/config.js?v=4.3"></script>
   <script type="module" src="core/auth.js?v=4.2"></script>
   <script src="core/store.js?v=4.2"></script>
   <script src="core/state.js?v=4.2"></script>

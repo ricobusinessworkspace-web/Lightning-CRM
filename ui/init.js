@@ -47,7 +47,36 @@ window.addEventListener('online', () => {
   window.globalUsersList = [];
   let isRegisterMode = false;
 
+  // ── Einzelplatz-Modus ──────────────────────────────────────────────────────
+  // Blendet alles aus, was nur mit mehreren Nutzern Sinn ergibt. Nichts wird
+  // geloescht — Schalter steht in core/config.js (multiUser).
+  const applySingleUserMode = () => {
+    if (window.isMultiUser && window.isMultiUser()) return;
+
+    const hide = (id) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    };
+
+    hide('register-hint');            // "Noch keinen Account?"
+    hide('auth-mode-toggle');         // Registrieren-Link
+    hide('open-user-mgmt-btn');       // Nutzerverwaltung
+    hide('settings-notifications-group'); // Sales Bell (Push)
+  };
+  window.applySingleUserMode = applySingleUserMode;
+
+  // Nutzerliste laden — im Einzelplatz-Modus reicht der eigene Account.
+  const loadUsersList = async () => {
+    if (window.isMultiUser && window.isMultiUser()) {
+      try { return await window.api.getUsers(); } catch (e) { console.warn(e); return []; }
+    }
+    return globalUser ? [{ id: globalUser.id, name: globalUser.name, role: globalUser.role }] : [];
+  };
+
+  applySingleUserMode();
+
   window.toggleAuthMode = () => {
+    if (!window.isMultiUser || !window.isMultiUser()) return; // Einzelplatz: keine Neuanmeldung
     isRegisterMode = !isRegisterMode;
     document.getElementById('login-btn').innerText = isRegisterMode ? 'Account erstellen' : 'Einloggen';
     document.getElementById('auth-mode-toggle').innerText = isRegisterMode ? 'Zum Login' : 'Registrieren';
@@ -73,6 +102,7 @@ window.addEventListener('online', () => {
 
   window.updateRPUI = async () => {
     if (!globalUser) return;
+    if (!window.isMultiUser || !window.isMultiUser()) return;
     try {
       const rp = await window.api.getUserRP(globalUser.id);
       let currentLevel = STUFEN[0];
@@ -143,7 +173,7 @@ window.addEventListener('online', () => {
        headerInitial.innerText = dispName.charAt(0).toUpperCase();
     }
     
-    window.api.getUsers().then(users => window.globalUsersList = users);
+    loadUsersList().then(users => window.globalUsersList = users);
     
     // Init App
     if(typeof loadApiKey === 'function') loadApiKey();
@@ -151,7 +181,7 @@ window.addEventListener('online', () => {
     if(typeof autoGeocode === 'function') autoGeocode();
     if (window.updateTrayCount) window.updateTrayCount();
     if (window.updateRPUI) window.updateRPUI();
-
+    applySingleUserMode();
   }
 
   async function checkAuth() {
@@ -189,7 +219,7 @@ window.addEventListener('online', () => {
            headerInitial.innerText = dispName.charAt(0).toUpperCase();
         }
         
-        window.globalUsersList = await window.api.getUsers();
+        window.globalUsersList = await loadUsersList();
         
         if (globalUser.role === 'admin' || globalUser.role === 'developer') {
           const navDash = document.getElementById('nav-dashboard');
@@ -203,6 +233,7 @@ window.addEventListener('online', () => {
         if (window.updateTrayCount) window.updateTrayCount();
         if (window.updateRPUI) window.updateRPUI();
         if (window.updateGlobalMetrics) window.updateGlobalMetrics();
+        applySingleUserMode();
       } else {
         if(splash) splash.classList.add('splash-hidden');
         loginModal.style.display = 'flex';
@@ -294,7 +325,9 @@ window.addEventListener('online', () => {
     
     const userMgmtBtn = document.getElementById('open-user-mgmt-btn');
     if (userMgmtBtn) {
-      if (globalUser?.role === 'admin' || globalUser?.role === 'developer') {
+      const mayManage = (window.isMultiUser && window.isMultiUser())
+        && (globalUser?.role === 'admin' || globalUser?.role === 'developer');
+      if (mayManage) {
         userMgmtBtn.style.display = 'flex';
       } else {
         userMgmtBtn.style.display = 'none';

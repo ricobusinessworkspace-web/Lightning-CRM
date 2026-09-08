@@ -652,6 +652,7 @@ if (typeof window.renderDashboard === 'function') {
     st.advFilterTask   = st.advFilterTask   || 'all';
     st.advFilterLink   = st.advFilterLink   || 'all';
 
+    const showAssignFilter = !!(window.isMultiUser && window.isMultiUser());
     let userOptions = `<option value="all" ${st.advFilterAssign === 'all' ? 'selected' : ''}>Alle Leads</option>`;
     userOptions += `<option value="me" ${st.advFilterAssign === 'me' ? 'selected' : ''}>Meine Leads</option>`;
     userOptions += `<option value="unassigned" ${st.advFilterAssign === 'unassigned' ? 'selected' : ''}>Nicht zugewiesen</option>`;
@@ -678,7 +679,7 @@ if (typeof window.renderDashboard === 'function') {
       
       <div id="adv-filter-dropdown" style="display:none; position:absolute; top:40px; right:0; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; width:260px; z-index: var(--z-dropdown, 1000); box-shadow: var(--shadow-md, 0 10px 30px rgba(0,0,0,0.5));">
         
-        <div style="margin-bottom:12px;">
+        <div style="margin-bottom:12px; ${showAssignFilter ? '' : 'display:none;'}">
           <label style="display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase;">Zuweisung</label>
           <select class="modern-input" style="width:100%; padding:6px 8px; font-size:13px; border-radius:6px; background:var(--color-surface-hover, #1c1c1e); color:white; border:none; outline:none;" onchange="window.setAdvFilter('advFilterAssign', this.value)">
             ${userOptions}
@@ -882,7 +883,7 @@ if (typeof window.renderDashboard === 'function') {
          
          activityLog = `<div style="margin-top: 2px; display: flex; flex-direction: column; gap: 3px;">${cityHtml}${recentActivitiesHtml}${ohHtml}</div>`;
         let avatarHtml = '';
-        if (l.claimed_by && window.globalUsersList) {
+        if (l.claimed_by && window.globalUsersList && window.isMultiUser && window.isMultiUser()) {
            const assignedUser = window.globalUsersList.find(u => u.id === l.claimed_by);
            if (assignedUser && assignedUser.name) {
              const initial = assignedUser.name.charAt(0).toUpperCase();
@@ -1194,7 +1195,7 @@ if (typeof window.renderDashboard === 'function') {
           }
           
           let avatarHtml = '';
-          if (lead.claimed_by && window.globalUsersList) {
+          if (lead.claimed_by && window.globalUsersList && window.isMultiUser && window.isMultiUser()) {
              const assignedUser = window.globalUsersList.find(u => u.id === lead.claimed_by);
              if (assignedUser && assignedUser.name) {
                const initial = assignedUser.name.charAt(0).toUpperCase();
@@ -1660,7 +1661,8 @@ if (typeof window.renderDashboard === 'function') {
           <!-- Zuweisung -->
           ${(function(){
             let assignmentHtml = '';
-            if (window.globalUser && (window.globalUser.role === 'admin' || window.globalUser.role === 'developer')) {
+            if (window.isMultiUser && window.isMultiUser()
+                && window.globalUser && (window.globalUser.role === 'admin' || window.globalUser.role === 'developer')) {
               const usersOpts = [{ id: 'unassigned', name: 'Niemandem zugewiesen' }].concat(window.globalUsersList || []);
               const optsHtml = usersOpts.map(u => `<option value="${u.id}" ${l.claimed_by === u.id || (!l.claimed_by && u.id === 'unassigned') ? 'selected' : ''}>${escapeHtml(u.name)}</option>`).join('');
               

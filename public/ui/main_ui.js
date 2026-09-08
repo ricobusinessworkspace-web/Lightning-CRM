@@ -417,8 +417,9 @@ window.setPipeline = async (type) => {
         last_edited_ms: lData ? lData.last_edited_ms : undefined
       });
 
-      // SALES BELL TRIGGER
-      if (isKundeVal && lData && lData.status !== 'Kunde') {
+      // SALES BELL TRIGGER — nur sinnvoll, wenn es mehrere Nutzer gibt
+      if (isKundeVal && lData && lData.status !== 'Kunde'
+          && window.isMultiUser && window.isMultiUser()) {
         try {
           const bellName = window.globalUser?.name || window.globalUser?.email?.split('@')[0] || 'Ein Agent';
           window.api.getSessionToken().then(token => {
@@ -1300,6 +1301,10 @@ window.setPipeline = async (type) => {
   }
 
   window.subscribeToSalesBell = async () => {
+    if (!window.isMultiUser || !window.isMultiUser()) {
+      showToast('Push ist im Einzelplatz-Modus deaktiviert.');
+      return;
+    }
     const btn = document.getElementById('push-subscribe-btn');
     if (btn) {
       btn.textContent = 'Aktivieren...';
