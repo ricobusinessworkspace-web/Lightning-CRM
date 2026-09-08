@@ -14,6 +14,11 @@ w.setTimeout = (fn) => 0;   // Animationen im Test nicht ausfuehren
 const code = fs.readFileSync('public/ui/main_ui.js', 'utf8');
 dom.window.eval(code);
 
+// _autoSaveNow / _triggerAutoSave liegen in pipeline_ui.js — nur diesen Teil laden
+const pipeSrc = fs.readFileSync('public/ui/pipeline_ui.js', 'utf8');
+const autoSaveBlock = pipeSrc.slice(pipeSrc.indexOf('window._autoSaveNow = () => {'));
+dom.window.eval(autoSaveBlock.slice(0, autoSaveBlock.indexOf('window._debouncedSave();') + 30));
+
 const ok = [];
 const fail = [];
 const check = (name, cond) => (cond ? ok : fail).push(name);
@@ -70,6 +75,43 @@ check('Abhaken loest Speichern aus', persisted === 2);
 check('markNotAnswered ist weg', typeof w.markNotAnswered === 'undefined');
 check('quickAdd ist weg', typeof w.quickAdd === 'undefined');
 check('sessionDoneTasks wird nicht mehr benutzt', !code.includes('sessionDoneTasks'));
+
+
+// ── 6. Snooze wird sofort gespeichert ──────────────────────────────────────
+const saved = [];
+w.api.saveLead = async (payload) => { saved.push(payload); return { id: payload.id }; };
+w.store.state.currentSelectedLeadId = 42;
+w.store.state.leads = [{ id: 42, snooze_until_ms: 0, last_edited_ms: 111 }];
+w.store.state.currentSnoozeOffset = 0;
+w.store.state.currentSnoozeTargetMs = 0;
+w.store.state.clearSnooze = false;
+
+const vorher = Date.now();
+await w.selectSnooze(24);
+const snoozeCall = saved.find(p => 'snooze_until_ms' in p);
+check('Snooze schreibt in die Datenbank', !!snoozeCall);
+check('Snooze schreibt den richtigen Lead', snoozeCall && snoozeCall.id === 42);
+check('Snooze liegt ~24h in der Zukunft',
+  !!snoozeCall && Math.abs(snoozeCall.snooze_until_ms - (vorher + 24*3600*1000)) < 5000);
+check('Snooze landet im Store', w.store.state.leads[0].snooze_until_ms === snoozeCall.snooze_until_ms);
+check('Keine Restwerte im Store', w.store.state.currentSnoozeOffset === 0 && w.store.state.currentSnoozeTargetMs === 0);
+
+saved.length = 0;
+await w.cancelSnooze();
+const cancelCall = saved.find(p => 'snooze_until_ms' in p);
+check('Snooze aufheben schreibt 0', !!cancelCall && cancelCall.snooze_until_ms === 0);
+check('Aufheben landet im Store', w.store.state.leads[0].snooze_until_ms === 0);
+
+// Zwei Mal dieselbe Auswahl -> gleiches Ergebnis, kein Umschalten
+saved.length = 0;
+await w.selectSnooze(24); const a = saved.find(p => 'snooze_until_ms' in p).snooze_until_ms;
+saved.length = 0;
+await w.selectSnooze(24); const b = saved.find(p => 'snooze_until_ms' in p).snooze_until_ms;
+check('Zwei Mal dieselbe Snooze-Auswahl schaltet nicht um', a > 0 && b > 0);
+
+// ── 7. Sofort-Speichern beim Verlassen eines Feldes ────────────────────────
+check('_autoSaveNow existiert', typeof w._autoSaveNow === 'function');
+check('debounce laesst sich abbrechen', typeof w.debounce(() => {}, 10).cancel === 'function');
 
 console.log('\n✅ BESTANDEN (' + ok.length + ')');
 ok.forEach(t => console.log('   ' + t));

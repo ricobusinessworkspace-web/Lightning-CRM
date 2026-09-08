@@ -1,10 +1,12 @@
 
 window.debounce = function(func, wait) {
     let timeout;
-    return function(...args) {
+    const wrapped = function(...args) {
         clearTimeout(timeout);
         timeout = setTimeout(() => func.apply(this, args), wait);
     };
+    wrapped.cancel = () => clearTimeout(timeout);
+    return wrapped;
 };
 window.setPipeline = async (type) => {
     const stageNode = document.getElementById('sys-stage');
@@ -67,31 +69,66 @@ window.setPipeline = async (type) => {
     selectSnooze(hours);
   };
 
-  window.selectSnooze = (hrs) => {
-    window.store.state.clearSnooze = false;
+  // ── Snooze sofort speichern ────────────────────────────────────────────────
+  // Vorher wurde nur ein Wert im Speicher vorgemerkt und darauf gehofft, dass
+  // ein Auto-Save ihn aufsammelt. Der zustaendige Wrapper lief aber ins Leere
+  // (falsche Ladereihenfolge), also ging die Wiedervorlage immer verloren.
+  window.persistSnooze = async (snoozeMs) => {
+    const id = window.store.state.currentSelectedLeadId;
+    if (!id) return false;
+
+    const leads = (window.store.state.leads) || [];
+    const lead = leads.find(x => x.id === id);
+
+    try {
+      await window.api.saveLead({
+        id,
+        snooze_until_ms: snoozeMs,
+        last_edited_ms: lead ? lead.last_edited_ms : undefined
+      });
+
+      if (lead) lead.snooze_until_ms = snoozeMs;
+      const tc = window.store.state.tabCache;
+      if (tc) {
+        for (const k of Object.keys(tc)) {
+          if (Array.isArray(tc[k])) {
+            const i = tc[k].findIndex(x => x.id === id);
+            if (i !== -1) tc[k][i] = { ...tc[k][i], snooze_until_ms: snoozeMs };
+          }
+        }
+      }
+
+      // Vorgemerkte Werte zuruecksetzen, damit saveLeadMain nichts anderes schreibt
+      window.store.state.currentSnoozeOffset = 0;
+      window.store.state.currentSnoozeTargetMs = 0;
+      window.store.state.clearSnooze = false;
+
+      const cancelContainer = document.getElementById('cancel-snooze-container');
+      if (cancelContainer) cancelContainer.style.display = snoozeMs > Date.now() ? 'block' : 'none';
+
+      if (typeof window.loadUi === 'function') window.loadUi(true);
+      return true;
+    } catch (err) {
+      console.error('persistSnooze:', err);
+      showToast('Wiedervorlage konnte nicht gespeichert werden: ' + err.message, true);
+      return false;
+    }
+  };
+
+  // Eine Auswahl setzt genau diese Wiedervorlage — kein Umschalten.
+  window.selectSnooze = async (hrs) => {
     const btnHours = document.getElementById('snz-hours');
     const btnCustom = document.getElementById('snz-custom');
-    
-    if (window.store.state.currentSnoozeOffset === hrs) {
-      window.store.state.currentSnoozeOffset = 0;
-      if (btnHours) btnHours.classList.remove('outline');
-      if (btnCustom) btnCustom.classList.remove('outline');
-    } else {
-      window.store.state.currentSnoozeOffset = hrs;
-      if (btnHours) btnHours.classList.remove('outline');
-      if (btnCustom) btnCustom.classList.remove('outline');
-      
-      if (hrs <= 24) {
-        if (btnHours) btnHours.classList.add('outline');
-      } else {
-        if (btnCustom) btnCustom.classList.add('outline');
-      }
-      
-      if (hrs > 24) {
-         showToast(`Follow-Up in +${hrs/24} Tagen vorgemerkt. (Wird automatisch gespeichert)`);
-      } else {
-         showToast(`Follow-Up in +${hrs}h vorgemerkt. (Wird automatisch gespeichert)`);
-      }
+    if (btnHours) btnHours.classList.remove('outline');
+    if (btnCustom) btnCustom.classList.remove('outline');
+    if (hrs <= 24) { if (btnHours) btnHours.classList.add('outline'); }
+    else           { if (btnCustom) btnCustom.classList.add('outline'); }
+
+    const target = Date.now() + (hrs * 60 * 60 * 1000);
+    const ok = await window.persistSnooze(target);
+    if (ok) {
+      const bis = new Date(target).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      showToast(`Wiedervorlage gespeichert: ${bis}`);
     }
   };
 
@@ -509,21 +546,14 @@ window.setPipeline = async (type) => {
     }
   };
 
-  window.cancelSnooze = () => {
-    window.store.state.clearSnooze = true;
-    window.store.state.currentSnoozeOffset = 0;
-    window.store.state.currentSnoozeTargetMs = 0;
-    
+  window.cancelSnooze = async () => {
     const btnHours = document.getElementById('snz-hours');
     const btnCustom = document.getElementById('snz-custom');
     if (btnHours) btnHours.classList.remove('outline');
     if (btnCustom) btnCustom.classList.remove('outline');
-    
-    const cancelContainer = document.getElementById('cancel-snooze-container');
-    if (cancelContainer) {
-      cancelContainer.style.display = 'none';
-    }
-    showToast("Snooze-Aufhebung vorgemerkt. (Wird automatisch gespeichert)");
+
+    const ok = await window.persistSnooze(0);
+    if (ok) showToast('Wiedervorlage aufgehoben.');
   };
 
   // ── Aufgaben: eindeutige IDs ───────────────────────────────────────────────

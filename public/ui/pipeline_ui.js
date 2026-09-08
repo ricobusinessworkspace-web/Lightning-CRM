@@ -1369,11 +1369,11 @@ if (typeof window.renderDashboard === 'function') {
         <h4 class="apple-section-title">Follow-Up (Snooze)</h4>
         <div class="snooze-grid" id="snooze-group" style="display: flex; gap: 8px; flex-wrap: wrap;">
           <div style="flex: 1; min-width: 120px; display: flex; align-items: stretch;">
-            <input type="number" id="snooze-hours-input" value="${(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) ? window.store.state.currentSnoozeOffset : 24}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;" onchange="if(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) selectCustomSnoozeHours()">
+            <input type="number" id="snooze-hours-input" value="${(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) ? window.store.state.currentSnoozeOffset : 24}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;">
             <button class="action-btn snooze-opt ${(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) ? 'outline' : ''}" id="snz-hours" onclick="selectCustomSnoozeHours()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Std.</button>
           </div>
           <div style="flex: 1; min-width: 120px; display: flex; align-items: stretch;">
-            <input type="number" id="snooze-days-input" value="${window.store.state.currentSnoozeOffset > 24 ? window.store.state.currentSnoozeOffset / 24 : 7}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;" onchange="if(window.store.state.currentSnoozeOffset > 24) selectCustomSnooze()">
+            <input type="number" id="snooze-days-input" value="${window.store.state.currentSnoozeOffset > 24 ? window.store.state.currentSnoozeOffset / 24 : 7}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;">
             <button class="action-btn snooze-opt ${window.store.state.currentSnoozeOffset > 24 ? 'outline' : ''}" id="snz-custom" onclick="selectCustomSnooze()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Tage</button>
           </div>
         </div>
@@ -1709,16 +1709,18 @@ if (typeof window.renderDashboard === 'function') {
     const sBody = document.querySelector('.sidebar-body');
     const hTitle = document.querySelector('.sidebar-header');
     if (sBody) {
-       sBody.removeEventListener('focusout', window._triggerAutoSave);
-       sBody.removeEventListener('change', window._triggerAutoSave);
-       sBody.addEventListener('focusout', window._triggerAutoSave);
-       sBody.addEventListener('change', window._triggerAutoSave);
+       // Feld verlassen = fertig getippt -> sofort speichern, nicht erst
+       // nach der Verzoegerung. Betrifft vor allem die Notizen.
+       sBody.removeEventListener('focusout', window._autoSaveNow);
+       sBody.removeEventListener('change', window._autoSaveNow);
+       sBody.addEventListener('focusout', window._autoSaveNow);
+       sBody.addEventListener('change', window._autoSaveNow);
     }
     if (hTitle) {
        hTitle.removeEventListener('input', window._triggerAutoSave);
-       hTitle.removeEventListener('change', window._triggerAutoSave);
+       hTitle.removeEventListener('change', window._autoSaveNow);
        hTitle.addEventListener('input', window._triggerAutoSave);
-       hTitle.addEventListener('change', window._triggerAutoSave);
+       hTitle.addEventListener('change', window._autoSaveNow);
     }
 
   };
@@ -1728,21 +1730,12 @@ if (typeof window.renderDashboard === 'function') {
 
     
 
-    // Avoid wrapping global functions multiple times
-    if (!window._autosaveWrappersInstalled) {
-       const origSetPipeline = window.setPipeline;
-       window.setPipeline = async (type) => {
-          await origSetPipeline(type);
-          if (window._triggerAutoSave) window._triggerAutoSave();
-       };
-       
-       const origSelectSnooze = window.selectSnooze;
-       window.selectSnooze = (hrs) => {
-          origSelectSnooze(hrs);
-          if (window._triggerAutoSave) window._triggerAutoSave();
-       };
-       window._autosaveWrappersInstalled = true;
-    }
+    // Hier stand ein Wrapper, der setPipeline und selectSnooze um einen
+    // Auto-Save erweitern sollte. Er lief beim Laden dieser Datei — also
+    // BEVOR main_ui.js die beiden Funktionen ueberhaupt definiert. Er hat
+    // deshalb nie etwas eingepackt und wurde anschliessend ueberschrieben.
+    // Das war der Grund, warum Snooze nie gespeichert wurde.
+    // Beide Funktionen speichern jetzt selbst (siehe main_ui.js).
 
     
 
@@ -2820,6 +2813,14 @@ window.pushLeadActivity = function(leadId, activity) {
     if (container && lead) {
       container.innerHTML = window.renderSidebarActivities(lead);
     }
+};
+
+// Feld verlassen = Eingabe fertig -> sofort speichern, nicht erst nach der
+// Verzoegerung. Betrifft vor allem die Notizen.
+window._autoSaveNow = () => {
+    if (window._debouncedSave && window._debouncedSave.cancel) window._debouncedSave.cancel();
+    const id = window.store.state.currentSelectedLeadId;
+    if (id) window.saveLeadMain(id, true, true);
 };
 
 window._triggerAutoSave = () => {
