@@ -10,6 +10,16 @@
 --     Authentication → Sign In / Providers → Email → "Allow new users to sign up" AUS
 --
 -- (b) erledigt dieses Skript.
+--
+-- ⚠️  ACHTUNG — geteiltes Supabase-Projekt:
+--     In diesem Projekt liegen noch weitere Apps (jarvis_*, g_*, tracker_*,
+--     core_*). Dieses Skript fasst AUSSCHLIESSLICH die fuenf Tabellen an, die
+--     das CRM nachweislich benutzt. user_profiles ist bewusst ausgenommen,
+--     weil es geteilt sein koennte.
+--
+--     Ausserdem: core_goals, core_intentions, core_metric_definitions und
+--     core_metric_sources haben RLS AUS — die sind ohne jeden Schutz oeffentlich
+--     lesbar und schreibbar. Gehoert nicht zum CRM, sollte aber jemand ansehen.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ── SCHRITT 1: Erst anschauen, was aktuell gilt ────────────────────────────
@@ -36,10 +46,19 @@ DECLARE
   tbl  text;
   pol  record;
 BEGIN
+  -- NUR die Tabellen, die das CRM nachweislich benutzt.
+  --
+  -- Bewusst NICHT dabei:
+  --   user_profiles    — wird moeglicherweise von den jarvis_*/tracker_*-Apps
+  --                      im selben Projekt mitbenutzt. Policies hier zu
+  --                      ersetzen koennte die anderen Apps lahmlegen.
+  --   crm_events, crm_projects, crm_project_tasks, crm_task_overrides
+  --                    — im CRM-Code nicht verwendet, Zugehoerigkeit unklar.
+  --   jarvis_*, g_*, tracker_*, core_*
+  --                    — gehoeren nicht zu diesem Projekt. Finger weg.
   FOREACH tbl IN ARRAY ARRAY[
-    'crm_leads', 'crm_calls', 'lead_activities', 'crm_notifications',
-    'crm_push_subscriptions', 'user_profiles', 'crm_events',
-    'crm_projects', 'crm_project_tasks'
+    'crm_leads', 'crm_calls', 'lead_activities',
+    'crm_notifications', 'crm_push_subscriptions'
   ]
   LOOP
     CONTINUE WHEN to_regclass('public.' || tbl) IS NULL;
