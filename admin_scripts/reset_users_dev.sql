@@ -28,6 +28,7 @@ DECLARE
   n_users       int;
   t             record;
   affected      int;
+  col_type      text;
 BEGIN
   -- ── 1. Keeper auflösen ───────────────────────────────────────────────────
   SELECT count(*) INTO n_users
@@ -72,12 +73,22 @@ BEGIN
             AND column_name  = t.col
        )
     THEN
+      -- Die Spalten sind uneinheitlich typisiert (crm_leads.claimed_by = uuid,
+      -- crm_calls.by_user_id = text). Deshalb: Zuweisung auf den echten
+      -- Spaltentyp casten, Vergleich generell ueber text.
+      SELECT format_type(a.atttypid, a.atttypmod) INTO col_type
+        FROM pg_attribute a
+       WHERE a.attrelid = ('public.' || t.tbl)::regclass
+         AND a.attname  = t.col
+         AND a.attnum > 0
+         AND NOT a.attisdropped;
+
       EXECUTE format(
-        'UPDATE public.%I SET %I = $1 WHERE %I IS NOT NULL AND %I <> $1',
-        t.tbl, t.col, t.col, t.col
-      ) USING keeper_id;
+        'UPDATE public.%I SET %I = $1::%s WHERE %I IS NOT NULL AND %I::text <> $1',
+        t.tbl, t.col, col_type, t.col, t.col
+      ) USING keeper_id::text;
       GET DIAGNOSTICS affected = ROW_COUNT;
-      RAISE NOTICE '  % .% -> Keeper: % Zeilen', t.tbl, t.col, affected;
+      RAISE NOTICE '  % .% (%) -> Keeper: % Zeilen', t.tbl, t.col, col_type, affected;
     END IF;
   END LOOP;
 
@@ -116,20 +127,20 @@ BEGIN
     ) AS v(tbl, col)
   LOOP
     IF to_regclass('public.' || t.tbl) IS NOT NULL THEN
-      EXECUTE format('DELETE FROM public.%I WHERE %I IS DISTINCT FROM $1', t.tbl, t.col)
-        USING keeper_id;
+      EXECUTE format('DELETE FROM public.%I WHERE %I::text IS DISTINCT FROM $1', t.tbl, t.col)
+        USING keeper_id::text;
       GET DIAGNOSTICS affected = ROW_COUNT;
       RAISE NOTICE '  % geloescht: % Zeilen', t.tbl, affected;
     END IF;
   END LOOP;
 
   -- ── 4. Profile und Auth-Accounts der anderen loeschen ────────────────────
-  DELETE FROM public.user_profiles WHERE id <> keeper_id;
+  DELETE FROM public.user_profiles WHERE id::text <> keeper_id::text;
   GET DIAGNOSTICS affected = ROW_COUNT;
   RAISE NOTICE '  user_profiles geloescht: % Zeilen', affected;
 
   -- auth.users raeumt identities/sessions/refresh_tokens per CASCADE mit ab.
-  DELETE FROM auth.users WHERE id <> keeper_id;
+  DELETE FROM auth.users WHERE id <> keeper_id;   -- auth.users.id ist immer uuid
   GET DIAGNOSTICS affected = ROW_COUNT;
   RAISE NOTICE '  auth.users geloescht: % Zeilen', affected;
 
