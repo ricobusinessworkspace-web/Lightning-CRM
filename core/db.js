@@ -6,11 +6,11 @@
  * version — main.js and all IPC handlers require ZERO changes (except additions).
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * call_history format (upgraded, backward-compat):
- *   New entries:  { ts: number, status: 'answered' | 'not_answered' }
- *   Old entries:  number (bare ms timestamp) — treated as 'answered'
+ * Anrufe werden NICHT nach "erreicht / nicht erreicht" unterschieden.
+ * Ein Anruf ist ein Anruf. Die Spalte crm_calls.status bleibt aus
+ * Bestandsgruenden erhalten, wird aber nirgends mehr ausgewertet.
  *
- * Normalisation helper: normalizeCallEntry(entry) → { ts, status }
+ * call_status am Lead kennt nur noch: 'never' | 'called'
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -35,9 +35,9 @@ let currentUser = null; // caches { id, name, role }
 // ─── call_history normalisation ──────────────────────────────────────────────
 // Accepts either a bare timestamp (legacy) or a {ts, status} object (new).
 function normalizeCallEntry(entry) {
-  if (typeof entry === 'number') return { ts: entry, status: 'answered', type: 'call' };
+  if (typeof entry === 'number') return { ts: entry, type: 'call' };
   if (entry && typeof entry === 'object' && entry.ts) {
-    return { ts: entry.ts, status: entry.status || 'answered', type: entry.type || 'call', by_user_name: entry.by_user_name, by_user_id: entry.by_user_id };
+    return { ts: entry.ts, type: entry.type || 'call', by_user_name: entry.by_user_name, by_user_id: entry.by_user_id };
   }
   return null;
 }
@@ -47,32 +47,10 @@ function parseCallHistory(raw) {
   return raw.map(normalizeCallEntry).filter(Boolean);
 }
 
-// ─── Derive call status from history ─────────────────────────────────────────
-// Returns 'never' | 'answered' | 'not_answered'
+// ─── Wurde der Lead schon einmal angerufen? ──────────────────────────────────
+// Returns 'never' | 'called'
 function deriveCallStatus(callHistory) {
-  const history = parseCallHistory(callHistory);
-  if (history.length === 0) return 'never';
-  // Use the most recent entry
-  const last = history[history.length - 1];
-  return last.status;
-}
-
-// ─── Email task snooze check ──────────────────────────────────────────────────
-// Returns true if lead has at least one undone email/mail task
-function hasActiveEmailTask(taskText) {
-  if (!taskText || !taskText.trim()) return false;
-  try {
-    const tasks = JSON.parse(taskText);
-    if (!Array.isArray(tasks)) return false;
-    return tasks.some(t => !t.done && (
-      t.text.toLowerCase().includes('email') ||
-      t.text.toLowerCase().includes('mail')
-    ));
-  } catch (e) {
-    // Legacy plain-string task_text
-    const lower = taskText.toLowerCase();
-    return lower.includes('email') || lower.includes('mail');
-  }
+  return parseCallHistory(callHistory).length === 0 ? 'never' : 'called';
 }
 
 // ─── Internal: map Supabase row → renderer-compatible object ─────────────────
@@ -122,17 +100,10 @@ function postProcessAndSort(rows, filters = {}) {
           return Array.isArray(tasks) && tasks.some(t => !t.done);
         } catch (e) { return r.task_text.trim() !== ''; }
       });
-    } else if (filters.tab === 'queue' || filters.tab === 'cold') {
-      // Email snooze: exclude leads with active email tasks
-      results = results.filter(r => {
-        const snoozedByEmail = hasActiveEmailTask(r.task_text);
-        if (snoozedByEmail) {
-          r._emailSnoozed = true;
-          return false;
-        }
-        return true;
-      });
     }
+    // Frueher wurden hier Leads ausgeblendet, deren Aufgabentext "mail" enthielt.
+    // Das hat Leads unsichtbar gemacht (auch bei "Rechnung mailen"). Leads
+    // bleiben jetzt immer sichtbar; offene Aufgaben zeigt das Symbol auf der Karte.
   }
 
   // 2. Sorting — unified global relevance sort
@@ -281,7 +252,7 @@ export const db = {
        if (err1) console.warn('Failed to fetch crm_calls', err1);
        if (err2) console.warn('Failed to fetch lead_activities', err2);
        
-       const mappedCalls = (calls || []).map(c => ({ ...c, activity_type: 'call', call_status: c.status }));
+       const mappedCalls = (calls || []).map(c => ({ ...c, activity_type: 'call' }));
        const mappedActs = (acts || []).map(a => ({ ...a, activity_type: a.type }));
        const combined = [...mappedCalls, ...mappedActs].sort((a, b) => a.ts - b.ts);
        
@@ -462,16 +433,20 @@ export const db = {
       return { id: lead.id, updated: 1, last_edited_ms: payload.last_edited_ms || now };
       
     } else {
-      // DEDUPLICATION CHECK: Never allow a duplicate to be inserted
-      let dupQuery = supabase.from(TABLE).select('*');
+      // Zusammenfuehren NUR bei identischer Google-Place-ID — das ist eine
+      // echte Identitaet aus dem Scout.
+      //
+      // Frueher wurde auch ueber Name + Stadt zusammengefuehrt. Dadurch hat
+      // "neuen Lead anlegen" stillschweigend einen bestehenden Lead bearbeitet
+      // (zwei Mal "Neuer Lead" -> der zweite Klick oeffnete den ersten).
+      // Gleiche Namen werden jetzt angelegt und nur gemeldet.
+      let dupData = null;
       if (payload.google_place_id) {
-         dupQuery = dupQuery.eq('google_place_id', payload.google_place_id);
-      } else {
-         dupQuery = dupQuery.eq('name', payload.name).eq('maps_city', payload.maps_city);
+        const res = await supabase.from(TABLE).select('*')
+          .eq('google_place_id', payload.google_place_id);
+        dupData = res.data;
       }
-      
-      const { data: dupData } = await dupQuery;
-      
+
       if (dupData && dupData.length > 0) {
          // Merge into first duplicate
          const existingDup = dupData[0];
@@ -500,7 +475,16 @@ export const db = {
          return { id: existingDup.id, inserted: false, updated: 1, duplicate_prevented: true, last_edited_ms: updatePayload.last_edited_ms || now };
       }
 
-      // No duplicate found, safe to insert!
+      // Namensgleichheit nur ermitteln, um sie zurueckzumelden — kein Merge.
+      let nameClash = null;
+      if (payload.name && String(payload.name).trim() !== '') {
+        const { data: sameName } = await supabase.from(TABLE)
+          .select('id, name, maps_city')
+          .eq('name', payload.name)
+          .limit(1);
+        if (sameName && sameName.length > 0) nameClash = sameName[0];
+      }
+
       const { data, error } = await supabase.from(TABLE).insert(payload).select('id').single();
       if (error) throw new Error(error.message || error.details || JSON.stringify(error));
       
@@ -512,13 +496,13 @@ export const db = {
       };
       if (data && data.id) registerLocalWrite(data.id);
 
-      return { id: data.id, inserted: true, last_edited_ms: payload.last_edited_ms || now };
+      return { id: data.id, inserted: true, last_edited_ms: payload.last_edited_ms || now, name_clash: nameClash };
     }
   },
-  logCall: async (id, status = 'answered') => {
+  logCall: async (id) => {
     const now = Date.now();
     try {
-      const entry = { lead_id: id, ts: now, status, type: 'call' };
+      const entry = { lead_id: id, ts: now, type: 'call' };
       if (currentUser) {
         entry.by_user_id = currentUser.id;
         entry.by_user_name = currentUser.name;
@@ -594,55 +578,6 @@ export const db = {
     } catch (e) {
       console.error('deleteActivity error:', e);
       return false;
-    }
-  },
-
-  // ── markCallNotAnswered ────────────────────────────────────────────────────
-  markCallNotAnswered: async (leadId, callTs) => {
-    try {
-      // Find the specific call and update its status
-      const { data: callData, error: callErr } = await supabase
-        .from('crm_calls')
-        .update({ status: 'not_answered' })
-        .eq('lead_id', leadId)
-        .eq('ts', callTs)
-        .eq('type', 'call')
-        .select();
-
-      if (callErr) throw callErr;
-      if (!callData || callData.length === 0) return null;
-
-      // Update snooze logic
-      const { data: row, error: fetchErr } = await supabase
-        .from(TABLE).select('snooze_until_ms').eq('id', leadId).maybeSingle();
-      if (fetchErr) { console.warn('markCallNotAnswered:', fetchErr); return null; }
-      if (!row) return null;
-
-      const now = Date.now();
-      let snoozeUntilMs = row.snooze_until_ms || 0;
-      if (!snoozeUntilMs || snoozeUntilMs < now) {
-        // Set to 4 PM next business day
-        const d = new Date();
-        if (d.getHours() >= 16) d.setDate(d.getDate() + 1);
-        if (d.getDay() === 6) d.setDate(d.getDate() + 2); // Saturday -> Monday
-        else if (d.getDay() === 0) d.setDate(d.getDate() + 1); // Sunday -> Monday
-        d.setHours(16, 0, 0, 0);
-        snoozeUntilMs = d.getTime();
-      } else {
-        snoozeUntilMs = Date.now() + 15 * 60 * 1000;
-      }
-
-      const { data, error } = await supabase
-      .from(TABLE)
-      .update({ snooze_until_ms: snoozeUntilMs })
-      .eq('id', leadId)
-      .select('*, crm_calls(*)');
-
-      if (error) throw error;
-      return Array.isArray(data) ? data[0] : data;
-    } catch (e) {
-      console.error('markCallNotAnswered error:', e);
-      return null;
     }
   },
 
@@ -924,18 +859,18 @@ export const db = {
     users.forEach(u => {
       stats[u.id] = { 
         id: u.id, name: u.name, role: u.role, daily_call_goal: u.daily_call_goal || 100,
-        today: { calls: 0, unanswered: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 },
-        week: { calls: 0, unanswered: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 },
-        total: { calls: 0, unanswered: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 }
+        today: { calls: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 },
+        week: { calls: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 },
+        total: { calls: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 }
       };
     });
 
     if (!stats[currentUser.id]) {
       stats[currentUser.id] = {
         id: currentUser.id, name: currentUser.name, role: currentUser.role, daily_call_goal: currentUser.daily_call_goal || 100,
-        today: { calls: 0, unanswered: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 },
-        week: { calls: 0, unanswered: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 },
-        total: { calls: 0, unanswered: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 }
+        today: { calls: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 },
+        week: { calls: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 },
+        total: { calls: 0, emails: 0, leads: 0, warm: 0, cold_tarif: 0, cold_gross: 0, offers: 0 }
       }
     }
     
@@ -982,11 +917,6 @@ export const db = {
           else stats[call.by_user_id].week.cold_tarif++;
         }
 
-        if (call.status === 'not_answered') {
-          stats[call.by_user_id].total.unanswered++;
-          if (isToday) stats[call.by_user_id].today.unanswered++;
-          if (isWeek) stats[call.by_user_id].week.unanswered++;
-        }
       }
     }
     

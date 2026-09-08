@@ -50,7 +50,6 @@ window.api = {
   logEmail: (id) => db.logEmail(id),
   logStatusChange: (id, status) => db.logStatusChange(id, status),
   deleteActivity: (id, type) => db.deleteActivity(id, type),
-  markCallNotAnswered: (leadId, callTs) => db.markCallNotAnswered(leadId, callTs),
   getCallsToday: () => db.getCallsToday(),
   updateCallGoal: (goal) => db.updateCallGoal(goal),
 

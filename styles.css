@@ -1173,6 +1173,12 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   background: rgba(10, 132, 255, 0.2);
   border: 1px solid #0a84ff;
 }
+.app-toast.toast-warning {
+  background: rgba(255, 214, 10, 0.14);
+  border: 1px solid rgba(255, 214, 10, 0.45);
+  color: #ffd60a;
+}
+
 
 /* ── Pipeline Segment Glow on Active ─────────────────────────────────────── */
 .pipe-seg.active-blue { box-shadow: inset 0 0 12px rgba(10, 132, 255, 0.15); }

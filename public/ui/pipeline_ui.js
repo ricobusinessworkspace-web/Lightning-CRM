@@ -201,12 +201,9 @@ window.handleLeadAssignmentChange = (val) => {
   function showMapHoverCard(l, containerPoint) {
     hideMapHoverCard();
     const sMap = getLeadStatusMap(l);
-    const callStatus = l.call_status || 'never';
-    const callBadge = callStatus === 'never'
+    const callBadge = (l.call_status || 'never') === 'never'
       ? '<span class="call-status-badge call-status-never">Nie angerufen</span>'
-      : callStatus === 'not_answered'
-        ? '<span class="call-status-badge call-status-not-answered">Nicht erreicht</span>'
-        : '<span class="call-status-badge call-status-answered">Angerufen</span>';
+      : '<span class="call-status-badge call-status-answered">Angerufen</span>';
 
     const card = document.createElement('div');
     card.className = 'map-hover-card';
@@ -734,21 +731,6 @@ if (typeof window.renderDashboard === 'function') {
     _searchDebounceTimer = setTimeout(() => loadUi(), 250);
   };
 
-  // ── Helper: has active email task ────────────────────────────────────────────
-  function hasActiveEmailTask(lead) {
-    if (!lead.task_text) return false;
-    try {
-      const tasks = JSON.parse(lead.task_text);
-      if (!Array.isArray(tasks)) return false;
-      return tasks.some(t => !t.done && (
-        t.text.toLowerCase().includes('email') ||
-        t.text.toLowerCase().includes('mail')
-      ));
-    } catch(e) {
-      const lower = (lead.task_text || '').toLowerCase();
-      return lower.includes('email') || lower.includes('mail');
-    }
-  }
 
   function renderQueue(leads) {
     if(!leads || leads.length === 0) {
@@ -782,9 +764,10 @@ if (typeof window.renderDashboard === 'function') {
         const sMap = getLeadStatusMap(l);
         let titleColor = sMap.color;
         let milestone = sMap.label;
-        if (sMap.isTask) {
-           milestone += ' +';
-        }
+        // Offene Aufgaben sind in JEDEM Reiter am Symbol erkennbar.
+        const taskBadge = sMap.isTask
+          ? `<span title="Offene Aufgabe" style="display:inline-flex; align-items:center; gap:3px; font-size:10px; font-weight:700; color:#ffd60a; background:rgba(255,214,10,0.12); border:1px solid rgba(255,214,10,0.35); border-radius:5px; padding:1px 5px; margin-left:6px; vertical-align:middle; white-space:nowrap;">✓ Aufgabe</span>`
+          : '';
 
         const isSnoozed = (l.snooze_until_ms || 0) > Date.now();
         let snoozeBadge = '';
@@ -905,7 +888,7 @@ if (typeof window.renderDashboard === 'function') {
           
           <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-start; min-width: 0;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
-              <div class="lead-prio ${titleColor}" style="margin-bottom:0;">${milestone}</div>
+              <div class="lead-prio ${titleColor}" style="margin-bottom:0; display:flex; align-items:center;">${milestone}${taskBadge}</div>
               <div style="display:flex; align-items:center; gap:6px;">
                 ${starHtml}
               </div>
@@ -1007,7 +990,7 @@ if (typeof window.renderDashboard === 'function') {
       // COLD CALLING STATION VIEW
       let coldLeads = leads.filter(l => window.api.getStage(l) === 'COLD' && l.status === 'Lead');
 
-      // F6: Apply call status filter
+      // Filter kennt nur noch: alle / nie angerufen / schon angerufen
       let filteredByStatus = coldLeads;
       if (window.store.state.currentColdCallFilter !== 'all') {
         filteredByStatus = coldLeads.filter(l => (l.call_status || 'never') === window.store.state.currentColdCallFilter);
@@ -1117,11 +1100,8 @@ if (typeof window.renderDashboard === 'function') {
       let allTasks = [];
       leadsWithTasks.forEach(lead => {
          try { 
-           const tasks = JSON.parse(lead.task_text).filter(t => !t.done || (window.sessionDoneTasks && window.sessionDoneTasks.has(t.id)));
-           tasks.forEach(t => {
-               const isEmail = t.text.toLowerCase().includes('email') || t.text.toLowerCase().includes('mail');
-               allTasks.push({ lead, task: t, isEmail });
-           });
+           const tasks = JSON.parse(lead.task_text).filter(t => t && !t.done);
+           tasks.forEach(t => { allTasks.push({ lead, task: t }); });
          } catch(e) {}
       });
 
@@ -1230,21 +1210,9 @@ if (typeof window.renderDashboard === 'function') {
         return gridHtml;
       };
 
-      const emailTasks = allTasks.filter(t => t.isEmail);
-      const regularTasks = allTasks.filter(t => !t.isEmail);
-
-      if (regularTasks.length > 0) {
-        html += `<div style="font-size:13px; font-weight:700; color:var(--color-text-secondary, #8e8e93); margin: 0 0 16px 0; text-transform:uppercase; letter-spacing:1px;">Hauptaufgaben</div>`;
-        html += renderTaskGrid(regularTasks);
-      }
-
-      if (emailTasks.length > 0) {
-        if (regularTasks.length > 0) {
-          html += `<div style="font-size:13px; font-weight:700; color:var(--color-text-secondary, #8e8e93); margin: 8px 0 16px 0; text-transform:uppercase; letter-spacing:1px;">E-Mail & Kommunikation</div>`;
-        } else {
-          html += `<div style="font-size:13px; font-weight:700; color:var(--color-text-secondary, #8e8e93); margin: 0 0 16px 0; text-transform:uppercase; letter-spacing:1px;">E-Mail & Kommunikation</div>`;
-        }
-        html += renderTaskGrid(emailTasks);
+      // Eine Liste, keine Sonderkategorie für "Mail" im Text.
+      if (allTasks.length > 0) {
+        html += renderTaskGrid(allTasks);
       }
       qList.innerHTML = html;
 
@@ -1361,15 +1329,35 @@ if (typeof window.renderDashboard === 'function') {
     // Call History Dropdown Removed.
     let historyHtml = '';
     
-    // Convert generic string tasks into our new Reminders array structure
+    // Aufgabenliste gehört immer zu GENAU diesem Lead. Ohne diese Bindung
+    // konnte ein verzögertes Speichern die Aufgaben eines anderen Leads
+    // schreiben — daher die "Aufgaben, die ich nie erstellt habe".
     window.currentTasks = [];
+    window.currentTasksLeadId = l.id;
     if (l.task_text) {
-      if (l.task_text.startsWith('[')) {
-        try { window.currentTasks = JSON.parse(l.task_text); } catch(e) {}
-      } else {
-        window.currentTasks = [{ id: Date.now(), text: l.task_text, done: false }];
+      if (l.task_text.trim().startsWith('[')) {
+        try {
+          const parsed = JSON.parse(l.task_text);
+          if (Array.isArray(parsed)) window.currentTasks = parsed;
+        } catch(e) {
+          console.warn('Aufgaben von Lead ' + l.id + ' nicht lesbar:', e);
+        }
+      } else if (l.task_text.trim() !== '') {
+        // Altbestand: freier Text -> eine Aufgabe. Feste ID aus der Lead-ID,
+        // damit sie beim erneuten Öffnen nicht jedes Mal eine neue bekommt.
+        window.currentTasks = [{ id: l.id, text: l.task_text, done: false, deadline: '', subtasks: [] }];
       }
     }
+    // Fehlende Felder ergänzen, damit Altbestand nicht durch die Anzeige fällt
+    window.currentTasks = window.currentTasks
+      .filter(t => t && typeof t.text === 'string')
+      .map(t => ({
+        id: (typeof t.id === 'number' && !isNaN(t.id)) ? t.id : window.newTaskId(),
+        text: t.text,
+        done: !!t.done,
+        deadline: t.deadline || '',
+        subtasks: Array.isArray(t.subtasks) ? t.subtasks : []
+      }));
 
     // --- Snooze Block (Native) ---
     const gCalText = encodeURIComponent(`Follow-Up: ${l.name}`);
@@ -1777,6 +1765,8 @@ if (typeof window.renderDashboard === 'function') {
     }
     
     window.store.state.currentSelectedLeadId = null;
+    window.currentTasks = [];
+    window.currentTasksLeadId = null;
     document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
     if (typeof window.renderEmptySidebar === 'function') {
       window.renderEmptySidebar();
@@ -1875,10 +1865,6 @@ if (typeof window.renderDashboard === 'function') {
            if (st) st.done = done;
          } else {
            t.done = done;
-           if (done) {
-             window.sessionDoneTasks = window.sessionDoneTasks || new Set();
-             window.sessionDoneTasks.add(t.id);
-           }
            if (t.subtasks) {
              t.subtasks.forEach(s => s.done = done);
            }
@@ -1886,6 +1872,11 @@ if (typeof window.renderDashboard === 'function') {
          
          l.task_text = JSON.stringify(tasks);
          await window.api.saveLead({ id: l.id, task_text: l.task_text, last_edited_ms: l.last_edited_ms });
+         // Falls derselbe Lead gerade in der Seitenleiste offen ist, dort mitziehen
+         if (window.currentTasksLeadId === l.id) {
+           window.currentTasks = tasks;
+           if (typeof window.renderTasksList === 'function') window.renderTasksList();
+         }
          if (done && typeof window.showToast === 'function') {
            window.showToast("Aufgabe erledigt!");
          }
@@ -2605,9 +2596,6 @@ if (typeof window.renderDashboard === 'function') {
       const teamGrid = document.getElementById('team-grid');
       
       stats.forEach(stat => {
-        const answeredRate = stat.today.calls > 0 ? Math.round(((stat.today.calls - stat.today.unanswered) / stat.today.calls) * 100) : 0;
-        const answeredRateWeek = stat.week.calls > 0 ? Math.round(((stat.week.calls - stat.week.unanswered) / stat.week.calls) * 100) : 0;
-        
         const card = document.createElement('div');
         card.style.cssText = 'background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 16px;';
         
@@ -2729,7 +2717,7 @@ window.getTimeline = function(l) {
     // Fallback if not loaded
     const calls = l.call_history || l.crm_calls || [];
     const acts = l.lead_activities || [];
-    const mappedCalls = calls.filter(c => typeof c !== 'number').map(c => ({ ...c, activity_type: 'call', call_status: c.status }));
+    const mappedCalls = calls.filter(c => typeof c !== 'number').map(c => ({ ...c, activity_type: 'call' }));
     const mappedActs = acts.map(a => ({ ...a, activity_type: a.type }));
     return [...mappedCalls, ...mappedActs].sort((a,b) => (b.ts || 0) - (a.ts || 0));
 }
@@ -2740,10 +2728,7 @@ window.renderActivity = function(act) {
     let text = act.details || act.activity_type || 'Aktivität';
     
     if (act.activity_type === 'call') {
-      let statusText = '';
-      if (act.call_status === 'not_answered') statusText = 'Nicht erreicht';
-      else if (act.call_status === 'answered') statusText = 'Erreicht';
-      text = statusText ? `Anruf (${statusText})` : 'Anruf';
+      text = 'Anruf';
       if (uname) text += ` – ${uname}`;
     } else if (act.activity_type === 'email') {
       text = act.details || 'E-Mail gesendet';

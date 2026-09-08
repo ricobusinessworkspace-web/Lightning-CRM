@@ -7,8 +7,9 @@ window.CoreTasks = {
       return [{ id: Date.now(), text: taskText, done: false }];
     }
   },
+  // Erledigte Aufgaben bleiben erhalten — abgehakt, nicht geloescht.
   serializeTasks: (tasksArray) => {
-    let finalTasks = (tasksArray || []).filter(t => !t.done);
+    const finalTasks = (tasksArray || []);
     return finalTasks.length > 0 ? JSON.stringify(finalTasks) : '';
   }
 };

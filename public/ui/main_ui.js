@@ -7,27 +7,19 @@ window.debounce = function(func, wait) {
     };
 };
 window.setPipeline = async (type) => {
-    let k = parseInt(document.getElementById('sys-k').value) || 0;
-    let stage = document.getElementById('sys-stage').value || 'cold';
+    const stageNode = document.getElementById('sys-stage');
+    const kNode = document.getElementById('sys-k');
+    if (!stageNode || !kNode) return;
 
-    if (type === 'cold') {
-       k = 0; stage = 'cold';
-    } else if (type === 'pitch') {
-       stage = (stage === 'pitch') ? 'cold' : 'pitch';
-       if (stage === 'cold') k = 0;
-    } else if (type === 'data') {
-       stage = (stage === 'data') ? 'pitch' : 'data';
-       if (stage === 'pitch') k = 0;
-    } else if (type === 'offer') {
-       stage = (stage === 'offer') ? 'data' : 'offer';
-       if (stage === 'data') k = 0;
-    } else if (type === 'closed') {
-       k = k ? 0 : 1;
-       stage = k ? 'closed' : 'offer';
-    }
+    // Eine Stufe anklicken setzt GENAU diese Stufe. Kein Zurückspringen,
+    // kein Umschalten. Vorher warf ein Klick auf die bereits aktive Stufe
+    // den Lead eine Stufe zurück — das war nicht vorhersehbar.
+    const VALID = ['cold', 'pitch', 'data', 'offer', 'closed'];
+    let stage = VALID.includes(type) ? type : (stageNode.value || 'cold');
+    let k = (stage === 'closed') ? 1 : 0;
 
-    if (document.getElementById('sys-k')) document.getElementById('sys-k').value = k;
-    if (document.getElementById('sys-stage')) document.getElementById('sys-stage').value = stage;
+    kNode.value = k;
+    stageNode.value = stage;
 
     const s0 = document.getElementById('seg-0');
     const s1 = document.getElementById('seg-1');
@@ -246,7 +238,7 @@ window.setPipeline = async (type) => {
     const remInput = document.getElementById('new-task-input-rem');
     if (remInput && remInput.value.trim() !== '') {
       if (!window.currentTasks) window.currentTasks = [];
-      window.currentTasks.push({ id: Date.now(), text: remInput.value.trim(), done: false });
+      window.currentTasks.push({ id: window.newTaskId(), text: remInput.value.trim(), done: false, deadline: '', subtasks: [] });
       remInput.value = '';
       changed = true;
     }
@@ -260,7 +252,7 @@ window.setPipeline = async (type) => {
           const pt = window.currentTasks.find(x => x.id === parentId);
           if (pt) {
             if (!pt.subtasks) pt.subtasks = [];
-            pt.subtasks.push({ id: Date.now() + Math.floor(Math.random()*1000), text: input.value.trim(), done: false });
+            pt.subtasks.push({ id: window.newTaskId(), text: input.value.trim(), done: false });
             pt.done = false;
             input.value = '';
             changed = true;
@@ -345,8 +337,8 @@ window.setPipeline = async (type) => {
         window.capturePendingTasks();
       }
 
-      // Store remaining tasks (filtering out done, but keeping those done in this session)
-      let finalTasks = (window.currentTasks || []).filter(t => !t.done || (window.sessionDoneTasks && window.sessionDoneTasks.has(t.id)));
+      // Erledigte Aufgaben bleiben erhalten — abgehakt, nicht gelöscht.
+      let finalTasks = (window.currentTasks || []);
       let taskTxt = finalTasks.length > 0 ? JSON.stringify(finalTasks) : '';
 
       let status = 'Lead';
@@ -534,6 +526,59 @@ window.setPipeline = async (type) => {
     showToast("Snooze-Aufhebung vorgemerkt. (Wird automatisch gespeichert)");
   };
 
+  // ── Aufgaben: eindeutige IDs ───────────────────────────────────────────────
+  // Vorher war die ID schlicht Date.now(). Zwei Aufgaben in derselben
+  // Millisekunde bekamen dieselbe ID — dann traf jede Aktion die falsche.
+  window.newTaskId = () => {
+    const base = Date.now();
+    window._lastTaskId = (window._lastTaskId && window._lastTaskId >= base)
+      ? window._lastTaskId + 1
+      : base;
+    return window._lastTaskId;
+  };
+
+  // ── Aufgaben: sofort speichern ─────────────────────────────────────────────
+  // Vorher haben Anlegen/Abhaken/Löschen nur die Liste im Speicher geändert und
+  // darauf gehofft, dass der Auto-Save durch ein Klick-Nebengeräusch ausgelöst
+  // wird. Bei Buttons passiert das nicht — deshalb waren Aufgaben "nicht
+  // löschbar" und tauchten nach dem Neuladen wieder auf.
+  window.persistTasks = async () => {
+    const leadId = window.currentTasksLeadId;
+    if (!leadId) return false;
+
+    const tasks = window.currentTasks || [];
+    const taskTxt = tasks.length > 0 ? JSON.stringify(tasks) : '';
+
+    const leads = (window.store && window.store.state && window.store.state.leads) || [];
+    const lead = leads.find(x => x.id === leadId);
+
+    try {
+      await window.api.saveLead({
+        id: leadId,
+        task_text: taskTxt,
+        last_edited_ms: lead ? lead.last_edited_ms : undefined
+      });
+
+      // Karte in der Liste sofort mitziehen (Aufgaben-Symbol)
+      if (lead) lead.task_text = taskTxt;
+      const tc = window.store && window.store.state && window.store.state.tabCache;
+      if (tc) {
+        for (const k of Object.keys(tc)) {
+          if (Array.isArray(tc[k])) {
+            const i = tc[k].findIndex(x => x.id === leadId);
+            if (i !== -1) tc[k][i] = { ...tc[k][i], task_text: taskTxt };
+          }
+        }
+      }
+      if (typeof window.loadUi === 'function') window.loadUi(true);
+      return true;
+    } catch (err) {
+      console.error('persistTasks:', err);
+      showToast('Aufgabe konnte nicht gespeichert werden: ' + err.message, true);
+      return false;
+    }
+  };
+
   window.renderTasksList = () => {
     const listDiv = document.getElementById('tasks-list');
     if (!listDiv) return;
@@ -605,23 +650,16 @@ window.setPipeline = async (type) => {
       `;
     };
 
-    const isEmailTask = (t) => t.text.toLowerCase().includes('email') || t.text.toLowerCase().includes('mail');
-    const displayTasks = (window.currentTasks || []).filter(t => !t.done || (window.sessionDoneTasks && window.sessionDoneTasks.has(t.id)));
-    
-    const emailTasks = displayTasks.filter(isEmailTask);
-    const regularTasks = displayTasks.filter(t => !isEmailTask(t));
+    // Offene zuerst, erledigte darunter — nichts wird ausgeblendet.
+    const allTasks = (window.currentTasks || []);
+    const openTasks = allTasks.filter(t => !t.done);
+    const doneTasks = allTasks.filter(t => t.done);
 
-    if (regularTasks.length > 0) {
-      html += '<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: 0 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">Hauptaufgaben</div>';
-      regularTasks.forEach(t => { html += renderTaskItem(t); });
-    }
-    if (emailTasks.length > 0) {
-      if (regularTasks.length > 0) {
-         html += '<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: 24px 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">E-Mail & Kommunikation</div>';
-      } else {
-         html += '<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: 0 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">E-Mail & Kommunikation</div>';
-      }
-      emailTasks.forEach(t => { html += renderTaskItem(t); });
+    openTasks.forEach(t => { html += renderTaskItem(t); });
+
+    if (doneTasks.length > 0) {
+      html += `<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: ${openTasks.length > 0 ? '24px' : '0'} 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">Erledigt (${doneTasks.length})</div>`;
+      doneTasks.forEach(t => { html += renderTaskItem(t); });
     }
     
     if (!window.currentTasks || window.currentTasks.length === 0) {
@@ -637,18 +675,20 @@ window.setPipeline = async (type) => {
     const pt = window.currentTasks.find(x => x.id === parentTaskId);
     if (!pt) return;
     if (!pt.subtasks) pt.subtasks = [];
-    pt.subtasks.push({ id: Date.now(), text: txt, done: false });
+    pt.subtasks.push({ id: window.newTaskId(), text: txt, done: false });
     pt.done = false; // Add new subtask opens the main task
     renderTasksList();
+    window.persistTasks();
   };
 
   window.setTaskDeadline = (id, dateStr) => {
     if (!window.currentTasks) return;
     if (typeof window.capturePendingTasks === 'function') window.capturePendingTasks();
     const t = window.currentTasks.find(x => x.id === id);
-    if (t) { 
-      t.deadline = dateStr; 
-      renderTasksList(); 
+    if (t) {
+      t.deadline = dateStr;
+      renderTasksList();
+      window.persistTasks();
     }
   };
 
@@ -657,9 +697,10 @@ window.setPipeline = async (type) => {
       const txt = e.target.value.trim();
       if (!txt) return;
       if (!window.currentTasks) window.currentTasks = [];
-      window.currentTasks.push({ id: Date.now(), text: txt, done: false, deadline: '', subtasks: [] });
+      window.currentTasks.push({ id: window.newTaskId(), text: txt, done: false, deadline: '', subtasks: [] });
       e.target.value = '';
       renderTasksList();
+      window.persistTasks();
     }
   };
 
@@ -670,9 +711,10 @@ window.setPipeline = async (type) => {
     const txt = input.value.trim();
     if (!txt) return;
     if (!window.currentTasks) window.currentTasks = [];
-    window.currentTasks.push({ id: Date.now(), text: txt, done: false, deadline: '', subtasks: [] });
+    window.currentTasks.push({ id: window.newTaskId(), text: txt, done: false, deadline: '', subtasks: [] });
     input.value = '';
     renderTasksList();
+    window.persistTasks();
   };
 
   window.toggleTask = (parentId, done, subtaskId = null) => {
@@ -687,17 +729,14 @@ window.setPipeline = async (type) => {
     } else {
       // Toggle the main task
       pt.done = done;
-      if (done) {
-        window.sessionDoneTasks = window.sessionDoneTasks || new Set();
-        window.sessionDoneTasks.add(pt.id);
-      }
-      // If a Main Task is checked, check ALL its subtasks. If unchecked, uncheck all.
+      // Haupt-Aufgabe abhaken hakt alle Teilaufgaben mit ab (und umgekehrt).
       if (pt.subtasks) {
         pt.subtasks.forEach(s => s.done = done);
       }
     }
 
     renderTasksList();
+    window.persistTasks();
     
     // Check if ALL tasks in the pipeline are done
     if (done && window.currentTasks.length > 0 && window.currentTasks.every(task => task.done)) {
@@ -745,6 +784,7 @@ window.setPipeline = async (type) => {
     if (!window.currentTasks) return;
     window.currentTasks = window.currentTasks.filter(x => x.id !== id);
     renderTasksList();
+    window.persistTasks();
   };
 
   window.deleteSubtask = (parentId, subtaskId) => {
@@ -753,13 +793,17 @@ window.setPipeline = async (type) => {
     if (pt && pt.subtasks) {
       pt.subtasks = pt.subtasks.filter(x => x.id !== subtaskId);
       renderTasksList();
+      window.persistTasks();
     }
   };
 
   window.updateTaskText = (id, text) => {
     if (!window.currentTasks) return;
     const t = window.currentTasks.find(x => x.id === id);
-    if (t) t.text = text.trim();
+    if (t && t.text !== text.trim()) {
+      t.text = text.trim();
+      window.persistTasks();
+    }
   };
 
   window.updateSubtaskText = (parentId, subtaskId, text) => {
@@ -767,7 +811,10 @@ window.setPipeline = async (type) => {
     const pt = window.currentTasks.find(x => x.id === parentId);
     if (pt && pt.subtasks) {
       const st = pt.subtasks.find(x => x.id === subtaskId);
-      if (st) st.text = text.trim();
+      if (st && st.text !== text.trim()) {
+        st.text = text.trim();
+        window.persistTasks();
+      }
     }
   };
 
@@ -808,7 +855,6 @@ window.setPipeline = async (type) => {
         const uName = window.globalUser?.name || 'Ich';
         window.pushLeadActivity(id, {
           activity_type: 'call',
-          call_status: 'answered',
           ts: Date.now(),
           by_user_name: uName
         });
@@ -876,31 +922,6 @@ window.setPipeline = async (type) => {
           btn.style.color = 'var(--text-muted)';
         }
       }, 1500);
-    }
-  };
-
-  // ── markNotAnswered — F4: Mark a call entry as not answered + 15min snooze ──
-  window.markNotAnswered = async (leadId, callTs) => {
-    try {
-      const updated = await window.api.markCallNotAnswered(leadId, callTs);
-      // Die tatsaechliche Snooze-Dauer kommt aus der DB (15 Min. bzw. naechster
-      // Werktag 16:00) — vorher stand hier pauschal "15min", was oft falsch war.
-      const until = updated && updated.snooze_until_ms;
-      if (until) {
-        const untilStr = new Date(until).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-        showToast(`Nicht erreicht. Wiedervorlage: ${untilStr}`);
-      } else {
-        showToast('Anruf als nicht erreicht markiert.');
-      }
-      await window.updateTrayCount();
-      if (window.loadUi) await window.loadUi();
-      if (window.store.state.currentSelectedLeadId === leadId) {
-        if (window.openLeadDirectly) await window.openLeadDirectly(leadId);
-        else if (window.openLead) await window.openLead(leadId);
-      }
-    } catch(err) {
-      console.error(err);
-      showToast('Fehler beim Markieren.', true);
     }
   };
 
@@ -1008,18 +1029,6 @@ window.setPipeline = async (type) => {
       
       if (typeof updateGoals === 'function') updateGoals();
     }
-  };
-
-  window.quickAdd = async () => {
-    const name = document.getElementById('qa-name').value.trim();
-    const phone = document.getElementById('qa-phone').value.trim();
-    if(!name) return;
-    const res = await window.api.saveLead({ name, phone });
-    document.getElementById('qa-name').value = '';
-    document.getElementById('qa-phone').value = '';
-    
-    await loadUi();
-    openLead(res.id);
   };
 
   window.toggleSettings = () => {
@@ -1258,20 +1267,41 @@ window.setPipeline = async (type) => {
   };
 
     window.openNewLeadForm = async () => {
-    const searchVal = document.getElementById('search-input') ? document.getElementById('search-input').value.trim() : '';
+    const searchInput = document.getElementById('search-input');
+    const searchVal = searchInput ? searchInput.value.trim() : '';
     const newName = searchVal || "Neuer Lead";
-    
-    if (document.getElementById('search-input')) {
-        document.getElementById('search-input').value = '';
+
+    if (searchInput) {
+        searchInput.value = '';
         if (window.store && window.store.state) window.store.state.currentSearch = '';
     }
 
-    const res = await window.api.saveLead({ name: newName, status: 'Lead' });
-    
-    if (window.store && window.store.state && window.store.state.leads) {
-        window.store.state.leads.unshift(res);
+    let res;
+    try {
+      res = await window.api.saveLead({ name: newName, status: 'Lead' });
+    } catch (err) {
+      showToast('Lead konnte nicht angelegt werden: ' + err.message, true);
+      return;
     }
-    
+
+    // Hinweis statt stillem Zusammenfuehren: gleicher Name existiert bereits.
+    if (res && res.name_clash) {
+      const ort = res.name_clash.maps_city ? ` (${res.name_clash.maps_city})` : '';
+      showToast(`Achtung: "${escapeHtml(newName)}"${escapeHtml(ort)} gibt es bereits. Neuer Lead trotzdem angelegt.`, 'warning', 7000);
+    }
+
+    // Den echten Datensatz holen — saveLead liefert nur die ID zurueck.
+    // Frueher landete dieses Rueckgabeobjekt direkt in der Liste und erzeugte
+    // eine Karte ohne Namen.
+    if (window.store && window.store.state) {
+      try {
+        const fresh = window.api.getLead ? await window.api.getLead(res.id) : null;
+        if (fresh && Array.isArray(window.store.state.leads)) {
+          window.store.state.leads.unshift(fresh);
+        }
+      } catch (e) { console.warn('Neuer Lead konnte nicht nachgeladen werden', e); }
+    }
+
     if (typeof window.loadUi === 'function') {
         window.loadUi(true); // render locally immediately
     } else if (typeof loadUi === 'function') {
