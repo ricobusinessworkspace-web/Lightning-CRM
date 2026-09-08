@@ -250,6 +250,19 @@ export const db = {
   },
 
   // ── saveLead ───────────────────────────────────────────────────────────────
+  // ── getLead ────────────────────────────────────────────────────────────────
+  // Single-row fetch. Use this instead of getLeads({all:true}) whenever only one
+  // lead is needed — it avoids pulling the whole table for a single field edit.
+  getLead: async (id) => {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('*, crm_calls(*), lead_activities(*)')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(error.message || error.details || JSON.stringify(error));
+    return data ? normalizeRow(data) : null;
+  },
+
 
   getLeadHistory: async (leadId) => {
     // Phase 6: Fetch from unified timeline view
@@ -414,7 +427,7 @@ export const db = {
         const newStage = lead.stage || oldStage;
         
         if (newStage === 'pitch' && oldStage !== 'pitch') await db.logStatusChange(lead.id, 'PITCH');
-        if (newStage === 'data' && oldStage !== 'data') await db.logStatusChange(lead.id, 'FOLLOW-UP');
+        if (newStage === 'data' && oldStage !== 'data') await db.logStatusChange(lead.id, 'DATA');
         if (newStage === 'offer' && oldStage !== 'offer') await db.logStatusChange(lead.id, 'OFFER');
         if (newStage === 'closed' && oldStage !== 'closed') await db.logStatusChange(lead.id, 'CLOSED');
         if (newStage === 'cold' && oldStage !== 'cold') await db.logStatusChange(lead.id, 'COLD');
@@ -569,6 +582,21 @@ export const db = {
     }
   },
 
+  deleteActivity: async (id, type) => {
+    if (!id || !type) return false;
+    try {
+      if (type === 'call') {
+        await supabase.from('crm_calls').delete().eq('id', id);
+      } else {
+        await supabase.from('lead_activities').delete().eq('id', id);
+      }
+      return true;
+    } catch (e) {
+      console.error('deleteActivity error:', e);
+      return false;
+    }
+  },
+
   // ── markCallNotAnswered ────────────────────────────────────────────────────
   markCallNotAnswered: async (leadId, callTs) => {
     try {
@@ -675,7 +703,6 @@ export const db = {
         created_at_ms:   now,
         last_edited_ms:  now,
         locations:       [],
-        call_history:    [],
       }));
 
     const { data, error } = await supabase.from(TABLE).insert(rows).select('id');
@@ -857,9 +884,15 @@ export const db = {
     const baseUrl = isLocal ? window.location.origin : 'https://calling-station-wardogs.vercel.app';
     
     try {
+      const token = await db.getSessionToken();
+      if (!token) throw new Error('Keine gueltige Session — bitte neu einloggen.');
+
       const res = await fetch(`${baseUrl}/api/invite`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
         body: JSON.stringify({ email })
       });
       const result = await res.json();

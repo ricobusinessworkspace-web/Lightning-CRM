@@ -1,14 +1,25 @@
 import { createClient } from '@supabase/supabase-js';
+import { requireUser } from './_lib/auth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { subscription, userId } = req.body;
-  
-  if (!subscription || !userId) {
-    return res.status(400).json({ error: 'Missing subscription or userId' });
+  // userId kommt aus dem Token, nicht aus dem Body — sonst kann man
+  // Push-Subscriptions auf fremde Accounts registrieren.
+  let ctx;
+  try {
+    ctx = await requireUser(req);
+  } catch (err) {
+    return res.status(err.status || 401).json({ error: err.message });
+  }
+
+  const { subscription } = req.body || {};
+  const userId = ctx.user.id;
+
+  if (!subscription || !subscription.endpoint) {
+    return res.status(400).json({ error: 'Missing subscription' });
   }
 
   const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://duzmanqvyhqurxlpxrrg.supabase.co';

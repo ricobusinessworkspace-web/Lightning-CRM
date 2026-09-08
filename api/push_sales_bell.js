@@ -1,16 +1,32 @@
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
+import { requireUser } from './_lib/auth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { title, message, excludeUserId } = req.body;
-  
+  // Ohne Auth kann jeder Push-Nachrichten mit beliebigem Text an alle Nutzer senden.
+  let sender;
+  try {
+    sender = await requireUser(req);
+  } catch (err) {
+    return res.status(err.status || 401).json({ error: err.message });
+  }
+
+  const { title, message } = req.body || {};
+
   if (!title || !message) {
     return res.status(400).json({ error: 'Missing title or message' });
   }
+  if (String(title).length > 120 || String(message).length > 400) {
+    return res.status(400).json({ error: 'Titel oder Nachricht zu lang' });
+  }
+
+  // Der Absender wird aus dem Token abgeleitet, nicht aus dem Request-Body —
+  // sonst koennte man die Glocke im Namen eines anderen laeuten.
+  const excludeUserId = sender.user.id;
 
   const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://duzmanqvyhqurxlpxrrg.supabase.co';
   const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

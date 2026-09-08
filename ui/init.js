@@ -254,9 +254,11 @@ window.addEventListener('online', () => {
     window._profileClickCount = (window._profileClickCount || 0) + 1;
     if (window._profileClickCount >= 5 && globalUser?.role !== 'developer') {
       try {
-        const { error } = await window.supabase.rpc('update_user_role', { target_user_id: globalUser.id, new_role: 'developer' });
-        if (!error) {
+        // window.supabase existiert im Client nicht — der Client geht ueber window.api
+        const ok = await window.api.makeMeDeveloper();
+        if (ok) {
           globalUser.role = 'developer';
+          window.globalUser = globalUser;
           alert('Developer mode unlocked!');
           openProfileModal(); // Refresh modal
         }
@@ -460,7 +462,10 @@ window.addEventListener('online', () => {
       
       const rowId = newRow?.id || oldRow?.id;
       if (rowId && window.pendingLocalWrites.has(rowId)) {
-        window.pendingLocalWrites.delete(rowId);
+        // NICHT loeschen: ein einziges Speichern erzeugt mehrere UPDATE-Events
+        // (saveLead + logCall setzt last_contact_ms). Der Eintrag laeuft ueber
+        // seinen eigenen Timeout aus — sonst triggert das zweite Echo ein
+        // loadUi() mitten im Tippen.
         return; // Ignore our own write
       }
 

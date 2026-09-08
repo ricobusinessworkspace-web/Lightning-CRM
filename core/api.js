@@ -7,6 +7,7 @@ window.api = {
   // Leads
   openExternal: (url) => window.open(url, '_blank'),
   getLeads: (filters) => db.getLeads(filters),
+  getLead: (id) => db.getLead(id),
   saveLead: async (lead) => {
     const res = await db.saveLead(lead);
     if (res && res.last_edited_ms) {
@@ -23,6 +24,7 @@ window.api = {
   importLeads: (leadsArray) => db.importLeads(leadsArray),
 
   // Auth
+  getSessionToken: () => db.getSessionToken(),
   getCurrentUser: () => db.getCurrentUser(),
   login: (email, password) => db.login(email, password),
   register: (email, password) => db.register(email, password),
@@ -39,6 +41,7 @@ window.api = {
   deactivateUser: (userId) => db.deactivateUser(userId),
   makeMeDeveloper: () => db.makeMeDeveloper(),
   getAgentStats: () => db.getAgentStats(),
+  getUserRP: (userId) => db.getUserRP(userId),
   getLeadHistory: (id) => db.getLeadHistory(id),
   getStage: (lead) => db.getStage(lead),
 
@@ -46,6 +49,7 @@ window.api = {
   logCall: (id) => db.logCall(id),
   logEmail: (id) => db.logEmail(id),
   logStatusChange: (id, status) => db.logStatusChange(id, status),
+  deleteActivity: (id, type) => db.deleteActivity(id, type),
   markCallNotAnswered: (leadId, callTs) => db.markCallNotAnswered(leadId, callTs),
   getCallsToday: () => db.getCallsToday(),
   updateCallGoal: (goal) => db.updateCallGoal(goal),

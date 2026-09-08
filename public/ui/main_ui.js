@@ -50,7 +50,7 @@ window.setPipeline = async (type) => {
     // Push live activity to sidebar
     const currentLeadId = window.store?.state?.currentSelectedLeadId;
     if (currentLeadId && typeof window.pushLeadActivity === 'function') {
-      const uName = window.currentUser?.name || window.globalUser?.name || 'Ich';
+      const uName = window.globalUser?.name || 'Ich';
       window.pushLeadActivity(currentLeadId, {
         activity_type: 'status_change',
         details: `Status geändert: ${stage.toUpperCase()}`,
@@ -420,14 +420,20 @@ window.setPipeline = async (type) => {
       // SALES BELL TRIGGER
       if (isKundeVal && lData && lData.status !== 'Kunde') {
         try {
-          fetch('/api/push_sales_bell', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: '🔔 Deal gewonnen!',
-              message: `${window.currentUser?.name || window.currentUser?.email?.split('@')[0] || 'Ein Agent'} hat gerade "${sName}" abgeschlossen!`,
-              excludeUserId: window.currentUser?.id
-            })
+          const bellName = window.globalUser?.name || window.globalUser?.email?.split('@')[0] || 'Ein Agent';
+          window.api.getSessionToken().then(token => {
+            if (!token) return;
+            return fetch('/api/push_sales_bell', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                title: '🔔 Deal gewonnen!',
+                message: `${bellName} hat gerade "${sName}" abgeschlossen!`
+              })
+            });
           }).catch(err => console.error('Sales bell fetch error', err));
         } catch(e) { console.error('Sales Bell Error:', e); }
       }
@@ -435,11 +441,12 @@ window.setPipeline = async (type) => {
       // ── Silent store patch: update in-memory lead so the card reflects changes ──
       // We do NOT call loadUi() here to avoid full re-render & race conditions.
       // Instead we patch the store entry and update just the relevant lead card.
+      let patched = null;
       if (window.store.state.leads) {
         const idx = window.store.state.leads.findIndex(x => x.id === id);
         if (idx !== -1) {
           // Patch the in-memory lead with what we just saved
-          const patched = {
+          patched = {
             ...window.store.state.leads[idx],
             name: sName, phone: sPhone, website_url: sWeb, email: sEmail,
             notes, stage: stage, size,
@@ -449,7 +456,7 @@ window.setPipeline = async (type) => {
           window.store.state.leads[idx] = patched;
         }
       }
-      if (window.store && window.store.state && window.store.state.tabCache) {
+      if (patched && window.store && window.store.state && window.store.state.tabCache) {
         for (const k of Object.keys(window.store.state.tabCache)) {
           if (Array.isArray(window.store.state.tabCache[k])) {
             const cIdx = window.store.state.tabCache[k].findIndex(x => x.id === id);
@@ -797,7 +804,7 @@ window.setPipeline = async (type) => {
       await window.api.logCall(id);
       await window.updateTrayCount();
       if (typeof window.pushLeadActivity === 'function') {
-        const uName = window.currentUser?.name || window.globalUser?.name || 'Ich';
+        const uName = window.globalUser?.name || 'Ich';
         window.pushLeadActivity(id, {
           activity_type: 'call',
           call_status: 'answered',
@@ -823,8 +830,9 @@ window.setPipeline = async (type) => {
       }, 1500);
     }
     
-    // Fallback: update status
-    document.getElementById('sys-status').value = 'Erreicht';
+    // Fallback: update status (Element ist optional — existiert nicht in jedem Layout)
+    const statusNode = document.getElementById('sys-status');
+    if (statusNode) statusNode.value = 'Erreicht';
   };
 
   // ── copyEmail — F5: DOES NOT save lead data. Only copies + logs email. ───────
@@ -844,7 +852,7 @@ window.setPipeline = async (type) => {
       await window.api.logEmail(id);
       await window.updateTrayCount();
       if (typeof window.pushLeadActivity === 'function') {
-        const uName = window.currentUser?.name || window.globalUser?.name || 'Ich';
+        const uName = window.globalUser?.name || 'Ich';
         window.pushLeadActivity(id, {
           activity_type: 'email',
           details: 'E-Mail gesendet',
@@ -873,8 +881,16 @@ window.setPipeline = async (type) => {
   // ── markNotAnswered — F4: Mark a call entry as not answered + 15min snooze ──
   window.markNotAnswered = async (leadId, callTs) => {
     try {
-      await window.api.markCallNotAnswered(leadId, callTs);
-      showToast('Anruf als nicht erreicht markiert. 15min Snooze.');
+      const updated = await window.api.markCallNotAnswered(leadId, callTs);
+      // Die tatsaechliche Snooze-Dauer kommt aus der DB (15 Min. bzw. naechster
+      // Werktag 16:00) — vorher stand hier pauschal "15min", was oft falsch war.
+      const until = updated && updated.snooze_until_ms;
+      if (until) {
+        const untilStr = new Date(until).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        showToast(`Nicht erreicht. Wiedervorlage: ${untilStr}`);
+      } else {
+        showToast('Anruf als nicht erreicht markiert.');
+      }
       await window.updateTrayCount();
       if (window.loadUi) await window.loadUi();
       if (window.store.state.currentSelectedLeadId === leadId) {
@@ -937,13 +953,18 @@ window.setPipeline = async (type) => {
       'Ja, archivieren',
       async () => {
       try {
-        const fullList = await window.api.getLeads({ all: true });
-        const l = fullList.find(x => x.id === id);
+        const l = await window.resolveLead(id);
         if (l) {
           l.status = 'Uninteressant';
           l.task_text = '';
           l.snooze_until_ms = 0;
-          await window.api.saveLead(l);
+          await window.api.saveLead({
+            id: l.id,
+            status: 'Uninteressant',
+            task_text: '',
+            snooze_until_ms: 0,
+            last_edited_ms: l.last_edited_ms
+          });
           if (typeof window.renderEmptySidebar === 'function') {
             window.renderEmptySidebar();
           } else {
@@ -1308,13 +1329,16 @@ window.setPipeline = async (type) => {
       });
 
       // Send to Backend
+      const token = await window.api.getSessionToken();
+      if (!token) throw new Error('Keine gueltige Session — bitte neu einloggen.');
+
       const res = await fetch('/api/push_subscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subscription: subscription,
-          userId: window.currentUser.id
-        })
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ subscription })
       });
 
       const data = await res.json();

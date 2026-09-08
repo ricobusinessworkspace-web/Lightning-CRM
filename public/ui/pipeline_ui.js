@@ -265,8 +265,8 @@ window.handleLeadAssignmentChange = (val) => {
     const icon = L.divIcon({ className: 'scout-marker', iconSize: [14, 14], iconAnchor: [7, 7], html: `<div class="map-pin ${pinClass}"></div>` });
     const popupHtml = `
       <div style="margin-bottom:12px;">
-        <div style="font-weight:600; font-size:15px; margin-bottom:4px; color:var(--text-main);">${l.name}</div>
-        <div style="font-size:12px; color:var(--text-muted);">📍 ${l.maps_city || 'Unbekannt'}</div>
+        <div style="font-weight:600; font-size:15px; margin-bottom:4px; color:var(--text-main);">${escapeHtml(l.name)}</div>
+        <div style="font-size:12px; color:var(--text-muted);">📍 ${escapeHtml(l.maps_city || 'Unbekannt')}</div>
       </div>
       <div style="display:flex; gap:6px; flex-direction:column;">
         <button onclick="handleLinkClick(event, 'web', '${escapeHtml(l.website_url||'')}', ${l.id}, '${escapeHtml(l.name.replace(/'/g, "\\'"))}')" class="action-btn-small outline" style="width:100%; border-color:var(--border); color:var(--text-main); padding:6px; font-size:11px;">🌐 Zur Website</button>
@@ -341,6 +341,8 @@ window.handleLeadAssignmentChange = (val) => {
 
   let isFlyingToLead = false;
 
+  // NOTE: bewusst NICHT auf window exportiert — würde beim Login eine
+  // Massen-Geocoding-Schleife mit Full-Record-Saves pro Lead starten.
   async function autoGeocode() {
     const leads = await window.api.getLeads({ all: true });
     const toGeocode = leads.filter(l => l.maps_city && (!l.lat || !l.lng));
@@ -824,7 +826,7 @@ if (typeof window.renderDashboard === 'function') {
          let ohRaw = '';
          if (l.opening_hours) {
            try {
-             const parsed = JSON.parse(l.opening_hours);
+             const parsed = (typeof l.opening_hours === 'string') ? JSON.parse(l.opening_hours) : l.opening_hours;
              let ohArray = parsed.weekdayDescriptions || (Array.isArray(parsed) ? parsed : null);
              if (ohArray && ohArray.length === 7) {
                const todayIdx = (new Date().getDay() + 6) % 7;
@@ -909,7 +911,7 @@ if (typeof window.renderDashboard === 'function') {
             </div>
             
             <div class="lead-name truncate-2" style="margin-bottom: ${isCustomerTab ? '0' : '12px'}; font-weight: 600; color: var(--color-text-primary, #f2f2f7); padding-right: 20px; width: 100%;">
-              <span>${l.name}</span>
+              <span>${escapeHtml(l.name)}</span>
             </div>
           </div>
           
@@ -1326,8 +1328,6 @@ if (typeof window.renderDashboard === 'function') {
     try {
       const fullHistory = await window.api.getLeadHistory(l.id);
       l.timeline = fullHistory.timeline || [];
-      l.call_history = fullHistory.crm_calls || []; // Legacy fallback
-      l.lead_activities = fullHistory.lead_activities || []; // Legacy fallback
     } catch(e) {
       console.error(e);
     }
@@ -1832,10 +1832,19 @@ if (typeof window.renderDashboard === 'function') {
     });
   };
 
+  // Resolve a single lead without pulling the entire table.
+  // Prefers the in-memory store, falls back to a targeted single-row fetch.
+  window.resolveLead = async (leadId) => {
+    const cached = (window.store?.state?.leads || []).find(x => x.id === leadId);
+    if (cached) return cached;
+    if (window.api.getLead) return await window.api.getLead(leadId);
+    const fullList = await window.api.getLeads({ all: true });
+    return fullList.find(x => x.id === leadId) || null;
+  };
+
   window.updateGlobalTaskText = async (leadId, taskId, newText) => {
     try {
-      const fullList = await window.api.getLeads({ all: true });
-      const l = fullList.find(x => x.id === leadId);
+      const l = await window.resolveLead(leadId);
       if (!l) return;
       let tasks = [];
       try { tasks = JSON.parse(l.task_text); } catch(e){}
@@ -1843,7 +1852,7 @@ if (typeof window.renderDashboard === 'function') {
       if (t) {
         t.text = newText.trim();
         l.task_text = JSON.stringify(tasks);
-        await window.api.saveLead(l);
+        await window.api.saveLead({ id: l.id, task_text: l.task_text, last_edited_ms: l.last_edited_ms });
       }
     } catch(e) {
       console.error("Fehler beim Aktualisieren der Aufgabe", e);
@@ -1852,8 +1861,7 @@ if (typeof window.renderDashboard === 'function') {
 
   window.toggleTaskFast = async (leadId, taskId, done, subtaskId = null) => {
     try {
-      const fullList = await window.api.getLeads({ all: true }); 
-      const l = fullList.find(x => x.id === leadId);
+      const l = await window.resolveLead(leadId);
       if (!l || !l.task_text) return;
       
       let tasks = [];
@@ -1875,7 +1883,7 @@ if (typeof window.renderDashboard === 'function') {
          }
          
          l.task_text = JSON.stringify(tasks);
-         await window.api.saveLead(l);
+         await window.api.saveLead({ id: l.id, task_text: l.task_text, last_edited_ms: l.last_edited_ms });
          if (done && typeof window.showToast === 'function') {
            window.showToast("Aufgabe erledigt!");
          }
@@ -2727,41 +2735,61 @@ window.getTimeline = function(l) {
 window.renderActivity = function(act) {
     const uname = act.by_user_name && act.by_user_name !== 'Unbekannt' ? act.by_user_name : null;
     const dateStr = new Date(act.ts).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    let icon = '📌';
     let text = act.details || act.activity_type || 'Aktivität';
     
     if (act.activity_type === 'call') {
-      icon = '📞';
       let statusText = '';
       if (act.call_status === 'not_answered') statusText = 'Nicht erreicht';
       else if (act.call_status === 'answered') statusText = 'Erreicht';
       text = statusText ? `Anruf (${statusText})` : 'Anruf';
       if (uname) text += ` – ${uname}`;
     } else if (act.activity_type === 'email') {
-      icon = '✉️';
       text = act.details || 'E-Mail gesendet';
       if (uname) text += ` – ${uname}`;
     } else if (act.activity_type === 'whatsapp') {
-      icon = '💬';
       text = 'WhatsApp Nachricht gesendet';
       if (uname) text += ` – ${uname}`;
     } else if (act.activity_type === 'status_change') {
-      icon = '🔄';
       text = act.details || 'Status geändert';
       if (uname) text += ` – ${uname}`;
     } else {
       if (uname) text += ` – ${uname}`;
     }
     
+    const actIdStr = act.id ? `'${act.id}'` : 'null';
+    const actTypeStr = `'${act.activity_type}'`;
+    
     return `
-      <div style="display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-        <div style="font-size: 16px; margin-top: 2px;">${icon}</div>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
         <div style="flex: 1;">
           <div style="font-size: 13px; color: var(--color-text-primary, #f2f2f7); font-weight: 500;">${escapeHtml(text)}</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${dateStr}</div>
         </div>
+        ${act.id ? `<button onclick="window.deleteActivity(${actIdStr}, ${actTypeStr}, '${act.lead_id}')" style="background:none; border:none; color:var(--text-muted); font-size:12px; cursor:pointer; padding:4px 8px; opacity:0.6;" onmouseover="this.style.opacity=1; this.style.color='#ff453a';" onmouseout="this.style.opacity=0.6; this.style.color='var(--text-muted)';">✕</button>` : ''}
       </div>
     `;
+};
+
+window.deleteActivity = async function(id, type, leadId) {
+    if (!id || !type) return;
+    if (!confirm('Aktivität wirklich löschen?')) return;
+    const success = await window.api.deleteActivity(id, type);
+    if (success) {
+      // Remove from store
+      const leads = window.store?.state?.leads || [];
+      const lead = leads.find(x => x.id === leadId);
+      if (lead && lead.timeline) {
+        lead.timeline = lead.timeline.filter(x => x.id !== id);
+      }
+      if (typeof window.showToast === 'function') window.showToast('Gelöscht');
+      // Re-render
+      const container = document.getElementById(`sidebar-activities-container-${leadId}`);
+      if (container && lead) {
+        container.innerHTML = window.renderSidebarActivities(lead);
+      }
+    } else {
+      if (typeof window.showToast === 'function') window.showToast('Fehler beim Löschen', true);
+    }
 };
 
 window.renderSidebarActivities = function(l) {
