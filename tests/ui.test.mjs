@@ -102,12 +102,36 @@ const cancelCall = saved.find(p => 'snooze_until_ms' in p);
 check('Snooze aufheben schreibt 0', !!cancelCall && cancelCall.snooze_until_ms === 0);
 check('Aufheben landet im Store', w.store.state.leads[0].snooze_until_ms === 0);
 
-// Zwei Mal dieselbe Auswahl -> gleiches Ergebnis, kein Umschalten
+// Abwaehlen: zweiter Klick auf dieselbe Auswahl hebt die Wiedervorlage auf
+w.store.state.leads[0].snooze_until_ms = 0;
+w._activeSnoozeChoice = null;
+
 saved.length = 0;
-await w.selectSnooze(24); const a = saved.find(p => 'snooze_until_ms' in p).snooze_until_ms;
+await w.selectSnooze(24);
+const gesetzt = saved.find(p => 'snooze_until_ms' in p).snooze_until_ms;
+check('Erster Klick setzt die Wiedervorlage', gesetzt > Date.now());
+check('Auswahl ist markiert', w._activeSnoozeChoice === 24);
+
 saved.length = 0;
-await w.selectSnooze(24); const b = saved.find(p => 'snooze_until_ms' in p).snooze_until_ms;
-check('Zwei Mal dieselbe Snooze-Auswahl schaltet nicht um', a > 0 && b > 0);
+await w.selectSnooze(24);
+const abgewaehlt = saved.find(p => 'snooze_until_ms' in p);
+check('Zweiter Klick hebt die Wiedervorlage auf', !!abgewaehlt && abgewaehlt.snooze_until_ms === 0);
+check('Markierung ist wieder weg', w._activeSnoozeChoice === null);
+check('Store ist wieder auf 0', w.store.state.leads[0].snooze_until_ms === 0);
+
+// Andere Auswahl waehrend aktiver Wiedervorlage -> umsetzen, nicht aufheben
+saved.length = 0;
+await w.selectSnooze(24);
+saved.length = 0;
+await w.selectSnooze(168);
+const umgesetzt = saved.find(p => 'snooze_until_ms' in p);
+check('Andere Auswahl setzt um statt aufzuheben', !!umgesetzt && umgesetzt.snooze_until_ms > Date.now());
+check('Neue Auswahl ist markiert', w._activeSnoozeChoice === 168);
+
+// saveLeadMain darf die Wiedervorlage nicht erneut verschieben
+check('Kein Rest in currentSnoozeOffset', w.store.state.currentSnoozeOffset === 0);
+check('Kein Rest in currentSnoozeTargetMs', w.store.state.currentSnoozeTargetMs === 0);
+check('Kein Rest in clearSnooze', w.store.state.clearSnooze === false);
 
 // ── 7. Sofort-Speichern beim Verlassen eines Feldes ────────────────────────
 check('_autoSaveNow existiert', typeof w._autoSaveNow === 'function');

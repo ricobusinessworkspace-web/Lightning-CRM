@@ -115,18 +115,43 @@ window.setPipeline = async (type) => {
     }
   };
 
-  // Eine Auswahl setzt genau diese Wiedervorlage — kein Umschalten.
+  // Klick auf eine Auswahl setzt sie. Klick auf die bereits markierte Auswahl
+  // hebt sie wieder auf. Beides wird sofort gespeichert.
+  //
+  // Der Merker liegt bewusst NICHT in store.state.currentSnoozeOffset — den
+  // liest saveLeadMain aus und wuerde die Wiedervorlage bei jedem weiteren
+  // Speichern neu in die Zukunft schieben.
   window.selectSnooze = async (hrs) => {
     const btnHours = document.getElementById('snz-hours');
     const btnCustom = document.getElementById('snz-custom');
-    if (btnHours) btnHours.classList.remove('outline');
-    if (btnCustom) btnCustom.classList.remove('outline');
-    if (hrs <= 24) { if (btnHours) btnHours.classList.add('outline'); }
-    else           { if (btnCustom) btnCustom.classList.add('outline'); }
+    const markiere = (aktiv) => {
+      if (btnHours) btnHours.classList.remove('outline');
+      if (btnCustom) btnCustom.classList.remove('outline');
+      if (aktiv === null) return;
+      if (aktiv <= 24) { if (btnHours) btnHours.classList.add('outline'); }
+      else             { if (btnCustom) btnCustom.classList.add('outline'); }
+    };
+
+    const id = window.store.state.currentSelectedLeadId;
+    const lead = ((window.store.state.leads) || []).find(x => x.id === id);
+    const istGesnoozed = !!(lead && (lead.snooze_until_ms || 0) > Date.now());
+
+    // Zweiter Klick auf dieselbe Auswahl -> abwaehlen
+    if (istGesnoozed && window._activeSnoozeChoice === hrs) {
+      const ok = await window.persistSnooze(0);
+      if (ok) {
+        window._activeSnoozeChoice = null;
+        markiere(null);
+        showToast('Wiedervorlage aufgehoben.');
+      }
+      return;
+    }
 
     const target = Date.now() + (hrs * 60 * 60 * 1000);
     const ok = await window.persistSnooze(target);
     if (ok) {
+      window._activeSnoozeChoice = hrs;
+      markiere(hrs);
       const bis = new Date(target).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
       showToast(`Wiedervorlage gespeichert: ${bis}`);
     }
@@ -553,7 +578,10 @@ window.setPipeline = async (type) => {
     if (btnCustom) btnCustom.classList.remove('outline');
 
     const ok = await window.persistSnooze(0);
-    if (ok) showToast('Wiedervorlage aufgehoben.');
+    if (ok) {
+      window._activeSnoozeChoice = null;
+      showToast('Wiedervorlage aufgehoben.');
+    }
   };
 
   // ── Aufgaben: eindeutige IDs ───────────────────────────────────────────────

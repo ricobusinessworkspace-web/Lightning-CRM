@@ -1318,6 +1318,7 @@ if (typeof window.renderDashboard === 'function') {
     window.store.state.currentSnoozeOffset = 0;
     window.store.state.currentSnoozeTargetMs = 0;
     window.store.state.clearSnooze = false;
+    window._activeSnoozeChoice = null;   // welche Schaltfläche ist gerade markiert
     window._pendingCallLog = false;
     window.store.state.isTaskMode = false;
     window.store.state.isKundeMode = false;
@@ -1377,7 +1378,7 @@ if (typeof window.renderDashboard === 'function') {
             <button class="action-btn snooze-opt ${window.store.state.currentSnoozeOffset > 24 ? 'outline' : ''}" id="snz-custom" onclick="selectCustomSnooze()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Tage</button>
           </div>
         </div>
-        ${isSnoozed ? `<div id="cancel-snooze-container" style="margin-top: 12px; text-align: center;"><button type="button" class="action-btn-small" style="border:1px dashed #ff453a; color:#ff453a; background:transparent; width:100%; padding: 8px;" onclick="cancelSnooze()">Snooze aufheben</button></div>` : ''}
+        <div id="cancel-snooze-container" style="margin-top: 12px; text-align: center; display: ${isSnoozed ? 'block' : 'none'};"><button type="button" class="action-btn-small" style="border:1px dashed #ff453a; color:#ff453a; background:transparent; width:100%; padding: 8px;" onclick="cancelSnooze()">Snooze aufheben</button></div>
       </div>
     `;
 
