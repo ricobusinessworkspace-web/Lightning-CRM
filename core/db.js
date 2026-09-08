@@ -593,15 +593,13 @@ export const db = {
       const now = Date.now();
       let snoozeUntilMs = row.snooze_until_ms || 0;
       if (!snoozeUntilMs || snoozeUntilMs < now) {
-        // Set to 4 PM next business day if it's currently earlier
+        // Set to 4 PM next business day
         const d = new Date();
-        if (d.getHours() < 16) {
-          d.setHours(16, 0, 0, 0);
-          snoozeUntilMs = d.getTime();
-        } else {
-          // If already past 4 PM, just add 15 minutes as fallback
-          snoozeUntilMs = Date.now() + 15 * 60 * 1000;
-        }
+        if (d.getHours() >= 16) d.setDate(d.getDate() + 1);
+        if (d.getDay() === 6) d.setDate(d.getDate() + 2); // Saturday -> Monday
+        else if (d.getDay() === 0) d.setDate(d.getDate() + 1); // Sunday -> Monday
+        d.setHours(16, 0, 0, 0);
+        snoozeUntilMs = d.getTime();
       } else {
         snoozeUntilMs = Date.now() + 15 * 60 * 1000;
       }
