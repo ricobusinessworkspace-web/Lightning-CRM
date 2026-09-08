@@ -1,96 +1,255 @@
-# Lightning CRM - Project Handover
+# Lightning CRM — Handover
 
-## Overview
-Lightning CRM is a modular, web-based Customer Relationship Management (CRM) tool primarily focused on lead generation, cold calling, and sales pipeline management. It is designed to be fast and heavily relies on vanilla web technologies for the frontend, with a modern cloud backend.
+Stand: 08.09.2026 · Branch `master` · Deploy über Vercel bei jedem Push
 
-## Tech Stack & Architecture
-- **Frontend Framework**: Vanilla JavaScript (ES Modules), HTML5, CSS3. No heavy frameworks (like React or Vue) are used. 
-- **Build Tool / Dev Server**: [Vite](https://vitejs.dev/) (`vite.config.js`).
-- **Backend / Database**: Migrated from a local SQLite setup to **Supabase** (PostgreSQL). Supabase provides real-time updates and authentication.
-- **Serverless API**: Vercel Serverless Functions (located in `/api/`) handle privileged operations like user invites (`api/invite.js`) and push notifications.
-- **Hosting / Deployment**: Designed for Vercel/Netlify auto-deployments.
+---
 
-## Core Features & Tabs
-1. **Pipeline (`queue`)**: The default starting view. Manages leads progressing through various sales stages.
-2. **Kaltakquise (`cold`)**: Optimized interface for cold calling sessions, including quick status updates and follow-ups.
-3. **Aufgaben (`tasks`)**: Task management and mission briefings (Zero Inbox approach).
-4. **Kunden (`customers`)**: Overview of won and active customers.
-5. **Karte (`map`)**: Geographic view of leads using Leaflet.js.
-6. **Radar Scout (`scout`)**: Integrated lead generation tool that scrapes data from Google Places / OpenStreetMap (Nominatim/Overpass).
-7. **Command Center (`dashboard`)**: KPI tracking, metrics, and global reporting.
+## 1. Was das ist
 
-## Key Files & Directories
-- `index.html`: The main entry point containing the UI layout, modals, and navigation.
-- `public/ui/`: Contains the monolithic UI logic.
-  - `pipeline_ui.js` (~2.6k lines): Handles the rendering and interaction for the pipeline and most list views.
-  - `main_ui.js` (~1.2k lines): Handles global UI events, filtering, and bulk actions.
-  - `init.js`: Bootstraps the app, checks authentication, and sets up Supabase real-time listeners.
-- `public/core/`:
-  - `store.js`: A custom, lightweight Proxy-based reactive state manager (`window.store`).
-  - `api.js` / `db.js`: Abstraction layer for database operations (now pointing to Supabase, maintaining the legacy SQLite API signature for compatibility).
-- `public/modules/`: Contains isolated features, like `scraper.js` for the Radar Scout feature.
-- `api/`: Vercel serverless endpoints (e.g., `invite.js`, `push_sales_bell.js`).
+Web-CRM für Leadgenerierung, Kaltakquise und Vertriebs-Pipeline. Aktuell im
+**Einzelplatz-Betrieb**: genau ein Nutzer (Rico), 248 Leads, ~300 Anrufe.
 
-## State Management
-The application uses a globally accessible proxy-based store (`window.store`).
-Any updates to `window.store.state` automatically trigger listeners. The primary function `loadUi()` re-renders the current view based on the state (e.g., `currentTab`).
+- **Frontend:** Vanilla JS, kein Framework. Globale `window.*`-Funktionen,
+  HTML wird als Template-String zusammengebaut und per `innerHTML` gesetzt.
+- **Build/Dev:** Vite. `npm run dev`, `npm run build`, `npm test`.
+- **Backend:** Supabase (PostgreSQL + Auth + Realtime).
+- **Serverfunktionen:** Vercel Functions unter `/api/`.
 
-## Recent Changes
-- **Default Tab**: The default starting tab was recently changed from *Aufgaben* to *Pipeline*. This involved updating `currentTab: 'queue'` in `public/core/store.js` and adjusting the active CSS classes in `index.html`.
+---
 
-## Getting Started (Local Development)
-1. Install dependencies: `npm install`
-2. Start the Vite dev server: `npm run dev`
-3. The app relies on Vercel environment variables (like `VITE_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`) for full backend functionality. Make sure these are linked if working locally with Vercel CLI (`vercel dev`).
+## 2. Lies das zuerst — fünf Fallen
 
-## Deployment
-The project is configured for Vercel. Any pushes to the `master` branch will trigger an automatic deployment.
-```bash
-git add .
-git commit -m "feat/fix: description"
-git push origin master
+Diese Punkte haben in der letzten Sitzung jeweils Zeit gekostet. Alle sind real.
+
+### 2.1 `scratch/schema.sql` ist veraltet und lügt
+
+Die Datei kennt `crm_calls`, `lead_activities` und `user_profiles` **gar nicht**
+und behauptet eine offene Zugriffsregel für nicht angemeldete Besucher, die es
+live nicht gibt. **Nicht als Quelle benutzen.** Den echten Stand immer über
+`admin_scripts/inspect_user_columns.sql` oder direkt in Supabase abfragen.
+
+### 2.2 Die Datenbank gehört nicht nur diesem Projekt
+
+Im selben Supabase-Projekt liegen weitere Apps: `jarvis_*`, `g_*`, `tracker_*`,
+`core_*`. Konsequenzen:
+
+- `auth.users` ist **projektweit**. Nutzer löschen trifft alle Apps.
+- `user_profiles` wird möglicherweise geteilt — Policies dort nicht anfassen.
+- `core_goals`, `core_intentions`, `core_metric_definitions`,
+  `core_metric_sources` haben **RLS aus** und sind ungeschützt öffentlich.
+  Gehört nicht zum CRM, ist aber bekannt.
+
+### 2.3 Spaltentypen sind uneinheitlich
+
+| Spalte | Typ | Foreign Key |
+|---|---|---|
+| `crm_leads.claimed_by` | `uuid` | ja |
+| `crm_calls.by_user_id` | **`text`** | nein |
+| `lead_activities.by_user_id` | `uuid` | nein |
+| `crm_notifications.user_id` | `uuid` | ja |
+| `crm_push_subscriptions.user_id` | `uuid` | ja |
+
+Dass die Statistik Anrufe den Profilen zuordnen kann, funktioniert nur, weil in
+der Text-Spalte zufällig die uuid als String steht. Bei dynamischem SQL immer
+über `::text` vergleichen und auf den echten Spaltentyp casten.
+
+### 2.4 Zwei Verzeichnisse heißen `core/`
+
+`index.html` lädt `core/config.js` **und** `core/auth.js` — die kommen aus
+**verschiedenen Ordnern**:
+
+- `./core/` (Projektwurzel) → `auth.js`, `api.js`, `db.js` — ES-Module
+- `./public/core/` → `config.js`, `store.js`, `state.js`, `leads.js`,
+  `tasks.js`, `pipeline.js` — klassische Skripte
+
+Vite serviert `public/` unter `/`, deshalb lösen beide auf. **Beim Bearbeiten
+auf den richtigen Ordner achten.** `dist/` ist Build-Ausgabe, nie editieren.
+
+### 2.5 Ladereihenfolge entscheidet
+
+```
+core/config.js → core/auth.js → core/store.js → core/state.js → core/leads.js
+→ core/tasks.js → core/pipeline.js → ui/pipeline_ui.js → ui/main_ui.js
+→ modules/scraper.js → ui/profile-modal.js → ui/init.js
 ```
 
-## Einzelplatz-Modus (aktuell aktiv)
+`pipeline_ui.js` läuft **vor** `main_ui.js`. Genau daran ist ein Auto-Save-
+Wrapper gescheitert, der `selectSnooze` einpacken wollte, bevor es existierte —
+er hat monatelang stillschweigend nichts getan. **Nie Funktionen aus
+`main_ui.js` auf oberster Ebene von `pipeline_ui.js` umschließen.**
 
-Das CRM läuft derzeit für genau einen Nutzer. Gesteuert wird das über **einen
-einzigen Schalter** in `public/core/config.js`:
+---
+
+## 3. Verzeichnisse
+
+```
+index.html              Layout, Modals, Navigation, Skript-Reihenfolge
+core/db.js       (1003) Supabase-Zugriff, gesamte Datenlogik
+core/api.js       (91)  window.api — dünne Fassade über db.js
+core/auth.js      (33)  Passkey-Stub, Developer-Unlock
+public/core/config.js   DER SCHALTER (multiUser)
+public/core/store.js    Proxy-Store, window.store.state
+public/ui/pipeline_ui.js (2872) Listen, Karten, Sidebar, Karte, Dashboard
+public/ui/main_ui.js     (1479) Speichern, Aufgaben, Snooze, Toasts, Bulk
+public/modules/scraper.js (746) Radar Scout (Google Places / OSM)
+ui/init.js        (513) Bootstrap, Login, Realtime-Abo
+api/              Vercel Functions + api/_lib/auth.js
+admin_scripts/    SQL für Wartung (siehe §8)
+tests/ui.test.mjs 45 Prüfungen, ohne Browser
+```
+
+---
+
+## 4. Speichern — das Wichtigste
+
+**Alle Schreibvorgänge laufen durch `window.queueSave()`** (in `main_ui.js`).
+Eine Kette, die sie nacheinander ausführt. Ohne sie überholen sich gleichzeitige
+Speichervorgänge und die Konfliktprüfung in `db.js` meldet fälschlich eine
+Fremdänderung. **Neue Schreibpfade immer in `queueSave` einreihen.**
+
+Drei Einstiegspunkte:
+
+| Funktion | schreibt | wann |
+|---|---|---|
+| `persistTasks()` | `task_text` | jede Aufgaben-Änderung, sofort |
+| `persistSnooze(ms)` | `snooze_until_ms` | Snooze setzen/aufheben, sofort |
+| `saveLeadMain(id)` | alle Spalten | Feld verlassen, Stufenwechsel |
+
+Nach dem Speichern **nur die betroffene Karte** neu zeichnen:
+`refreshLeadCard(id)` → `patchLeadCard(id)` tauscht einen DOM-Knoten.
+Nur wenn die Karte nicht im DOM ist, wird auf `loadUi(true)` zurückgefallen.
+**Nicht auf `loadUi()` zurückbauen** — das ersetzt die ganze Liste, kostet
+Scrollposition und fühlt sich kaputt an.
+
+Aufgabenlisten hängen an `window.currentTasks` **plus**
+`window.currentTasksLeadId`. Die Bindung ist zwingend — ohne sie schreiben
+verzögerte Speichervorgänge die Aufgaben eines anderen Leads.
+
+---
+
+## 5. Bewusste Entscheidungen — bitte nicht zurückbauen
+
+Das sind Antworten auf konkrete Beschwerden, keine Zufälle.
+
+- **Anrufe kennen kein „erreicht / nicht erreicht".** Ein Anruf ist ein Anruf.
+  `call_status` kennt nur `never` / `called`. Die Spalte `crm_calls.status`
+  existiert noch, wird aber nirgends ausgewertet.
+- **Keine versteckte Ausblende-Logik.** Früher verschwanden Leads aus Pipeline
+  und Kaltakquise, wenn im Aufgabentext „mail" vorkam — traf auch
+  „Rechnung mailen". Leads bleiben immer sichtbar.
+- **Offene Aufgaben zeigt ein kleines `+`** hinter dem Pipeline-Status. Diese
+  Lösung war schon da und ist gewollt. Kein Badge, kein Icon.
+- **Pipeline-Stufen schalten nicht um.** Ein Klick setzt genau diese Stufe.
+- **Der Snooze-Knopf schaltet sehr wohl um.** Klick auf die markierte Auswahl
+  hebt die Wiedervorlage auf. Andere Auswahl setzt um. Zusätzlich gibt es
+  „Snooze aufheben". Der Merker liegt in `window._activeSnoozeChoice` —
+  **nicht** in `store.state.currentSnoozeOffset`, das liest `saveLeadMain` aus
+  und würde die Wiedervorlage bei jedem Speichern weiter nach vorn schieben.
+- **Erledigte Aufgaben werden abgehakt, nicht gelöscht.**
+- **Zusammenführen nur bei gleicher Google-Place-ID.** Namensgleichheit gibt
+  einen Hinweis. Früher wurde über Name + Stadt still zusammengeführt — zwei
+  Mal „Neuer Lead" öffnete beim zweiten Klick den ersten.
+- **Sortierung bleibt nach dem Speichern stehen**, bis komplett neu geladen
+  wird. Sonst springt die Karte unter dem Cursor weg.
+
+---
+
+## 6. Einzelplatz-Modus
+
+Ein Schalter in `public/core/config.js`:
 
 ```js
 window.APP_CONFIG = { multiUser: false };
 ```
 
-Bei `false` ist ausgeblendet: Registrierung, Einladungen, Nutzerverwaltung,
-Rollen-Anzeige, Lead-Zuweisung (inkl. Avatare und Zuweisungs-Filter),
-Sales-Bell-Push und das Punkte-/Level-System.
+Bei `false` ausgeblendet: Registrierung, Einladungen, Nutzerverwaltung, Rollen,
+Lead-Zuweisung (Dropdown, Avatare, Filter), Sales-Bell-Push, Punkte-System.
+**Nichts ist gelöscht** — Code, Serverfunktionen und Datenbankspalten sind
+unverändert.
 
-**Nichts davon wurde gelöscht.** Weder der Code, noch die Serverfunktionen unter
-`/api`, noch die Datenbankspalten (`claimed_by`, `by_user_id`, …). Auf `true`
-setzen und alles ist wieder da.
+### Bevor wieder mehrere Leute arbeiten
 
-### Bevor wieder mehrere Leute damit arbeiten
+1. `multiUser: true`.
+2. Supabase → Authentication → Email → „Allow new users to sign up" (nur bei
+   gewünschter Selbstregistrierung).
+3. **Zugriffsregeln schärfen.** Auf `crm_leads` liegt `auth_full_access`
+   (jeder Angemeldete darf alles) neben feineren Regeln wie „Agents can read
+   their own or unassigned leads". Solche Regeln wirken additiv — die
+   großzügigste gewinnt. Die Rollentrennung existiert heute nur in der
+   Oberfläche. Dazu §2.2: ein Login gilt für alle Apps im Projekt.
+4. Vercel: `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` setzen.
+5. `saveLeadMain` auf Teil-Updates umbauen (siehe §7).
 
-1. `multiUser: true` setzen.
-2. Supabase → Authentication → Sign In / Providers → Email → "Allow new users to
-   sign up" wieder an (nur nötig, wenn Selbst-Registrierung gewünscht ist).
-3. **Zugriffsregeln schärfen.** Auf `crm_leads` liegt die Regel
-   `auth_full_access` (jeder Angemeldete darf alles). Sie steht neben feiner
-   abgestuften Regeln wie "Agents can read their own or unassigned leads" —
-   und weil solche Regeln additiv wirken, gewinnt immer die großzügigste.
-   Die Rollentrennung existiert also aktuell nur in der Oberfläche, nicht in
-   der Datenbank. Für einen Nutzer egal, ab dem zweiten nicht mehr.
-   Zusätzlich: die Datenbank wird von weiteren Apps mitbenutzt (jarvis_*,
-   g_*, tracker_*). Ein Login gilt überall — wer für den Tracker einen
-   Account bekommt, sieht damit auch die CRM-Leads.
-4. Vercel: `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` setzen, sonst bleibt der
-   Sales-Bell-Push stumm.
-5. `saveLeadMain` in `public/ui/main_ui.js` schreibt beim Speichern alle Spalten
-   zurück. Bei einem Nutzer folgenlos, bei zweien überschreibt man sich
-   gegenseitig — vorher auf Teil-Updates umbauen.
+---
 
-### Admin-Skripte
+## 7. Offene Schulden, nach Dringlichkeit
 
-- `admin_scripts/inspect_user_columns.sql` — zeigt, welche Spalten auf Nutzer verweisen
-- `admin_scripts/reset_users_dev.sql` — alle Nutzer außer einem entfernen (irreversibel)
-- `admin_scripts/lockdown_dev.sql` — NICHT ausführen, durch Prüfung überholt (siehe Kopf der Datei)
-- `admin_scripts/check_shared_project.sql` — prüft, ob Daten auf gelöschte Accounts zeigen
+1. **`getAgentStats` (`core/db.js`) lädt alle Anrufe in den Browser.**
+   PostgREST liefert max. 1000 Zeilen — darüber zählt das Dashboard **still
+   falsch**. Aktuell ~300 Anrufe, also Monate Puffer. Gehört in eine SQL-View
+   mit `GROUP BY`. Das ist der einzige Posten mit Ablaufdatum.
+2. **`saveLeadMain` schreibt alle ~25 Spalten zurück**, obwohl `db.js`
+   Teil-Updates beherrscht. Bei einem Nutzer folgenlos, bei zweien
+   überschreibt man Kollegen-Änderungen.
+3. **`crm_calls.by_user_id` von `text` auf `uuid` + Foreign Key ziehen.**
+   Bei ~300 Zeilen harmlos, später nicht mehr.
+4. **`echtes Schema versioniert ablegen`** und `scratch/schema.sql` löschen.
+   Zehn Minuten, verhindert Falle §2.1 dauerhaft.
+5. **`pipeline_ui.js` mit 2872 Zeilen aufteilen.** Listen / Sidebar / Karte /
+   Dashboard sind vier unabhängige Themen in einer Datei.
+6. **Toter Code:** `toggleAnalytics` ruft ein nicht existierendes
+   `api.getStats` auf und ist nirgends verdrahtet. `autoGeocode` ist bewusst
+   nicht exportiert (würde beim Login eine Massen-Geocoding-Schleife mit
+   Full-Record-Saves starten). Im Wurzelverzeichnis liegen neun Einmal-Skripte
+   (`fix_*.py`, `test_*.js`), die nach `scratch/` gehören.
+
+---
+
+## 8. Admin-Skripte
+
+Alle read-only-Schritte zuerst ausführen. Die schreibenden sind irreversibel —
+vorher Backup über Supabase → Database → Backups.
+
+| Datei | Zweck |
+|---|---|
+| `inspect_user_columns.sql` | Welche Spalten verweisen auf Nutzer, mit Typ |
+| `check_shared_project.sql` | Zeigt Zeilen, die auf gelöschte Accounts zeigen |
+| `cleanup_activity_labels.sql` | Alte Beschriftungen (`FOLLOW-UP` → `DATA`) |
+| `fix_anon_insert.sql` | Erledigt — anonymes Anlegen von Leads geschlossen |
+| `reset_users_dev.sql` | Erledigt — alle Nutzer außer einem entfernt |
+| `lockdown_dev.sql` | **NICHT ausführen**, überholt (siehe Dateikopf) |
+
+---
+
+## 9. Entwicklung
+
+```bash
+npm install
+npm run dev      # Vite, Port 3000
+npm test         # 45 Prüfungen, ohne Browser, ~1 Sekunde
+npm run build
+```
+
+`npm test` (`tests/ui.test.mjs`) läuft über jsdom und deckt ab: Pipeline-Stufen,
+eindeutige Aufgaben-IDs, Speichern beim Abhaken/Löschen, Snooze setzen und
+aufheben, dass keine Reste im Store bleiben, Einzelkarten-Aktualisierung und
+die Reihenfolge in der Speicher-Warteschlange. **Nach jeder Änderung an
+`main_ui.js` laufen lassen.**
+
+Die `/api/*`-Funktionen serviert Vite **nicht**. Änderungen dort lassen sich nur
+nach dem Deploy prüfen (oder mit `vercel dev`).
+
+Deployment: Push auf `master` → Vercel deployt automatisch.
+
+---
+
+## 10. Umgang mit dem Nutzer
+
+- **Deutsch, keine Fachsprache.** Nicht „RLS-Policy", sondern „Zugriffsregel".
+  Nicht „Endpoint", sondern „Serverfunktion".
+- **Erst prüfen, dann behaupten.** Eine Warnung auf Basis einer veralteten
+  Datei hat Vertrauen gekostet. Read-only-Abfragen sind billig.
+- **Offensichtliche Bedienprobleme mit aufräumen**, statt sie nur zu benennen —
+  darum wurde ausdrücklich gebeten.
+- **Bestehende, funktionierende Lösungen nicht ersetzen.** Siehe §5.
+- **Nicht ungefragt pushen.** Der Push auf `master` geht direkt live.
