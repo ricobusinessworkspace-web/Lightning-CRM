@@ -73,7 +73,7 @@ window.setPipeline = async (type) => {
   // Vorher wurde nur ein Wert im Speicher vorgemerkt und darauf gehofft, dass
   // ein Auto-Save ihn aufsammelt. Der zustaendige Wrapper lief aber ins Leere
   // (falsche Ladereihenfolge), also ging die Wiedervorlage immer verloren.
-  window.persistSnooze = async (snoozeMs) => {
+  window.persistSnooze = async (snoozeMs) => window.queueSave(async () => {
     const id = window.store.state.currentSelectedLeadId;
     if (!id) return false;
 
@@ -113,7 +113,7 @@ window.setPipeline = async (type) => {
       showToast('Wiedervorlage konnte nicht gespeichert werden: ' + err.message, true);
       return false;
     }
-  };
+  });
 
   // Klick auf eine Auswahl setzt sie. Klick auf die bereits markierte Auswahl
   // hebt sie wieder auf. Beides wird sofort gespeichert.
@@ -352,7 +352,7 @@ window.setPipeline = async (type) => {
   };
 
   // Remove confirmEnrich, autoEnrich, cancelEnrich, etc. (deprecated)
-  window.saveLeadMain = async (id, noClose = false, noRender = false) => {
+  window.saveLeadMain = async (id, noClose = false, noRender = false) => window.queueSave(async () => {
     if (window.store.state.currentSelectedLeadId !== id) {
         console.warn('saveLeadMain aborted: Lead ID mismatch or no lead selected.');
         return false;
@@ -569,7 +569,7 @@ window.setPipeline = async (type) => {
       }
       return false;
     }
-  };
+  });
 
   window.cancelSnooze = async () => {
     const btnHours = document.getElementById('snz-hours');
@@ -582,6 +582,23 @@ window.setPipeline = async (type) => {
       window._activeSnoozeChoice = null;
       showToast('Wiedervorlage aufgehoben.');
     }
+  };
+
+  // ── Schreibvorgaenge nacheinander ausfuehren ───────────────────────────────
+  // Ein Klick kann mehrere Speichervorgaenge gleichzeitig ausloesen: der
+  // Snooze-Knopf schreibt selbst, und derselbe Klick nimmt den Fokus aus dem
+  // vorherigen Feld, was den Auto-Save startet. Beide schicken den Stand von
+  // VOR dem jeweils anderen mit — die Konfliktpruefung in db.js schlaegt dann
+  // an, obwohl es die eigene Aenderung war.
+  //
+  // Die Warteschlange laesst sie nacheinander laufen. Jeder Vorgang sieht
+  // damit den aktualisierten Stand des vorherigen.
+  window._saveChain = window._saveChain || Promise.resolve();
+  window.queueSave = (fn) => {
+    const next = window._saveChain.then(() => fn());
+    // Kette darf durch einen Fehler nicht abreissen
+    window._saveChain = next.then(() => {}, () => {});
+    return next;
   };
 
   // Nach dem Speichern nur die betroffene Karte auffrischen. Nur wenn die
@@ -608,7 +625,7 @@ window.setPipeline = async (type) => {
   // darauf gehofft, dass der Auto-Save durch ein Klick-Nebengeräusch ausgelöst
   // wird. Bei Buttons passiert das nicht — deshalb waren Aufgaben "nicht
   // löschbar" und tauchten nach dem Neuladen wieder auf.
-  window.persistTasks = async () => {
+  window.persistTasks = async () => window.queueSave(async () => {
     const leadId = window.currentTasksLeadId;
     if (!leadId) return false;
 
@@ -643,7 +660,7 @@ window.setPipeline = async (type) => {
       showToast('Aufgabe konnte nicht gespeichert werden: ' + err.message, true);
       return false;
     }
-  };
+  });
 
   window.renderTasksList = () => {
     const listDiv = document.getElementById('tasks-list');

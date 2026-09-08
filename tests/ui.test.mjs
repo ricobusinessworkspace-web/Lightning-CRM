@@ -167,6 +167,31 @@ check('Vorhandene Karte loest kein Neuzeichnen aus', vollNeu === 0);
 w.refreshLeadCard(999);
 check('Fehlende Karte faellt auf Neuzeichnen zurueck', vollNeu === 1);
 
+
+// ── 9. Gleichzeitige Speichervorgänge überlappen nicht ─────────────────────
+// Ohne Warteschlange wuerde der kuerzere Vorgang den laengeren ueberholen —
+// genau daraus entstand der falsche "Konflikt"-Hinweis beim Snooze-Klick.
+const tick = (n) => { let p = Promise.resolve(); for (let i = 0; i < n; i++) p = p.then(() => {}); return p; };
+const ablauf = [];
+const job = (name, ticks) => () => tick(ticks).then(() => { ablauf.push(name); return name; });
+
+const p1 = w.queueSave(job('A', 8));   // startet zuerst, dauert laenger
+const p2 = w.queueSave(job('B', 1));   // startet danach, waere schneller fertig
+await Promise.all([p1, p2]);
+check('Speichervorgaenge laufen nacheinander', ablauf.join(',') === 'A,B');
+
+// Ein Fehler darf die Kette nicht abreissen lassen
+let danachGelaufen = false;
+const kaputt = w.queueSave(async () => { throw new Error('absichtlich'); });
+await kaputt.then(() => {}, () => {});
+await w.queueSave(async () => { danachGelaufen = true; });
+check('Fehler bricht die Warteschlange nicht ab', danachGelaufen === true);
+
+// Der Aufrufer bekommt den Fehler trotzdem zu sehen
+let fehlerGesehen = false;
+await w.queueSave(async () => { throw new Error('sichtbar'); }).catch(() => { fehlerGesehen = true; });
+check('Fehler erreicht den Aufrufer', fehlerGesehen === true);
+
 console.log('\n✅ BESTANDEN (' + ok.length + ')');
 ok.forEach(t => console.log('   ' + t));
 if (fail.length) {
