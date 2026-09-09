@@ -1,6 +1,6 @@
 ---
 last_updated: 2026-09-09
-last_agent: Claude Sonnet 5 (Workflow-Standardisierung)
+last_agent: Claude Sonnet 5 (Altlasten-Aufräumung)
 status: Ready for Next Phase
 ---
 
@@ -61,6 +61,29 @@ Spaltentyp casten.
 
 Vite serviert `public/` unter `/`, deshalb lösen beide auf. **Beim Bearbeiten
 auf den richtigen Ordner achten.** `dist/` ist Build-Ausgabe, nie editieren.
+
+### 5b. Der Name „calling-station" ist ein Überrest, kein zweites Projekt
+
+Das Vercel-Deployment von Lightning CRM heißt intern noch `calling-station`
+(`.vercel/project.json` → `projectName: "calling-station"`, Live-URL
+`calling-station-wardogs.vercel.app`, referenziert in `core/db.js` für
+`inviteUser`). Grund: Lightning CRM ist aus einer alten Electron-Desktop-App
+namens „Calling Station" hervorgegangen (gleiches Lead-Schema, lokale
+SQLite-DB). Der Ordner `/Users/rico/dev/calling-station` mit dieser App wurde
+am 09.09.2026 entfernt (Altprojekt, zuletzt als „Day Rail"-Kalenderleiste
+weiterverwendet, von Rico bestätigt) — über Git-Historie (Branch `day-rail`
+im Sammel-Repo `/Users/rico/dev`) wiederherstellbar. Ebenfalls entfernt:
+verwaiste lokale Reste im Lightning-CRM-Ordner selbst
+(`calling_station.sqlite` mit 192 alten Leads — Schema deckungsgleich mit
+`crm_leads`, Stand 26.06., klar vom heutigen Supabase-Bestand überholt —
+sowie `.backup`, `credentials.json`, leere `app.db`, leerer `js/`-Ordner).
+
+**Zwei Admin-Skripte sind jetzt kaputt, weil sie auf diese Reste zeigten:**
+`admin_scripts/inspect_db.js` (falscher Pfad zu `calling_station.sqlite`,
+war schon vorher nicht lauffähig) und `admin_scripts/scratch_pdf.js`
+(absoluter Pfad in den jetzt gelöschten Ordner). Beides sind Einmal-Skripte
+ohne Bezug zum laufenden Betrieb — aufräumen oder löschen, falls sie mal
+auffallen.
 
 ### 5. Ladereihenfolge entscheidet
 ```
@@ -291,6 +314,10 @@ heilt sich selbst, jede Navigation sichert vorher ab.
 ---
 
 ## Handover-Historie
+- 2026-09-09 — `calling-station`-Verwirrung geklärt (siehe Falle 5b) und
+  aufgeräumt: alter Electron-App-Ordner entfernt, verwaiste lokale
+  Datenreste im Lightning-CRM-Ordner in den Papierkorb verschoben (Claude
+  Sonnet 5).
 - 2026-09-09 — Workflow-Standardisierung nach `coding-workflow-standards.md`,
   Inhalt vollständig aus dem Vorgänger-Handover übernommen (Claude Sonnet 5).
 - 2026-09-09 — Autospeichern-Fix (vier Auslöser, Fluchtpunkt, Statuszeile),
