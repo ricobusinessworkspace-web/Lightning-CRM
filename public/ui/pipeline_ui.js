@@ -1147,8 +1147,10 @@ if (typeof window.renderDashboard === 'function') {
             else deadlineBadge = `<span class="deadline-badge deadline-ok">${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})}</span>`;
           }
 
+          // Der Aufgabenreiter zeigt nur, was noch offen ist — auch bei den
+          // Teilaufgaben. Die erledigten stehen in der Detailansicht des Leads.
           let subtasksHtml = '';
-          const subs = t.subtasks || [];
+          const subs = (t.subtasks || []).filter(st => !st.done);
           if (subs.length > 0) {
             subtasksHtml = `<div style="margin-top: 12px; padding-left: 34px; display:flex; flex-direction:column; gap:0;">`;
             subs.forEach((st, idx) => {
@@ -1818,16 +1820,29 @@ if (typeof window.renderDashboard === 'function') {
       try { tasks = JSON.parse(l.task_text); } catch(e) { return; }
       const t = tasks.find(x => x.id === taskId);
       if (t) {
+         const jetzt = Date.now();
          if (subtaskId) {
            const st = t.subtasks?.find(x => x.id === subtaskId);
-           if (st) st.done = done;
+           if (!st || st.done === done) return;
+           st.done = done;
+           st.done_ms = done ? jetzt : undefined;
+           if (done && window.logTaskDone) window.logTaskDone(l.id, st.text, t.text);
+           // Teilaufgabe wieder oeffnen oeffnet auch die Hauptaufgabe
+           if (!done && t.done) { t.done = false; t.done_ms = undefined; }
          } else {
+           if (t.done === done) return;
            t.done = done;
+           t.done_ms = done ? jetzt : undefined;
+           // Nur EIN Verlaufseintrag, auch wenn Teilaufgaben mitgehen.
            if (t.subtasks) {
-             t.subtasks.forEach(s => s.done = done);
+             t.subtasks.forEach(st => {
+               st.done = done;
+               st.done_ms = done ? jetzt : undefined;
+             });
            }
+           if (done && window.logTaskDone) window.logTaskDone(l.id, t.text);
          }
-         
+
          const ok = await window.leadStore.save(l.id, { task_text: JSON.stringify(tasks) }, { label: 'Aufgabe' });
          if (!ok) return;
          // Falls derselbe Lead gerade in der Seitenleiste offen ist, dort mitziehen
@@ -2702,6 +2717,9 @@ window.renderActivity = function(act) {
       if (uname) text += ` – ${uname}`;
     } else if (act.activity_type === 'whatsapp') {
       text = act.details || 'WhatsApp geschrieben';
+      if (uname) text += ` – ${uname}`;
+    } else if (act.activity_type === 'task_done') {
+      text = act.details || 'Aufgabe erledigt';
       if (uname) text += ` – ${uname}`;
     } else if (act.activity_type === 'status_change') {
       text = act.details || 'Status geändert';

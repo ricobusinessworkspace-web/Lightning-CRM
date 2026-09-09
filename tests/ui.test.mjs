@@ -5,7 +5,12 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', { runScripts:
 const w = dom.window;
 w.escapeHtml = (u) => String(u ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 w.showToast = () => {};
-w.api = { saveLead: async () => ({}), getStage: (l) => (l.stage || 'cold').toUpperCase() };
+w.verlauf = [];
+w.api = {
+  saveLead: async () => ({}),
+  getStage: (l) => (l.stage || 'cold').toUpperCase(),
+  logTaskDone: async (id, text, haupt) => { w.verlauf.push({ id, text, haupt }); return true; }
+};
 w.store = { state: { leads: [], tabCache: {}, currentSelectedLeadId: null } };
 w.loadUi = () => {};
 w.requestAnimationFrame = (fn) => fn();
@@ -369,6 +374,90 @@ await w.saveLeadMain(400, true, true);
 const taskWrite = geschrieben.find(x => 'task_text' in x);
 check('Angefangene Aufgabe geht nicht verloren', !!taskWrite && taskWrite.task_text.includes('Vergessene Aufgabe'));
 check('Eingabefeld ist danach leer', eingabe.value === '');
+
+
+// ── 13. Erledigte Aufgaben bleiben als Historie stehen ────────────────────
+w.document.body.innerHTML = '';
+const liste13 = w.document.createElement('div'); liste13.id = 'tasks-list';
+w.document.body.appendChild(liste13);
+
+w.store.state.leads = [{ id: 500, name: 'Historie', task_text: '', last_edited_ms: 1 }];
+w.store.state.tabCache = {};
+w.api.saveLead = async (p) => ({ id: p.id, last_edited_ms: Date.now() });
+w.bindTasksToLead(w.store.state.leads[0]);
+w.currentTasks = [
+  { id: 1, text: 'Angebot schicken', done: false, deadline: '', subtasks: [{ id: 11, text: 'Preise prüfen', done: false }] },
+  { id: 2, text: 'Rückruf', done: false, deadline: '', subtasks: [] }
+];
+w.verlauf.length = 0;
+
+const vorErledigen = Date.now();
+w.toggleTask(1, true);
+const t1 = w.currentTasks.find(t => t.id === 1);
+check('Erledigte Aufgabe bleibt in der Liste', !!t1 && t1.done === true);
+check('Erledigungszeitpunkt wird festgehalten', typeof t1.done_ms === 'number' && t1.done_ms >= vorErledigen);
+check('Teilaufgabe wird mit abgehakt', t1.subtasks[0].done === true);
+check('Erledigte steht sichtbar in der Detailansicht', liste13.textContent.includes('Erledigt (1)') && liste13.textContent.includes('Angebot schicken'));
+check('Offene steht darueber', liste13.textContent.indexOf('Rückruf') < liste13.textContent.indexOf('Erledigt (1)'));
+check('Zurueck-Schalter ist da', liste13.innerHTML.includes('toggleTask(1, false)'));
+check('Loeschen bleibt moeglich', liste13.innerHTML.includes('deleteTask(1)'));
+check('Alle-loeschen-Schalter erscheint', liste13.innerHTML.includes('clearDoneTasks()'));
+
+check('Genau ein Verlaufseintrag trotz Teilaufgabe', w.verlauf.length === 1);
+check('Verlaufseintrag nennt die Aufgabe', w.verlauf[0].text === 'Angebot schicken' && w.verlauf[0].id === 500);
+check('Verlaufseintrag ohne Hauptaufgabe', !w.verlauf[0].haupt);
+
+// Wieder oeffnen: kein neuer Verlaufseintrag, Zeitpunkt weg
+w.verlauf.length = 0;
+w.toggleTask(1, false);
+check('Wieder oeffnen klappt', w.currentTasks.find(t => t.id === 1).done === false);
+check('Zeitpunkt wird zurueckgesetzt', w.currentTasks.find(t => t.id === 1).done_ms === undefined);
+check('Wieder oeffnen schreibt nichts in den Verlauf', w.verlauf.length === 0);
+
+// Nur eine Teilaufgabe abhaken -> eigener Eintrag mit Bezug
+w.verlauf.length = 0;
+w.toggleTask(1, true, 11);
+check('Teilaufgabe einzeln abhakbar', w.currentTasks[0].subtasks[0].done === true);
+check('Hauptaufgabe bleibt offen', w.currentTasks[0].done === false);
+check('Teilaufgabe im Verlauf mit Bezug', w.verlauf.length === 1 && w.verlauf[0].text === 'Preise prüfen' && w.verlauf[0].haupt === 'Angebot schicken');
+
+// Hauptaufgabe abhaken, dann Teilaufgabe wieder oeffnen -> Hauptaufgabe oeffnet mit
+w.toggleTask(1, true);
+check('Hauptaufgabe erledigt', w.currentTasks[0].done === true);
+w.toggleTask(1, false, 11);
+check('Offene Teilaufgabe oeffnet die Hauptaufgabe', w.currentTasks[0].done === false);
+
+// Doppelklick auf denselben Zustand erzeugt keinen zweiten Eintrag
+w.toggleTask(2, true);
+w.verlauf.length = 0;
+w.toggleTask(2, true);
+check('Kein zweiter Eintrag bei gleichem Zustand', w.verlauf.length === 0);
+
+// ── 14. Erledigungszeitpunkt uebersteht das Neuoeffnen des Leads ──────────
+const gespeichert = w.serializeTasks(w.currentTasks);
+w.bindTasksToLead({ id: 500, task_text: gespeichert });
+const wieder = w.currentTasks.find(t => t.id === 2);
+check('Aufgaben kommen zurueck', !!wieder && wieder.done === true);
+check('Erledigungszeitpunkt bleibt erhalten', typeof wieder.done_ms === 'number');
+check('Teilaufgaben bleiben erhalten', w.currentTasks.find(t => t.id === 1).subtasks.length === 1);
+
+// Altbestand ohne done_ms faellt nicht durch
+w.bindTasksToLead({ id: 500, task_text: '[{"id":7,"text":"Alt","done":true,"subtasks":[{"id":8,"text":"Alt-Teil","done":true}]}]' });
+check('Altbestand ohne Zeitpunkt bleibt lesbar', w.currentTasks[0].done === true && w.currentTasks[0].done_ms === undefined);
+w.renderTasksList();
+check('Altbestand wird ohne Datum gezeichnet', liste13.textContent.includes('Alt') && liste13.textContent.includes('Erledigt (1)'));
+
+// ── 15. Alle erledigten auf einmal loeschen ──────────────────────────────
+w.bindTasksToLead({ id: 500, task_text: '[{"id":1,"text":"Offen","done":false,"subtasks":[]},{"id":2,"text":"Fertig A","done":true,"done_ms":111,"subtasks":[]},{"id":3,"text":"Fertig B","done":true,"done_ms":222,"subtasks":[]}]' });
+w.renderTasksList();
+check('Zwei erledigte werden gezeigt', liste13.textContent.includes('Erledigt (2)'));
+check('Neueste zuerst', liste13.textContent.indexOf('Fertig B') < liste13.textContent.indexOf('Fertig A'));
+
+let bestaetigt = null;
+w.showConfirmDialog = (titel, text, label, cb) => { bestaetigt = titel; cb(); };
+w.clearDoneTasks();
+check('Nachfrage vor dem Loeschen', (bestaetigt || '').includes('2 erledigte'));
+check('Nur die erledigten sind weg', w.currentTasks.length === 1 && w.currentTasks[0].text === 'Offen');
 
 console.log('\n✅ BESTANDEN (' + ok.length + ')');
 ok.forEach(t => console.log('   ' + t));

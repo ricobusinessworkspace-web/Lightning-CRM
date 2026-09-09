@@ -84,19 +84,19 @@ er hat monatelang stillschweigend nichts getan. **Nie Funktionen aus
 
 ```
 index.html              Layout, Modals, Navigation, Skript-Reihenfolge
-core/db.js      (1023) Supabase-Zugriff, gesamte Datenlogik
+core/db.js      (1057) Supabase-Zugriff, gesamte Datenlogik
 core/api.js       (92)  window.api — dünne Fassade über db.js
 core/auth.js      (33)  Passkey-Stub, Developer-Unlock
 public/core/config.js   DER SCHALTER (multiUser)
 public/core/store.js    Proxy-Store, window.store.state
 public/core/leadstore.js (149) DER EINZIGE SCHREIBWEG (siehe §4)
-public/ui/pipeline_ui.js (2842) Listen, Karten, Sidebar, Karte, Dashboard
-public/ui/main_ui.js    (1412) Speichern, Aufgaben, Snooze, Toasts, Bulk
+public/ui/pipeline_ui.js (2860) Listen, Karten, Sidebar, Karte, Dashboard
+public/ui/main_ui.js    (1523) Speichern, Aufgaben, Snooze, Toasts, Bulk
 public/modules/scraper.js (746) Radar Scout (Google Places / OSM)
 ui/init.js        (513) Bootstrap, Login, Realtime-Abo
 api/              Vercel Functions + api/_lib/auth.js
 admin_scripts/    SQL für Wartung (siehe §8)
-tests/ui.test.mjs 70 Prüfungen, ohne Browser
+tests/ui.test.mjs 99 Prüfungen, ohne Browser
 ```
 
 ---
@@ -179,7 +179,17 @@ Das sind Antworten auf konkrete Beschwerden, keine Zufälle.
   „Snooze aufheben". Der Merker liegt in `window._activeSnoozeChoice` —
   **nicht** in `store.state.currentSnoozeOffset`, das liest `saveLeadMain` aus
   und würde die Wiedervorlage bei jedem Speichern weiter nach vorn schieben.
-- **Erledigte Aufgaben werden abgehakt, nicht gelöscht.**
+- **Erledigte Aufgaben werden abgehakt, nicht gelöscht.** In der Detailansicht
+  des Leads bleiben sie unter „Erledigt" stehen — neueste zuerst, mit
+  Zeitpunkt, per Klick wieder zu öffnen, einzeln oder gesammelt löschbar. Der
+  **Aufgabenreiter** zeigt sie nicht; der beantwortet nur „was ist noch offen",
+  bei Teilaufgaben genauso. Am Erledigungszeitpunkt hängt `done_ms` an der
+  Aufgabe; Altbestand hat den nicht und zeigt dann einfach kein Datum.
+- **Erledigen schreibt in den Verlauf** (`lead_activities`, Typ `task_done`,
+  mit dem Aufgabentext). Eine Hauptaufgabe abzuhaken hakt ihre Teilaufgaben mit
+  ab, erzeugt aber bewusst **nur einen** Eintrag. Wieder-Öffnen schreibt
+  nichts — sonst stünden im Verlauf Paare aus Haken und Widerruf, die nichts
+  erzählen.
 - **E-Mail und WhatsApp sind dieselbe Aktivität.** Der Knopf „Schreiben" neben
   der E-Mail-Adresse und das WhatsApp-Symbol neben der Telefonnummer halten
   beide fest: „Ich habe dem Kunden geschrieben." Der Typ heißt `message`, der
@@ -265,7 +275,7 @@ vorher Backup über Supabase → Database → Backups.
 ```bash
 npm install
 npm run dev      # Vite, Port 3000
-npm test         # 70 Prüfungen, ohne Browser, ~1 Sekunde
+npm test         # 99 Prüfungen, ohne Browser, ~1 Sekunde
 npm run build
 ```
 
@@ -273,8 +283,9 @@ npm run build
 eindeutige Aufgaben-IDs, Speichern beim Abhaken/Löschen, Snooze setzen und
 aufheben, dass keine Reste im Store bleiben, Einzelkarten-Aktualisierung und
 die Reihenfolge in der Speicher-Warteschlange, die Lead-Bindung der Aufgaben,
-die Selbstheilung bei veraltetem Zeitstempel und dass wirklich nur geänderte
-Spalten geschrieben werden. **Nach jeder Änderung an `main_ui.js`,
+die Selbstheilung bei veraltetem Zeitstempel, dass wirklich nur geänderte
+Spalten geschrieben werden, und die Historie der erledigten Aufgaben samt
+Teilaufgaben und Verlaufseinträgen. **Nach jeder Änderung an `main_ui.js`,
 `pipeline_ui.js` oder `leadstore.js` laufen lassen.**
 
 Die `/api/*`-Funktionen serviert Vite **nicht**. Änderungen dort lassen sich nur

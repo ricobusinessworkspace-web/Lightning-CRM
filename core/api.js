@@ -49,6 +49,7 @@ window.api = {
   logCall: (id) => db.logCall(id),
   logMessage: (id, kanal) => db.logMessage(id, kanal),
   logEmail: (id) => db.logMessage(id, 'email'),
+  logTaskDone: (id, text, hauptText) => db.logTaskDone(id, text, hauptText),
   logStatusChange: (id, status) => db.logStatusChange(id, status),
   deleteActivity: (id, type) => db.deleteActivity(id, type),
   getCallsToday: () => db.getCallsToday(),

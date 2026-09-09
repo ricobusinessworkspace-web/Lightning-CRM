@@ -584,15 +584,28 @@ window.setPipeline = async (type) => {
       window.currentTasks = [{ id: lead.id, text: txt, done: false, deadline: '', subtasks: [] }];
     }
 
-    // Fehlende Felder ergänzen, damit Altbestand nicht durch die Anzeige fällt
+    // Fehlende Felder ergänzen, damit Altbestand nicht durch die Anzeige fällt.
+    // done_ms (Erledigungszeitpunkt) muss dabei erhalten bleiben — sonst
+    // verliert die Historie bei jedem Öffnen des Leads ihre Zeitangaben.
+    // Altbestand hat kein done_ms; dort steht dann einfach kein Datum.
+    const normSub = (st) => ({
+      id: (typeof st.id === 'number' && !isNaN(st.id)) ? st.id : window.newTaskId(),
+      text: st.text,
+      done: !!st.done,
+      done_ms: typeof st.done_ms === 'number' ? st.done_ms : undefined
+    });
+
     window.currentTasks = window.currentTasks
       .filter(t => t && typeof t.text === 'string')
       .map(t => ({
         id: (typeof t.id === 'number' && !isNaN(t.id)) ? t.id : window.newTaskId(),
         text: t.text,
         done: !!t.done,
+        done_ms: typeof t.done_ms === 'number' ? t.done_ms : undefined,
         deadline: t.deadline || '',
-        subtasks: Array.isArray(t.subtasks) ? t.subtasks : []
+        subtasks: (Array.isArray(t.subtasks) ? t.subtasks : [])
+          .filter(st => st && typeof st.text === 'string')
+          .map(normSub)
       }));
   };
 
@@ -622,12 +635,29 @@ window.setPipeline = async (type) => {
     now.setHours(0,0,0,0);
     
     let html = '';
+    // Wann wurde erledigt? Heute/Gestern ausschreiben, sonst das Datum.
+    const erledigtAm = (ms) => {
+      if (!ms) return '';
+      const d = new Date(ms);
+      const tag = new Date(d); tag.setHours(0,0,0,0);
+      const diff = Math.round((now - tag) / (1000*60*60*24));
+      const uhr = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      if (diff === 0) return `Heute ${uhr}`;
+      if (diff === 1) return `Gestern ${uhr}`;
+      return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    };
+
     const renderTaskItem = (t) => {
-      let textStyle = t.done ? 'text-decoration: line-through; opacity: 0.45;' : '';
-      
-      // Deadline badge
+      // Erledigtes bleibt lesbar. Vorher stand es bei 0.45 Deckkraft so blass
+      // da, dass die Liste wirkte, als waere die Aufgabe verschwunden.
+      let textStyle = t.done ? 'text-decoration: line-through; opacity: 0.7;' : '';
+
+      // Bei erledigten Aufgaben steht statt der Frist der Erledigungszeitpunkt.
       let deadlineBadge = '';
-      if (t.deadline && !t.done) {
+      if (t.done) {
+        const wann = erledigtAm(t.done_ms);
+        if (wann) deadlineBadge = `<span class="deadline-badge deadline-ok" title="Erledigt am">✓ ${wann}</span>`;
+      } else if (t.deadline) {
         const d = new Date(t.deadline + 'T00:00:00');
         const diff = Math.floor((d - now) / (1000*60*60*24));
         if (diff < 0)  deadlineBadge = `<span class="deadline-badge deadline-overdue">${Math.abs(diff)}d überfällig</span>`;
@@ -650,12 +680,17 @@ window.setPipeline = async (type) => {
       if (subs.length > 0) {
         subtasksHtml = `<div style="margin-top: 12px; padding-left: 28px; display:flex; flex-direction:column; gap:0;">`;
         subs.forEach((st, idx) => {
-          let stStyle = st.done ? 'text-decoration: line-through; opacity: 0.45;' : '';
+          let stStyle = st.done ? 'text-decoration: line-through; opacity: 0.7;' : '';
           let borderBottom = idx < subs.length - 1 ? 'border-bottom: 1px solid rgba(255,255,255,0.05);' : '';
+          const stWann = st.done ? erledigtAm(st.done_ms) : '';
+          const stBadge = stWann
+            ? `<span style="font-size:10px; color:var(--text-muted); white-space:nowrap; padding-top:3px;">✓ ${stWann}</span>`
+            : '';
           subtasksHtml += `
             <div class="task-item" style="padding: 8px 0; ${borderBottom} display:flex; align-items:flex-start; gap:8px;">
               ${appleCheckbox(st.done, `toggleTask(${t.id}, ${!st.done}, ${st.id})`)}
               <div style="flex:1; font-size:12px; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:2px; ${stStyle}" contenteditable="${st.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateSubtaskText(${t.id}, ${st.id}, this.innerText)">${escapeHtml(st.text)}</div>
+              ${stBadge}
               <button onclick="deleteSubtask(${t.id}, ${st.id})" class="task-delete-btn" style="font-size: 10px; margin-top:2px;">✕</button>
             </div>
           `;
@@ -663,41 +698,62 @@ window.setPipeline = async (type) => {
         subtasksHtml += `</div>`;
       }
       
-      return `
-        <div class="task-item" style="flex-direction:column; align-items: stretch; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 16px; border: 1px solid var(--border); padding: 12px;">
-          <div style="display:flex; align-items:flex-start; gap: 10px;">
-            ${appleCheckbox(t.done, `toggleTask(${t.id}, ${!t.done})`)}
-            <div style="flex:1; font-size:14px; font-weight:600; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}" contenteditable="${t.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateTaskText(${t.id}, this.innerText)">${escapeHtml(t.text)}</div>
-            ${deadlineBadge}
+      // An einer erledigten Aufgabe gibt es nichts mehr zu planen: kein
+      // Fristen-Wähler und kein Feld für neue Teilaufgaben. Beides erscheint
+      // wieder, sobald sie zurückgeholt wird.
+      const fristWaehler = t.done ? '' : `
             <div style="position:relative; display:flex; align-items:center;">
-              <input type="date" value="${t.deadline || ''}" title="Deadline" 
+              <input type="date" value="${t.deadline || ''}" title="Deadline"
                 onchange="setTaskDeadline(${t.id}, this.value)"
                 style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; z-index:2;">
               <span class="task-deadline-trigger" title="Deadline setzen">Deadline</span>
-            </div>
-            <button onclick="deleteTask(${t.id})" class="task-delete-btn" style="margin-top:1px;">✕</button>
-          </div>
-          ${subtasksHtml}
+            </div>`;
+
+      const neueTeilaufgabe = t.done ? '' : `
           <div style="margin-top: 8px; padding-left: 28px; display: flex; align-items: center; border-top: ${subs.length > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none'}; padding-top: 8px;">
             <input type="text" placeholder="+ Neue Teilaufgabe..." class="subtask-input-rem" data-parent="${t.id}" style="flex: 1; padding: 4px 0; font-size: 12px; background: transparent; border: none; color: var(--text-main); outline: none;" onkeypress="if(event.key==='Enter'){handleAddSubtask(${t.id}, this.value); this.value='';}">
+          </div>`;
+
+      // Erledigte etwas ruhiger im Hintergrund, damit die offenen vorn stehen
+      const kartenStil = t.done
+        ? 'background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.05);'
+        : 'background: rgba(255,255,255,0.03); border: 1px solid var(--border);';
+
+      return `
+        <div class="task-item" style="flex-direction:column; align-items: stretch; ${kartenStil} border-radius: 12px; margin-bottom: ${t.done ? '8px' : '16px'}; padding: 12px;">
+          <div style="display:flex; align-items:flex-start; gap: 10px;">
+            ${appleCheckbox(t.done, `toggleTask(${t.id}, ${!t.done})`)}
+            <div style="flex:1; min-width:0; font-size:14px; font-weight:600; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}" contenteditable="${t.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateTaskText(${t.id}, this.innerText)">${escapeHtml(t.text)}</div>
+            ${deadlineBadge}
+            ${fristWaehler}
+            <button onclick="deleteTask(${t.id})" class="task-delete-btn" style="margin-top:1px;" title="${t.done ? 'Aus der Historie löschen' : 'Aufgabe löschen'}">✕</button>
           </div>
+          ${subtasksHtml}
+          ${neueTeilaufgabe}
         </div>
       `;
     };
 
-    // Offene zuerst, erledigte darunter — nichts wird ausgeblendet.
+    // Offene zuerst — neu angelegte stehen also immer oben. Erledigte darunter
+    // als Historie: neueste zuerst, mit Datum, wieder zu oeffnen und loeschbar.
+    // Nichts wird ausgeblendet.
     const allTasks = (window.currentTasks || []);
     const openTasks = allTasks.filter(t => !t.done);
-    const doneTasks = allTasks.filter(t => t.done);
+    const doneTasks = allTasks.filter(t => t.done)
+      .sort((a, b) => (b.done_ms || 0) - (a.done_ms || 0));
 
     openTasks.forEach(t => { html += renderTaskItem(t); });
 
     if (doneTasks.length > 0) {
-      html += `<div style="font-size:11px; font-weight:700; color:var(--text-muted); margin: ${openTasks.length > 0 ? '24px' : '0'} 0 12px 0; text-transform:uppercase; letter-spacing:0.8px;">Erledigt (${doneTasks.length})</div>`;
+      html += `
+        <div style="display:flex; align-items:center; justify-content:space-between; margin: ${openTasks.length > 0 ? '24px' : '0'} 0 12px 0;">
+          <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px;">Erledigt (${doneTasks.length})</span>
+          <button onclick="clearDoneTasks()" title="Alle erledigten Aufgaben löschen — der Verlauf bleibt" style="background:none; border:none; color:var(--text-muted); font-size:11px; cursor:pointer; padding:2px 4px; opacity:0.7;" onmouseover="this.style.opacity=1; this.style.color='#ff453a';" onmouseout="this.style.opacity=0.7; this.style.color='var(--text-muted)';">Alle löschen</button>
+        </div>`;
       doneTasks.forEach(t => { html += renderTaskItem(t); });
     }
-    
-    if (!window.currentTasks || window.currentTasks.length === 0) {
+
+    if (allTasks.length === 0) {
       html = '<div style="font-size:12px; color:var(--text-muted); font-style:italic; padding:4px 0; margin-bottom: 12px;">Keine Aufgaben.</div>';
     }
     listDiv.innerHTML = html;
@@ -752,37 +808,92 @@ window.setPipeline = async (type) => {
     window.persistTasks();
   };
 
+  // ── Aufgabe abhaken / wieder oeffnen ───────────────────────────────────────
+  // Erledigte Aufgaben werden NICHT geloescht. Sie wandern in der Detailansicht
+  // in den Bereich "Erledigt" und lassen sich dort wieder oeffnen oder loeschen.
+  // Aus dem Aufgabenreiter verschwinden sie — der zeigt nur, was noch offen ist.
   window.toggleTask = (parentId, done, subtaskId = null) => {
     if (!window.currentTasks) return;
     const pt = window.currentTasks.find(x => x.id === parentId);
     if (!pt) return;
 
+    const leadId = window.currentTasksLeadId;
+    const jetzt = Date.now();
+
     if (subtaskId) {
-      // Toggle a subtask
       const st = pt.subtasks?.find(x => x.id === subtaskId);
-      if (st) st.done = done;
-    } else {
-      // Toggle the main task
-      pt.done = done;
-      // Haupt-Aufgabe abhaken hakt alle Teilaufgaben mit ab (und umgekehrt).
-      if (pt.subtasks) {
-        pt.subtasks.forEach(s => s.done = done);
+      if (!st || st.done === done) return;
+      st.done = done;
+      st.done_ms = done ? jetzt : undefined;
+      if (done) window.logTaskDone(leadId, st.text, pt.text);
+      // Eine Teilaufgabe wieder oeffnen oeffnet auch die Hauptaufgabe —
+      // sonst stuende eine "erledigte" Aufgabe mit offener Teilaufgabe da.
+      if (!done && pt.done) {
+        pt.done = false;
+        pt.done_ms = undefined;
       }
+    } else {
+      if (pt.done === done) return;
+      pt.done = done;
+      pt.done_ms = done ? jetzt : undefined;
+      // Hauptaufgabe abhaken hakt alle Teilaufgaben mit ab (und umgekehrt).
+      // Dafuer gibt es bewusst NUR einen Verlaufseintrag: den der Hauptaufgabe.
+      if (pt.subtasks) {
+        pt.subtasks.forEach(st => {
+          st.done = done;
+          st.done_ms = done ? jetzt : undefined;
+        });
+      }
+      if (done) window.logTaskDone(leadId, pt.text);
     }
 
     renderTasksList();
     window.persistTasks();
-    
-    // Check if ALL tasks in the pipeline are done
+
     if (done && window.currentTasks.length > 0 && window.currentTasks.every(task => task.done)) {
-      if (typeof window.triggerMissionPassed === 'function') {
-        window.triggerMissionPassed();
+      if (typeof window.triggerMissionPassed === 'function') window.triggerMissionPassed();
+    }
+
+    if (typeof window.showToast === 'function') {
+      showToast(done ? 'Aufgabe erledigt!' : 'Aufgabe wieder offen.');
+    }
+  };
+
+  // Verlaufseintrag fuer eine erledigte Aufgabe. Laeuft nebenher — schlaegt er
+  // fehl, ist die Aufgabe trotzdem abgehakt.
+  window.logTaskDone = (leadId, text, hauptText = null) => {
+    if (!leadId || !text) return;
+    try {
+      window.api.logTaskDone(leadId, text, hauptText);
+      if (typeof window.pushLeadActivity === 'function') {
+        const kurz = String(text).trim().replace(/\s+/g, ' ').slice(0, 80);
+        window.pushLeadActivity(leadId, {
+          activity_type: 'task_done',
+          details: hauptText ? `Teilaufgabe erledigt: ${kurz}` : `Aufgabe erledigt: ${kurz}`,
+          ts: Date.now(),
+          by_user_name: window.globalUser?.name || 'Ich'
+        });
       }
+    } catch (e) {
+      console.warn('Erledigte Aufgabe konnte nicht im Verlauf festgehalten werden:', e);
     }
-    
-    if (done && typeof window.showToast === 'function') {
-      window.showToast("Aufgabe erledigt!");
-    }
+  };
+
+  // Alle erledigten Aufgaben eines Leads auf einmal wegraeumen.
+  window.clearDoneTasks = () => {
+    if (!window.currentTasks) return;
+    const anzahl = window.currentTasks.filter(t => t.done).length;
+    if (anzahl === 0) return;
+    showConfirmDialog(
+      `${anzahl} erledigte ${anzahl === 1 ? 'Aufgabe' : 'Aufgaben'} löschen?`,
+      'Der Verlauf des Leads bleibt erhalten — dort steht weiterhin, wann was erledigt wurde.',
+      'Ja, löschen',
+      () => {
+        window.currentTasks = window.currentTasks.filter(t => !t.done);
+        renderTasksList();
+        window.persistTasks();
+      }
+    );
   };
 
   window.triggerMissionPassed = () => {

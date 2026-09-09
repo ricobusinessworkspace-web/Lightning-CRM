@@ -569,6 +569,40 @@ export const db = {
   // Altname, damit nichts bricht, was noch logEmail aufruft.
   logEmail: async (id) => db.logMessage(id, 'email'),
 
+  // ── logTaskDone ────────────────────────────────────────────────────────────
+  // Haelt im Verlauf fest, dass eine Aufgabe erledigt wurde — mit dem Text der
+  // Aufgabe, damit man spaeter noch weiss, worum es ging. Bei Teilaufgaben
+  // steht die Hauptaufgabe dabei.
+  //
+  // Nur das Erledigen wird festgehalten. Wird eine Aufgabe wieder geoeffnet,
+  // entsteht kein Eintrag — sonst haette man Paare aus Haken und Widerruf im
+  // Verlauf, die nichts erzaehlen.
+  logTaskDone: async (leadId, aufgabenText, hauptaufgabenText = null) => {
+    const now = Date.now();
+    const kurz = (t) => {
+      const s = String(t || '').trim().replace(/\s+/g, ' ');
+      return s.length > 80 ? s.slice(0, 79) + '…' : s;
+    };
+    const details = hauptaufgabenText
+      ? `Teilaufgabe erledigt: ${kurz(aufgabenText)} (zu: ${kurz(hauptaufgabenText)})`
+      : `Aufgabe erledigt: ${kurz(aufgabenText)}`;
+
+    const entry = { lead_id: leadId, ts: now, type: 'task_done', details };
+    if (currentUser) {
+      entry.by_user_id = currentUser.id;
+      entry.by_user_name = currentUser.name;
+    }
+
+    try {
+      const { error } = await supabase.from('lead_activities').insert(entry);
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.error('logTaskDone error:', e);
+      return false;
+    }
+  },
+
   // ── logStatusChange ────────────────────────────────────────────────────────
   logStatusChange: async (id, newStatus) => {
     const now = Date.now();
