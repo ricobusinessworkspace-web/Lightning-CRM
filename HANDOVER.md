@@ -1,7 +1,22 @@
 ---
 last_updated: 2026-09-09
-last_agent: Claude Sonnet 5 (Altlasten-Aufräumung)
+last_agent: Claude Sonnet 5 (Doku-Struktur nach SSOT-Regel)
 status: Ready for Next Phase
+---
+
+> **SSOT-Regel:** HANDOVER.md ist Single Source of Truth für den **Zustand**
+> — „wo stehen wir, was war kaputt, was ist offen" — nicht für alles. Wird
+> vor jeder Prompt gelesen und nach jeder fortgeschrieben, deshalb schlank
+> halten: nur Deltas, kein Tutorial-Material. Schritt-für-Schritt-Anleitungen,
+> die selten gebraucht werden, gehören nach `docs/`, nicht hierher.
+
+| Datei | Zweck | Lesen wann |
+|---|---|---|
+| `HANDOVER.md` (hier) | Zustand: fertig / kaputt / offen | Vor jeder Prompt |
+| `README.md` | Menschen-Einstieg, Tech-Stack, Befehle, Verzeichnisse | Einmal beim Einstieg |
+| `AGENTS.md` | Verweis auf `~/dev/coding-workflow-standards.md` | Vor der allerersten Prompt |
+| `docs/*.md` | Runbooks — Schritt-für-Schritt, einmalige Vorgänge | Nur wenn gerade gebraucht |
+
 ---
 
 ## Projekt-Snapshot
@@ -224,56 +239,27 @@ Antworten auf konkrete Beschwerden, keine Zufälle.
   vier Themen in einer Datei — aufteilen?
 - **Echtes Schema versioniert ablegen**, `scratch/schema.sql` löschen. Zehn
   Minuten, verhindert Falle 1 dauerhaft.
-- **Wann auf `multiUser: true` umschalten?** Siehe Checkliste unten — noch
-  nicht terminiert.
+- **Wann auf `multiUser: true` umschalten?** Siehe
+  [docs/multi-user-aktivieren.md](docs/multi-user-aktivieren.md) — noch nicht
+  terminiert.
 
 ---
 
-## Tech Stack & Key Dependencies
+## Einzelplatz-Modus
 
-| Was | Details |
-|---|---|
-| Frontend | Vanilla JS, kein Framework. Globale `window.*`, HTML als Template-String via `innerHTML`. |
-| Build/Dev | Vite: `npm run dev` (Port 3000), `npm test`, `npm run build`. |
-| Backend | Supabase (PostgreSQL + Auth + Realtime). |
-| Serverfunktionen | Vercel Functions unter `/api/` — Vite serviert sie **nicht**, nur nach Deploy oder mit `vercel dev` prüfbar. |
-| Tests | `tests/ui.test.mjs`, jsdom, 142 Prüfungen, ~1 Sekunde. |
-| Deployment | Push auf `master` → Vercel deployt automatisch. **Nicht ungefragt pushen.** |
-
-**Verzeichnisse:**
-```
-index.html               Layout, Modals, Navigation, Skript-Reihenfolge
-core/db.js       (1057)  Supabase-Zugriff, gesamte Datenlogik
-core/api.js        (92)  window.api — dünne Fassade über db.js
-core/auth.js       (33)  Passkey-Stub, Developer-Unlock
-public/core/config.js    DER SCHALTER (multiUser)
-public/core/store.js     Proxy-Store, window.store.state
-public/core/leadstore.js (173) DER EINZIGE SCHREIBWEG
-public/ui/pipeline_ui.js (2860) Listen, Karten, Sidebar, Karte, Dashboard
-public/ui/main_ui.js     (1523) Speichern, Aufgaben, Snooze, Toasts, Bulk
-public/modules/scraper.js (746) Radar Scout (Google Places / OSM)
-ui/init.js         (513) Bootstrap, Login, Realtime-Abo
-api/               Vercel Functions + api/_lib/auth.js
-admin_scripts/     SQL für Wartung — schreibt direkt auf Produktiv-DB, siehe unten
-tests/ui.test.mjs  142 Prüfungen
-```
-
-**Einzelplatz-Modus:** Schalter in `public/core/config.js`:
+Schalter in `public/core/config.js`:
 ```js
 window.APP_CONFIG = { multiUser: false };
 ```
 Bei `false` ausgeblendet: Registrierung, Einladungen, Nutzerverwaltung, Rollen,
-Lead-Zuweisung, Sales-Bell-Push, Punkte-System. **Nichts gelöscht.**
+Lead-Zuweisung, Sales-Bell-Push, Punkte-System. **Nichts gelöscht** — Code,
+Serverfunktionen und Datenbankspalten sind unverändert vorhanden.
 
-Checkliste vor Rückschalter auf `multiUser: true`:
-1. `multiUser: true` setzen.
-2. Supabase → Authentication → Email → „Allow new users to sign up" nur bei
-   gewünschter Selbstregistrierung.
-3. **Zugriffsregeln schärfen.** Auf `crm_leads` liegt `auth_full_access`
-   (jeder Angemeldete alles) neben feineren Regeln — additiv, großzügigste
-   gewinnt. Rollentrennung existiert heute nur in der Oberfläche.
-4. Vercel: `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` setzen.
-5. `saveLeadMain` ist bereits auf Teil-Updates umgestellt (erledigt).
+Rückschalter auf Team-Betrieb: siehe
+[docs/multi-user-aktivieren.md](docs/multi-user-aktivieren.md).
+
+Tech-Stack, Entwicklungsbefehle und Verzeichnisübersicht stehen in
+[README.md](README.md) — hier nur, was sich am Zustand geändert hat.
 
 ---
 
@@ -314,10 +300,18 @@ heilt sich selbst, jede Navigation sichert vorher ab.
 ---
 
 ## Handover-Historie
+- 2026-09-09 — Doku-Struktur nach SSOT-Regel korrigiert: HANDOVER.md ist SSOT
+  für den **Zustand**, nicht für alles. `README.md` (Menschen-Einstieg,
+  Tech-Stack, Befehle, Verzeichnisse) und `AGENTS.md` (Verweis auf
+  `~/dev/coding-workflow-standards.md`, nicht einchecken) neu angelegt.
+  Tech-Stack-Tabelle, Verzeichnis-Baum und die Multi-User-Checkliste sind aus
+  dem Handover raus, Checkliste jetzt als Runbook in
+  `docs/multi-user-aktivieren.md`. Vorheriger Stand (alles in einer Datei)
+  war ein Missverständnis von „Single Source of Truth" — SSOT heißt SSOT für
+  den Zustand, nicht ein Dokument für alles (Claude Sonnet 5).
 - 2026-09-09 — `admin_scripts/README.md` aufgelöst: Inhalt (Produktiv-DB-
-  Warnung) hier unter „Für nächsten Agent" übernommen, Datei gelöscht.
-  HANDOVER.md ist jetzt die einzige Doku im Projekt (Single Source of
-  Truth, ausdrücklich so gewünscht) (Claude Sonnet 5).
+  Warnung) hier unter „Für nächsten Agent" übernommen, Datei gelöscht
+  (Claude Sonnet 5).
 - 2026-09-09 — Die zwei kaputten Admin-Skripte (`inspect_db.js`,
   `scratch_pdf.js`), die auf die entfernten calling-station-Reste zeigten,
   gelöscht (Claude Sonnet 5).
