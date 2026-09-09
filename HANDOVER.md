@@ -254,7 +254,7 @@ public/ui/main_ui.js     (1523) Speichern, Aufgaben, Snooze, Toasts, Bulk
 public/modules/scraper.js (746) Radar Scout (Google Places / OSM)
 ui/init.js         (513) Bootstrap, Login, Realtime-Abo
 api/               Vercel Functions + api/_lib/auth.js
-admin_scripts/     SQL für Wartung, siehe admin_scripts/README.md
+admin_scripts/     SQL für Wartung — schreibt direkt auf Produktiv-DB, siehe unten
 tests/ui.test.mjs  142 Prüfungen
 ```
 
@@ -305,13 +305,19 @@ heilt sich selbst, jede Navigation sichert vorher ab.
   ausdrücklich so gewünscht.
 - **`npm test` nach jeder Änderung** an `main_ui.js`, `pipeline_ui.js` oder
   `leadstore.js`.
-- Admin-Skripte: read-only zuerst, schreibende sind irreversibel — vorher
-  Backup über Supabase → Database → Backups. Details in
-  `admin_scripts/README.md`.
+- **⚠️ Admin-Skripte schreiben direkt auf der produktiven Datenbank.** Alles
+  in `admin_scripts/` umgeht teilweise App-Logik und UI-Checks — ein Fehler
+  kann zu unwiderruflichem Datenverlust führen. Immer read-only-Schritte
+  zuerst ausführen, vor jeder schreibenden Aktion Backup über
+  Supabase → Database → Backups sicherstellen.
 
 ---
 
 ## Handover-Historie
+- 2026-09-09 — `admin_scripts/README.md` aufgelöst: Inhalt (Produktiv-DB-
+  Warnung) hier unter „Für nächsten Agent" übernommen, Datei gelöscht.
+  HANDOVER.md ist jetzt die einzige Doku im Projekt (Single Source of
+  Truth, ausdrücklich so gewünscht) (Claude Sonnet 5).
 - 2026-09-09 — Die zwei kaputten Admin-Skripte (`inspect_db.js`,
   `scratch_pdf.js`), die auf die entfernten calling-station-Reste zeigten,
   gelöscht (Claude Sonnet 5).
