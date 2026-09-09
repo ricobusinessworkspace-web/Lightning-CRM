@@ -231,9 +231,10 @@ unverändert.
    Bei ~300 Zeilen harmlos, später nicht mehr.
 3. **Echtes Schema versioniert ablegen** und `scratch/schema.sql` löschen.
    Zehn Minuten, verhindert Falle §2.1 dauerhaft.
-4. **`lead_activities`: alte `email`-Einträge auf `message` ziehen.** Kosmetik,
-   der Code kommt mit beidem klar (§5). Vorher prüfen, ob auf der Spalte `type`
-   eine Prüfregel liegt — `logMessage` weicht sonst still auf `email` aus.
+4. **`lead_activities`: alte `email`-Einträge auf `message` ziehen.** Reine
+   Kosmetik, der Code kommt mit beidem klar (§5). Auf der Tabelle liegt keine
+   Prüfregel für `type` (geprüft 09.09.2026), neue Typen brauchen also keine
+   Migration.
 5. **`pipeline_ui.js` mit ~2800 Zeilen aufteilen.** Listen / Sidebar / Karte /
    Dashboard sind vier unabhängige Themen in einer Datei.
 6. **`autoGeocode` ist bewusst nicht exportiert** — es würde beim Login eine

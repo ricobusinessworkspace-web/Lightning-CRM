@@ -532,9 +532,11 @@ export const db = {
   // details, damit man ihn im Verlauf noch sieht.
   //
   // Der Typ heisst 'message'. Aeltere Eintraege stehen noch als 'email' in der
-  // Tabelle und werden in der Oberflaeche gleich dargestellt. Sollte die
-  // Tabelle den neuen Typ ablehnen (Pruefregel aus der Anfangszeit), wird
-  // einmalig auf 'email' zurueckgefallen, damit kein Kontakt verloren geht.
+  // Tabelle; sie werden gleich angezeigt und gleich gezaehlt.
+  //
+  // Auf lead_activities liegt keine Pruefregel fuer type (geprueft 09.09.2026:
+  // nur Primaerschluessel und der Fremdschluessel auf crm_leads). Neue Typen
+  // koennen also ohne Migration dazukommen.
   logMessage: async (id, kanal = 'email') => {
     const now = Date.now();
     const label = kanal === 'whatsapp' ? 'WhatsApp geschrieben' : 'E-Mail geschrieben';
@@ -545,12 +547,10 @@ export const db = {
     }
 
     try {
-      let { error } = await supabase.from('lead_activities').insert({ ...basis, type: 'message' });
-      if (error) {
-        console.warn('lead_activities akzeptiert "message" nicht, weiche auf "email" aus:', error.message);
-        const zweiterVersuch = await supabase.from('lead_activities').insert({ ...basis, type: 'email' });
-        if (zweiterVersuch.error) throw zweiterVersuch.error;
-      }
+      const { error } = await supabase
+        .from('lead_activities')
+        .insert({ ...basis, type: 'message' });
+      if (error) throw error;
 
       const { data, error: updErr } = await supabase
         .from(TABLE)
