@@ -78,12 +78,10 @@ verwaiste lokale Reste im Lightning-CRM-Ordner selbst
 `crm_leads`, Stand 26.06., klar vom heutigen Supabase-Bestand überholt —
 sowie `.backup`, `credentials.json`, leere `app.db`, leerer `js/`-Ordner).
 
-**Zwei Admin-Skripte sind jetzt kaputt, weil sie auf diese Reste zeigten:**
-`admin_scripts/inspect_db.js` (falscher Pfad zu `calling_station.sqlite`,
-war schon vorher nicht lauffähig) und `admin_scripts/scratch_pdf.js`
-(absoluter Pfad in den jetzt gelöschten Ordner). Beides sind Einmal-Skripte
-ohne Bezug zum laufenden Betrieb — aufräumen oder löschen, falls sie mal
-auffallen.
+Zwei Admin-Skripte, die auf diese Reste zeigten (`inspect_db.js`,
+`scratch_pdf.js` — Einmal-Analyse gegen die alte SQLite-DB bzw. PDF-Parser-
+Test gegen eine Test-PDF aus dem gelöschten Ordner), sind am 09.09.2026
+ebenfalls entfernt worden. Beide waren ohne Bezug zum laufenden Betrieb.
 
 ### 5. Ladereihenfolge entscheidet
 ```
@@ -314,6 +312,9 @@ heilt sich selbst, jede Navigation sichert vorher ab.
 ---
 
 ## Handover-Historie
+- 2026-09-09 — Die zwei kaputten Admin-Skripte (`inspect_db.js`,
+  `scratch_pdf.js`), die auf die entfernten calling-station-Reste zeigten,
+  gelöscht (Claude Sonnet 5).
 - 2026-09-09 — `calling-station`-Verwirrung geklärt (siehe Falle 5b) und
   aufgeräumt: alter Electron-App-Ordner entfernt, verwaiste lokale
   Datenreste im Lightning-CRM-Ordner in den Papierkorb verschoben (Claude
