@@ -1,46 +1,48 @@
-# Lightning CRM — Handover
-
-Stand: 08.09.2026 · Branch `master` · Deploy über Vercel bei jedem Push
-
+---
+last_updated: 2026-09-09
+last_agent: Claude Sonnet 5 (Workflow-Standardisierung)
+status: Ready for Next Phase
 ---
 
-## 1. Was das ist
+## Projekt-Snapshot
 
+**Was ist das Projekt?**
 Web-CRM für Leadgenerierung, Kaltakquise und Vertriebs-Pipeline. Aktuell im
-**Einzelplatz-Betrieb**: genau ein Nutzer (Rico), 248 Leads, ~300 Anrufe.
+**Einzelplatz-Betrieb**: genau ein Nutzer (Rico), ~248 Leads, ~300 Anrufe.
 
-- **Frontend:** Vanilla JS, kein Framework. Globale `window.*`-Funktionen,
-  HTML wird als Template-String zusammengebaut und per `innerHTML` gesetzt.
-- **Build/Dev:** Vite. `npm run dev`, `npm run build`, `npm test`.
-- **Backend:** Supabase (PostgreSQL + Auth + Realtime).
-- **Serverfunktionen:** Vercel Functions unter `/api/`.
+**Aktueller Stand:**
+- **Speichersystem:** stabil. Ein Schreibweg (`leadStore.save`), Warteschlange,
+  Konflikt-Selbstheilung, Store-Sync.
+- **Autospeichern:** zuverlässig über vier Auslöser + `flushLeadForm()` als
+  Fluchtpunkt vor jeder Navigation. Keine stillen Datenverluste mehr bei
+  Reiterwechsel oder Lead-Wechsel.
+- **Aufgaben:** erledigte bleiben als Historie mit Zeitpunkt sichtbar,
+  Aufgabenreiter zeigt nur Offenes, auch für Kaltakquise-Leads korrekt gefiltert.
+- **Statuszeile:** zeigt Speicherzustand live (Speichert/Gespeichert/Fehler).
+- **Tests:** 142 Prüfungen, alle grün.
 
 ---
 
-## 2. Lies das zuerst — fünf Fallen
+## ⚠️ Kritische Fallen — vor der Arbeit lesen
 
-Diese Punkte haben in der letzten Sitzung jeweils Zeit gekostet. Alle sind real.
+Jede dieser fünf Punkte hat in einer früheren Sitzung real Zeit gekostet.
 
-### 2.1 `scratch/schema.sql` ist veraltet und lügt
+### 1. `scratch/schema.sql` ist veraltet und lügt
+Kennt `crm_calls`, `lead_activities`, `user_profiles` **gar nicht** und
+behauptet eine offene Zugriffsregel für Gäste, die live nicht existiert.
+**Nie als Quelle benutzen.** Echten Stand über `admin_scripts/inspect_user_columns.sql`
+oder direkt in Supabase abfragen.
 
-Die Datei kennt `crm_calls`, `lead_activities` und `user_profiles` **gar nicht**
-und behauptet eine offene Zugriffsregel für nicht angemeldete Besucher, die es
-live nicht gibt. **Nicht als Quelle benutzen.** Den echten Stand immer über
-`admin_scripts/inspect_user_columns.sql` oder direkt in Supabase abfragen.
-
-### 2.2 Die Datenbank gehört nicht nur diesem Projekt
-
+### 2. Die Datenbank gehört nicht nur diesem Projekt
 Im selben Supabase-Projekt liegen weitere Apps: `jarvis_*`, `g_*`, `tracker_*`,
-`core_*`. Konsequenzen:
-
-- `auth.users` ist **projektweit**. Nutzer löschen trifft alle Apps.
+`core_*`.
+- `auth.users` ist **projektweit** — Nutzer löschen trifft alle Apps.
 - `user_profiles` wird möglicherweise geteilt — Policies dort nicht anfassen.
 - `core_goals`, `core_intentions`, `core_metric_definitions`,
   `core_metric_sources` haben **RLS aus** und sind ungeschützt öffentlich.
   Gehört nicht zum CRM, ist aber bekannt.
 
-### 2.3 Spaltentypen sind uneinheitlich
-
+### 3. Spaltentypen sind uneinheitlich
 | Spalte | Typ | Foreign Key |
 |---|---|---|
 | `crm_leads.claimed_by` | `uuid` | ja |
@@ -49,318 +51,250 @@ Im selben Supabase-Projekt liegen weitere Apps: `jarvis_*`, `g_*`, `tracker_*`,
 | `crm_notifications.user_id` | `uuid` | ja |
 | `crm_push_subscriptions.user_id` | `uuid` | ja |
 
-Dass die Statistik Anrufe den Profilen zuordnen kann, funktioniert nur, weil in
-der Text-Spalte zufällig die uuid als String steht. Bei dynamischem SQL immer
-über `::text` vergleichen und auf den echten Spaltentyp casten.
+Bei dynamischem SQL immer über `::text` vergleichen und auf den echten
+Spaltentyp casten.
 
-### 2.4 Zwei Verzeichnisse heißen `core/`
-
-`index.html` lädt `core/config.js` **und** `core/auth.js` — die kommen aus
-**verschiedenen Ordnern**:
-
+### 4. Zwei Verzeichnisse heißen `core/`
 - `./core/` (Projektwurzel) → `auth.js`, `api.js`, `db.js` — ES-Module
-- `./public/core/` → `config.js`, `store.js`, `state.js`, `leads.js`,
-  `tasks.js`, `pipeline.js` — klassische Skripte
+- `./public/core/` → `config.js`, `store.js`, `state.js`, `leadstore.js` —
+  klassische Skripte
 
 Vite serviert `public/` unter `/`, deshalb lösen beide auf. **Beim Bearbeiten
 auf den richtigen Ordner achten.** `dist/` ist Build-Ausgabe, nie editieren.
 
-### 2.5 Ladereihenfolge entscheidet
-
+### 5. Ladereihenfolge entscheidet
 ```
 core/config.js → core/auth.js → core/store.js → core/state.js → core/leads.js
 → core/tasks.js → core/pipeline.js → ui/pipeline_ui.js → ui/main_ui.js
 → modules/scraper.js → ui/profile-modal.js → ui/init.js
 ```
-
-`pipeline_ui.js` läuft **vor** `main_ui.js`. Genau daran ist ein Auto-Save-
-Wrapper gescheitert, der `selectSnooze` einpacken wollte, bevor es existierte —
-er hat monatelang stillschweigend nichts getan. **Nie Funktionen aus
-`main_ui.js` auf oberster Ebene von `pipeline_ui.js` umschließen.**
+`pipeline_ui.js` läuft **vor** `main_ui.js`. Nie Funktionen aus `main_ui.js`
+auf oberster Ebene von `pipeline_ui.js` umschließen — ein Auto-Save-Wrapper
+ist genau daran monatelang stillschweigend gescheitert.
 
 ---
 
-## 3. Verzeichnisse
+## Was funktioniert (behalte das)
 
-```
-index.html              Layout, Modals, Navigation, Skript-Reihenfolge
-core/db.js      (1057) Supabase-Zugriff, gesamte Datenlogik
-core/api.js       (92)  window.api — dünne Fassade über db.js
-core/auth.js      (33)  Passkey-Stub, Developer-Unlock
-public/core/config.js   DER SCHALTER (multiUser)
-public/core/store.js    Proxy-Store, window.store.state
-public/core/leadstore.js (173) DER EINZIGE SCHREIBWEG (siehe §4)
-public/ui/pipeline_ui.js (2860) Listen, Karten, Sidebar, Karte, Dashboard
-public/ui/main_ui.js    (1523) Speichern, Aufgaben, Snooze, Toasts, Bulk
-public/modules/scraper.js (746) Radar Scout (Google Places / OSM)
-ui/init.js        (513) Bootstrap, Login, Realtime-Abo
-api/              Vercel Functions + api/_lib/auth.js
-admin_scripts/    SQL für Wartung (siehe §8)
-tests/ui.test.mjs 142 Prüfungen, ohne Browser
-```
+- **Einziger Schreibweg:** `window.leadStore.save()` in `public/core/leadstore.js`.
+  Neue Schreibpfade gehen dort durch, nicht direkt über `api.saveLead`. Einzige
+  Ausnahme: *neue* Leads ohne `id` (Scout-Import, „Neuer Lead").
+  ```js
+  await window.leadStore.save(leadId, { task_text: '…' }, { label: 'Aufgabe' });
+  ```
+  Erledigt: Warteschlange (kein Gleichzeitig-Schreiben), nur genannte Spalten,
+  Zeitstempel-Selbstheilung bei Konflikt, Store-Sync auf `state.leads` **und**
+  `tabCache` gemeinsam.
+
+- **Autospeichern — vier Auslöser, ein Fluchtpunkt:**
+
+  | Auslöser | wann |
+  |---|---|
+  | `input` in der Seitenleiste | 900 ms nach letzter Eingabe |
+  | `change` | Auswahl-/Datumsfelder, sofort |
+  | `focusout` | Feld verlassen |
+  | **`flushLeadForm()`** | **vor jeder Navigation** |
+
+  `window.flushLeadForm()` ist der Fluchtpunkt und darf nirgends fehlen.
+  Aufrufer: `openLeadDirectly`, `switchTab`, `closeLeadSidebar`,
+  `visibilitychange` / `pagehide` / `beforeunload` in `ui/init.js`.
+
+  Grund: `switchTab`/`closeLeadSidebar` setzen `currentSelectedLeadId` sofort
+  auf `null`. Ohne Fluchtpunkt fand ein verzögertes Autospeichern danach nichts
+  mehr vor und hat still verworfen.
+
+  Zwei Dinge machen es verlässlich:
+  - Lead-Zugehörigkeit steht am Formular (`data-lead-id` auf `.focused-lead`),
+    gelesen über `window.getFormLeadId()` — **nicht** in `currentSelectedLeadId`.
+  - Angefangene Eingaben werden **direkt aus dem DOM** geholt
+    (`capturePendingTasks()`, `captureTaskEdits()`), nicht über `onblur`
+    erwartet — `blur` feuert nicht, wenn das Fenster selbst den Fokus verliert
+    (Handy sperren, Tab wechseln).
+
+- **Statuszeile ist Teil des Vertrags:** `#save-status` im Kopf der
+  Seitenleiste zeigt „Speichert…", „Gespeichert 14:32",
+  „Änderung noch nicht gespeichert" oder „Speichern fehlgeschlagen" +
+  „Erneut versuchen". **Nicht wegoptimieren** — ohne sie sieht ein
+  stillschweigend fehlgeschlagener Schreibvorgang wie ein erfolgreicher aus.
+
+- **Zwei Bindungen gegen Falsch-Schreiben beim Lead-Wechsel:**
+  - Aufgaben: `window.currentTasks` gehört zu `window.currentTasksLeadId`,
+    gesetzt über `window.bindTasksToLead(lead)` sofort beim Wechsel.
+  - Formular: `data-lead-id` auf `.focused-lead`; `saveLeadMain` bricht ab,
+    wenn ID nicht passt.
+
+- **Single-Card-Refresh:** `refreshLeadCard(id)` → `patchLeadCard(id)` tauscht
+  nur einen DOM-Knoten. **Nicht auf `loadUi()` zurückbauen** — kostet
+  Scrollposition und Sortierung.
+
+- **Aufgaben-Historie:** erledigte bleiben in der Detailansicht sichtbar
+  (neueste zuerst, mit Zeitpunkt `done_ms`), wieder zu öffnen, einzeln oder
+  gesammelt löschbar. Aufgabenreiter zeigt sie nicht. Dort wird **nur bei
+  mehreren Nutzern** nach Zuweisung gefiltert — sonst fällt jeder
+  Kaltakquise-Lead raus (`claimed_by = null`).
 
 ---
 
-## 4. Speichern — das Wichtigste
+## Bewusste Entscheidungen — bitte nicht zurückbauen
 
-**Es gibt genau einen Schreibweg: `window.leadStore.save()`** in
-`public/core/leadstore.js`. Neue Schreibpfade gehen dort durch, nicht direkt
-über `api.saveLead`. Einzige Ausnahme sind *neue* Leads (ohne `id` —
-Scout-Import und „Neuer Lead"), die legt `api.saveLead` an.
+Antworten auf konkrete Beschwerden, keine Zufälle.
 
-```js
-await window.leadStore.save(leadId, { task_text: '…' }, { label: 'Aufgabe' });
-```
-
-`save` erledigt vier Dinge, die vorher jede Funktion selbst machen musste — und
-manche eben nicht:
-
-1. **Warteschlange.** Gleichzeitige Speichervorgänge laufen nacheinander.
-2. **Nur die genannten Spalten.** `db.js` beherrscht Teil-Updates. Nicht
-   genannte Spalten bleiben unangetastet.
-3. **Zeitstempel-Selbstheilung.** Meldet die Datenbank einen Konflikt, holt
-   `save` einmal den echten Stand und wiederholt. Das war die Ursache für
-   „speichert erst nach einem Neuladen".
-4. **Speicher nachziehen.** `store.state.leads` **und** jeder
-   Reiter-Zwischenspeicher (`tabCache`) werden gemeinsam aktualisiert — per
-   `Object.assign`, damit vorhandene Verweise gültig bleiben.
-
-`window.leadStore.diff(id, wunschwerte)` liefert nur die Spalten, die sich vom
-bekannten Stand unterscheiden. `saveLeadMain` baut damit sein Update.
-
-Drei Einstiegspunkte:
-
-| Funktion | schreibt | wann |
-|---|---|---|
-| `persistTasks()` | `task_text` | jede Aufgaben-Änderung, sofort |
-| `persistSnooze(ms)` | `snooze_until_ms` | Snooze setzen/aufheben, sofort |
-| `saveLeadMain(id)` | nur geänderte Spalten | Feld verlassen, Stufenwechsel |
-
-`saveLeadMain(null)` speichert das, was gerade im Formular steht — die ID kommt
-dann aus `data-lead-id`.
-
-### Autospeichern: vier Auslöser und ein Fluchtpunkt
-
-Es gibt keinen Speichern-Knopf. Damit trotzdem nichts verloren geht:
-
-| Auslöser | wann |
-|---|---|
-| `input` in der Seitenleiste | 900 ms nach der letzten Eingabe |
-| `change` | Auswahl- und Datumsfelder, sofort |
-| `focusout` | Feld verlassen heißt fertig getippt |
-| **`flushLeadForm()`** | **vor jeder Navigation** |
-
-**`window.flushLeadForm()` ist der Fluchtpunkt und darf nirgends fehlen.**
-Aufrufer: `openLeadDirectly`, `switchTab`, `closeLeadSidebar` sowie
-`visibilitychange` / `pagehide` / `beforeunload` in `ui/init.js`.
-
-Warum das nötig ist: `switchTab` und `closeLeadSidebar` setzen
-`currentSelectedLeadId` sofort auf `null` und werfen die Seitenleiste weg. Ein
-verzögertes Autospeichern, das danach anlief, fand nichts mehr vor und hat
-**still verworfen** — der Fehler „etwas eingegeben, Reiter gewechselt,
-Änderung weg".
-
-Zwei Dinge machen `flushLeadForm` verlässlich:
-
-- **Die Lead-Zugehörigkeit steht am Formular** (`data-lead-id` auf
-  `.focused-lead`), gelesen über `window.getFormLeadId()` — **nicht** in
-  `store.state.currentSelectedLeadId`. Das Formular weiß es besser: es gehört
-  zu genau einem Lead, egal was die Auswahl gerade sagt.
-- **Angefangene Eingaben werden direkt aus dem DOM geholt**, nicht über
-  `onblur` erwartet. `capturePendingTasks()` liest das Feld für neue Aufgaben,
-  `captureTaskEdits()` die Aufgabentexte (contenteditable, erkennbar an
-  `data-task-id` / `data-subtask-id`). Grund: `blur` feuert **nicht**, wenn das
-  Fenster selbst den Fokus verliert — Handy sperren, Browser-Tab wechseln.
-
-Schlägt `saveLeadMain` fehl (etwa weil die Seitenleiste gerade neu gezeichnet
-wird und ein Feld fehlt), rettet `flushLeadForm` wenigstens die Aufgaben über
-`persistTasks` — die haben ihre eigene, vom Formular unabhängige Bindung.
-
-### Die Statuszeile ist Teil des Vertrags
-
-`#save-status` im Kopf der Seitenleiste zeigt immer, woran man ist:
-„Speichert…", „Gespeichert 14:32", „Änderung noch nicht gespeichert" oder
-„Speichern fehlgeschlagen" mit „Erneut versuchen". Gespeist wird sie von
-`leadStore` über `window.setSaveStatus()`.
-
-**Nicht wegoptimieren.** Ohne diese Rückmeldung sieht ein stillschweigend
-fehlgeschlagener Schreibvorgang genauso aus wie ein erfolgreicher — genau
-daran ist das Vertrauen in das Autospeichern schon einmal zerbrochen. Ein
-offener Fehler wird in `_letzterSaveFehler` gemerkt und überlebt über
-`restoreSaveStatus()` das Neuzeichnen der Seitenleiste.
-
-### Zwei Bindungen, die nicht wegdürfen
-
-Beide verhindern, dass beim **Lead-Wechsel** auf den falschen Lead geschrieben
-wird. Zwischen „anderer Lead ausgewählt" und „Seitenleiste neu gezeichnet"
-liegt ein Netzwerkaufruf. In diesem Fenster zeigt die Auswahl schon auf den
-neuen Lead, die Formularfelder aber noch auf den alten.
-
-- **Aufgaben:** `window.currentTasks` gehört immer zu `window.currentTasksLeadId`.
-  Gesetzt wird beides nur über `window.bindTasksToLead(lead)`, und zwar
-  **sofort** beim Lead-Wechsel, vor dem Laden des Verlaufs. `persistTasks` und
-  `capturePendingTasks` verweigern ohne Bindung die Arbeit; `saveLeadMain`
-  schreibt `task_text` nur, wenn die Bindung auf denselben Lead zeigt.
-- **Formular:** die Seitenleiste trägt `data-lead-id` auf `.focused-lead`.
-  `saveLeadMain` bricht ab, wenn die ID nicht zum gespeicherten Lead passt.
-
-Ohne diese beiden Prüfungen sind zwei Fehler sofort wieder da: Aufgaben
-verschwinden, und man findet Aufgaben bei Leads, für die man sie nie angelegt
-hat.
-
-Nach dem Speichern **nur die betroffene Karte** neu zeichnen:
-`refreshLeadCard(id)` → `patchLeadCard(id)` tauscht einen DOM-Knoten.
-Nur wenn die Karte nicht im DOM ist, wird auf `loadUi(true)` zurückgefallen.
-**Nicht auf `loadUi()` zurückbauen** — das ersetzt die ganze Liste, kostet
-Scrollposition und fühlt sich kaputt an.
-
-## 5. Bewusste Entscheidungen — bitte nicht zurückbauen
-
-Das sind Antworten auf konkrete Beschwerden, keine Zufälle.
-
-- **Anrufe kennen kein „erreicht / nicht erreicht".** Ein Anruf ist ein Anruf.
-  `call_status` kennt nur `never` / `called`. Die Spalte `crm_calls.status`
-  existiert noch, wird aber nirgends ausgewertet.
-- **Keine versteckte Ausblende-Logik.** Früher verschwanden Leads aus Pipeline
-  und Kaltakquise, wenn im Aufgabentext „mail" vorkam — traf auch
-  „Rechnung mailen". Leads bleiben immer sichtbar.
-- **Offene Aufgaben zeigt ein kleines `+`** hinter dem Pipeline-Status. Diese
-  Lösung war schon da und ist gewollt. Kein Badge, kein Icon.
+- **Anrufe kennen kein „erreicht/nicht erreicht".** `call_status` nur
+  `never`/`called`. `crm_calls.status` existiert noch, wird nirgends ausgewertet.
+- **Keine versteckte Ausblende-Logik.** Früher verschwanden Leads, wenn im
+  Aufgabentext „mail" vorkam (traf auch „Rechnung mailen"). Leads bleiben
+  immer sichtbar.
+- **Offene Aufgaben zeigt ein kleines `+`** hinter dem Pipeline-Status. Kein
+  Badge, kein Icon.
 - **Pipeline-Stufen schalten nicht um.** Ein Klick setzt genau diese Stufe.
-- **Der Snooze-Knopf schaltet sehr wohl um.** Klick auf die markierte Auswahl
-  hebt die Wiedervorlage auf. Andere Auswahl setzt um. Zusätzlich gibt es
-  „Snooze aufheben". Der Merker liegt in `window._activeSnoozeChoice` —
-  **nicht** in `store.state.currentSnoozeOffset`, das liest `saveLeadMain` aus
-  und würde die Wiedervorlage bei jedem Speichern weiter nach vorn schieben.
-- **Erledigte Aufgaben werden abgehakt, nicht gelöscht.** In der Detailansicht
-  des Leads bleiben sie unter „Erledigt" stehen — neueste zuerst, mit
-  Zeitpunkt, per Klick wieder zu öffnen, einzeln oder gesammelt löschbar. Der
-  **Aufgabenreiter** zeigt sie nicht; der beantwortet nur „was ist noch offen",
-  bei Teilaufgaben genauso. Dort wird **nur bei mehreren Nutzern** nach
-  Zuweisung gefiltert, und unzugewiesene Leads bleiben immer sichtbar — sonst
-  fällt jeder Lead aus der Kaltakquise heraus, denn der hat `claimed_by = null`. Am Erledigungszeitpunkt hängt `done_ms` an der
-  Aufgabe; Altbestand hat den nicht und zeigt dann einfach kein Datum.
-- **Erledigen schreibt in den Verlauf** (`lead_activities`, Typ `task_done`,
-  mit dem Aufgabentext). Eine Hauptaufgabe abzuhaken hakt ihre Teilaufgaben mit
-  ab, erzeugt aber bewusst **nur einen** Eintrag. Wieder-Öffnen schreibt
-  nichts — sonst stünden im Verlauf Paare aus Haken und Widerruf, die nichts
-  erzählen.
-- **E-Mail und WhatsApp sind dieselbe Aktivität.** Der Knopf „Schreiben" neben
-  der E-Mail-Adresse und das WhatsApp-Symbol neben der Telefonnummer halten
-  beide fest: „Ich habe dem Kunden geschrieben." Der Typ heißt `message`, der
-  genaue Weg steht in `details`. Alte Einträge stehen als `email` in der
-  Tabelle, werden gleich angezeigt und gleich gezählt.
-- **Zusammenführen nur bei gleicher Google-Place-ID.** Namensgleichheit gibt
-  einen Hinweis. Früher wurde über Name + Stadt still zusammengeführt — zwei
-  Mal „Neuer Lead" öffnete beim zweiten Klick den ersten.
+- **Snooze-Knopf schaltet um:** Klick auf markierte Auswahl hebt Wiedervorlage
+  auf. Merker in `window._activeSnoozeChoice`, **nicht** in
+  `store.state.currentSnoozeOffset` (das würde bei jedem Speichern die
+  Wiedervorlage weiterschieben).
+- **E-Mail und WhatsApp sind dieselbe Aktivität** (Typ `message`). Alte
+  Einträge stehen als `email`, werden gleich angezeigt und gezählt.
+- **Zusammenführen nur bei gleicher Google-Place-ID.** Früher über Name+Stadt
+  still zusammengeführt — zweimal „Neuer Lead" öffnete beim zweiten Klick den
+  ersten.
 - **Sortierung bleibt nach dem Speichern stehen**, bis komplett neu geladen
-  wird. Sonst springt die Karte unter dem Cursor weg.
+  wird.
 
 ---
 
-## 6. Einzelplatz-Modus
+## Gelöste Probleme (nicht wiederholen)
 
-Ein Schalter in `public/core/config.js`:
+- **Problem:** Änderungen gingen beim Reiterwechsel verloren.
+  **Lösung:** `flushLeadForm()` vor jeder Navigation; Formular (`data-lead-id`)
+  statt Auswahl-State ist Quelle der Wahrheit.
+  **Warum wichtig:** `switchTab`/`closeLeadSidebar` leeren die Auswahl sofort —
+  jeder spätere Save-Versuch hätte sonst ins Leere gegriffen.
 
+- **Problem:** Aufgabentexte verschwanden beim Sperren des Handys.
+  **Lösung:** Texte direkt aus dem DOM lesen (`captureTaskEdits`), nicht auf
+  `onblur` verlassen.
+  **Warum wichtig:** `blur` feuert nicht bei Fenster-Fokusverlust.
+
+- **Problem:** Kaltakquise-Leads fehlten komplett im Aufgabenreiter.
+  **Lösung:** Zuweisungsfilter nur bei `multiUser: true`, unzugewiesene immer
+  sichtbar.
+  **Warum wichtig:** Kaltakquise-Leads haben `claimed_by = null` — der Filter
+  hat sie im Einzelplatz-Betrieb komplett ausgeblendet.
+
+- **Problem:** Speichern schlug manchmal still fehl, kein Hinweis.
+  **Lösung:** Statuszeile `#save-status`, gespeist aus `leadStore`.
+  **Warum wichtig:** Ohne Rückmeldung ist ein Fehlschlag von Erfolg nicht zu
+  unterscheiden — genau daran war Vertrauen verloren gegangen.
+
+- **Problem:** „Speichert erst nach Neuladen" bei Zeitstempel-Konflikten.
+  **Lösung:** `leadStore.save` holt bei Konflikt einmal den echten Stand und
+  wiederholt automatisch.
+
+---
+
+## Offene Entscheidungen
+
+- **`getAgentStats` lädt alle Anrufe in den Browser.** PostgREST-Limit 1000
+  Zeilen — Dashboard zählt darüber still falsch. ~300 Anrufe aktuell, also
+  Monate Puffer. Sollte SQL-View mit `GROUP BY` werden. Einziger Posten mit
+  Ablaufdatum.
+- **`crm_calls.by_user_id` ist `text` statt `uuid` + Foreign Key.** Bei ~300
+  Zeilen harmlos, später nicht mehr.
+- **`pipeline_ui.js` hat ~2860 Zeilen.** Listen/Sidebar/Karte/Dashboard sind
+  vier Themen in einer Datei — aufteilen?
+- **Echtes Schema versioniert ablegen**, `scratch/schema.sql` löschen. Zehn
+  Minuten, verhindert Falle 1 dauerhaft.
+- **Wann auf `multiUser: true` umschalten?** Siehe Checkliste unten — noch
+  nicht terminiert.
+
+---
+
+## Tech Stack & Key Dependencies
+
+| Was | Details |
+|---|---|
+| Frontend | Vanilla JS, kein Framework. Globale `window.*`, HTML als Template-String via `innerHTML`. |
+| Build/Dev | Vite: `npm run dev` (Port 3000), `npm test`, `npm run build`. |
+| Backend | Supabase (PostgreSQL + Auth + Realtime). |
+| Serverfunktionen | Vercel Functions unter `/api/` — Vite serviert sie **nicht**, nur nach Deploy oder mit `vercel dev` prüfbar. |
+| Tests | `tests/ui.test.mjs`, jsdom, 142 Prüfungen, ~1 Sekunde. |
+| Deployment | Push auf `master` → Vercel deployt automatisch. **Nicht ungefragt pushen.** |
+
+**Verzeichnisse:**
+```
+index.html               Layout, Modals, Navigation, Skript-Reihenfolge
+core/db.js       (1057)  Supabase-Zugriff, gesamte Datenlogik
+core/api.js        (92)  window.api — dünne Fassade über db.js
+core/auth.js       (33)  Passkey-Stub, Developer-Unlock
+public/core/config.js    DER SCHALTER (multiUser)
+public/core/store.js     Proxy-Store, window.store.state
+public/core/leadstore.js (173) DER EINZIGE SCHREIBWEG
+public/ui/pipeline_ui.js (2860) Listen, Karten, Sidebar, Karte, Dashboard
+public/ui/main_ui.js     (1523) Speichern, Aufgaben, Snooze, Toasts, Bulk
+public/modules/scraper.js (746) Radar Scout (Google Places / OSM)
+ui/init.js         (513) Bootstrap, Login, Realtime-Abo
+api/               Vercel Functions + api/_lib/auth.js
+admin_scripts/     SQL für Wartung, siehe admin_scripts/README.md
+tests/ui.test.mjs  142 Prüfungen
+```
+
+**Einzelplatz-Modus:** Schalter in `public/core/config.js`:
 ```js
 window.APP_CONFIG = { multiUser: false };
 ```
-
 Bei `false` ausgeblendet: Registrierung, Einladungen, Nutzerverwaltung, Rollen,
-Lead-Zuweisung (Dropdown, Avatare, Filter), Sales-Bell-Push, Punkte-System.
-**Nichts ist gelöscht** — Code, Serverfunktionen und Datenbankspalten sind
-unverändert.
+Lead-Zuweisung, Sales-Bell-Push, Punkte-System. **Nichts gelöscht.**
 
-### Bevor wieder mehrere Leute arbeiten
-
-1. `multiUser: true`.
-2. Supabase → Authentication → Email → „Allow new users to sign up" (nur bei
-   gewünschter Selbstregistrierung).
+Checkliste vor Rückschalter auf `multiUser: true`:
+1. `multiUser: true` setzen.
+2. Supabase → Authentication → Email → „Allow new users to sign up" nur bei
+   gewünschter Selbstregistrierung.
 3. **Zugriffsregeln schärfen.** Auf `crm_leads` liegt `auth_full_access`
-   (jeder Angemeldete darf alles) neben feineren Regeln wie „Agents can read
-   their own or unassigned leads". Solche Regeln wirken additiv — die
-   großzügigste gewinnt. Die Rollentrennung existiert heute nur in der
-   Oberfläche. Dazu §2.2: ein Login gilt für alle Apps im Projekt.
+   (jeder Angemeldete alles) neben feineren Regeln — additiv, großzügigste
+   gewinnt. Rollentrennung existiert heute nur in der Oberfläche.
 4. Vercel: `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` setzen.
-5. `saveLeadMain` auf Teil-Updates umbauen (siehe §7).
+5. `saveLeadMain` ist bereits auf Teil-Updates umgestellt (erledigt).
 
 ---
 
-## 7. Offene Schulden, nach Dringlichkeit
+## Vision & Langziel
 
-1. **`getAgentStats` (`core/db.js`) lädt alle Anrufe in den Browser.**
-   PostgREST liefert max. 1000 Zeilen — darüber zählt das Dashboard **still
-   falsch**. Aktuell ~300 Anrufe, also Monate Puffer. Gehört in eine SQL-View
-   mit `GROUP BY`. Das ist der einzige Posten mit Ablaufdatum.
-2. **`crm_calls.by_user_id` von `text` auf `uuid` + Foreign Key ziehen.**
-   Bei ~300 Zeilen harmlos, später nicht mehr.
-3. **Echtes Schema versioniert ablegen** und `scratch/schema.sql` löschen.
-   Zehn Minuten, verhindert Falle §2.1 dauerhaft.
-4. **`lead_activities`: alte `email`-Einträge auf `message` ziehen.** Reine
-   Kosmetik, der Code kommt mit beidem klar (§5). Auf der Tabelle liegt keine
-   Prüfregel für `type` (geprüft 09.09.2026), neue Typen brauchen also keine
-   Migration.
-5. **`pipeline_ui.js` mit ~2800 Zeilen aufteilen.** Listen / Sidebar / Karte /
-   Dashboard sind vier unabhängige Themen in einer Datei.
-6. **`autoGeocode` ist bewusst nicht exportiert** — es würde beim Login eine
-   Massen-Geocoding-Schleife starten.
-
-**Erledigt seit dem letzten Stand:** Teil-Updates statt aller ~25 Spalten,
-der tote `toggleAnalytics`, die neun Einmal-Skripte aus dem Wurzelverzeichnis
-(liegen jetzt in `scratch/einmal_skripte/`).
-
-## 8. Admin-Skripte
-
-Alle read-only-Schritte zuerst ausführen. Die schreibenden sind irreversibel —
-vorher Backup über Supabase → Database → Backups.
-
-| Datei | Zweck |
-|---|---|
-| `inspect_user_columns.sql` | Welche Spalten verweisen auf Nutzer, mit Typ |
-| `check_shared_project.sql` | Zeigt Zeilen, die auf gelöschte Accounts zeigen |
-| `cleanup_activity_labels.sql` | Alte Beschriftungen (`FOLLOW-UP` → `DATA`) |
-| `fix_anon_insert.sql` | Erledigt — anonymes Anlegen von Leads geschlossen |
-| `reset_users_dev.sql` | Erledigt — alle Nutzer außer einem entfernt |
-| `lockdown_dev.sql` | **NICHT ausführen**, überholt (siehe Dateikopf) |
+Robustes, verlässliches Einzelplatz-CRM, das bei Bedarf ohne Codeänderung auf
+Team-Betrieb umschaltet (Schalter, nicht Umbau). Kernprinzip: nichts geht
+still verloren — jede Speicherung ist sichtbar rückgemeldet, jeder Konflikt
+heilt sich selbst, jede Navigation sichert vorher ab.
 
 ---
 
-## 9. Entwicklung
+## Für nächsten Agent
 
-```bash
-npm install
-npm run dev      # Vite, Port 3000
-npm test         # 142 Prüfungen, ohne Browser, ~1 Sekunde
-npm run build
-```
-
-`npm test` (`tests/ui.test.mjs`) läuft über jsdom und deckt ab: Pipeline-Stufen,
-eindeutige Aufgaben-IDs, Speichern beim Abhaken/Löschen, Snooze setzen und
-aufheben, dass keine Reste im Store bleiben, Einzelkarten-Aktualisierung und
-die Reihenfolge in der Speicher-Warteschlange, die Lead-Bindung der Aufgaben,
-die Selbstheilung bei veraltetem Zeitstempel, dass wirklich nur geänderte
-Spalten geschrieben werden, und die Historie der erledigten Aufgaben samt
-Teilaufgaben und Verlaufseinträgen, das Sichern vor jeder Navigation und die
-Statuszeile. **Nach jeder Änderung an `main_ui.js`,
-`pipeline_ui.js` oder `leadstore.js` laufen lassen.**
-
-Die `/api/*`-Funktionen serviert Vite **nicht**. Änderungen dort lassen sich nur
-nach dem Deploy prüfen (oder mit `vercel dev`).
-
-Deployment: Push auf `master` → Vercel deployt automatisch.
-
----
-
-## 10. Umgang mit dem Nutzer
-
-- **Deutsch, keine Fachsprache.** Nicht „RLS-Policy", sondern „Zugriffsregel".
-  Nicht „Endpoint", sondern „Serverfunktion".
+- **Lies zuerst** die „⚠️ Kritische Fallen" oben — jede hat schon einmal Zeit
+  gekostet.
 - **Erst prüfen, dann behaupten.** Eine Warnung auf Basis einer veralteten
-  Datei hat Vertrauen gekostet. Read-only-Abfragen sind billig.
-- **Offensichtliche Bedienprobleme mit aufräumen**, statt sie nur zu benennen —
-  darum wurde ausdrücklich gebeten.
-- **Bestehende, funktionierende Lösungen nicht ersetzen.** Siehe §5.
-- **Nicht ungefragt pushen.** Der Push auf `master` geht direkt live.
+  Datei (`scratch/schema.sql`) hat schon einmal Vertrauen gekostet. Read-only-
+  Abfragen sind billig.
 - **SQL immer einzeln.** Eine Anweisung geben, auf das Ergebnis warten, dann
   die nächste. Nie mehrere SQL-Blöcke in einer Nachricht, auch nicht bei
   reinen Abfragen. Ausdrücklich so gewünscht.
+- **Nicht ungefragt pushen.** Push auf `master` geht direkt live.
+- **Deutsch, keine Fachsprache.** Nicht „RLS-Policy", sondern „Zugriffsregel".
+  Nicht „Endpoint", sondern „Serverfunktion".
+- **Bestehende, funktionierende Lösungen nicht ersetzen.** Siehe „Bewusste
+  Entscheidungen" oben.
+- **Offensichtliche Bedienprobleme mit aufräumen**, statt sie nur zu nennen —
+  ausdrücklich so gewünscht.
+- **`npm test` nach jeder Änderung** an `main_ui.js`, `pipeline_ui.js` oder
+  `leadstore.js`.
+- Admin-Skripte: read-only zuerst, schreibende sind irreversibel — vorher
+  Backup über Supabase → Database → Backups. Details in
+  `admin_scripts/README.md`.
+
+---
+
+## Handover-Historie
+- 2026-09-09 — Workflow-Standardisierung nach `coding-workflow-standards.md`,
+  Inhalt vollständig aus dem Vorgänger-Handover übernommen (Claude Sonnet 5).
+- 2026-09-09 — Autospeichern-Fix (vier Auslöser, Fluchtpunkt, Statuszeile),
+  Aufgaben-Historie mit Zeitpunkt, Aufgabenreiter-Filter korrigiert (Claude
+  Opus 5).
+- 2026-09-09 — Ein Schreibweg für alle Lead-Änderungen (`leadStore`),
+  E-Mail/WhatsApp als vereinheitlichte Aktivität `message` (Claude Opus 5).
