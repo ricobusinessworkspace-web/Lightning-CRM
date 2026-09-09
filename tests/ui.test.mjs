@@ -459,6 +459,258 @@ w.clearDoneTasks();
 check('Nachfrage vor dem Loeschen', (bestaetigt || '').includes('2 erledigte'));
 check('Nur die erledigten sind weg', w.currentTasks.length === 1 && w.currentTasks[0].text === 'Offen');
 
+
+// ── 16. Autospeichern haelt an jedem Wechsel ─────────────────────────────
+// Die Fehler, die das ausloest: Eingabe gemacht -> Lead abgewaehlt oder
+// Reiter gewechselt -> Aenderung verworfen. Ursache war, dass switchTab und
+// closeLeadSidebar die Auswahl sofort auf null setzen und saveLeadMain sich
+// daran orientiert hat. Massgeblich ist jetzt data-lead-id am Formular.
+w.document.body.innerHTML = '';
+const formularBauen = (leadId, werte = {}) => {
+  w.document.body.innerHTML = `
+    <div class="focused-lead" data-lead-id="${leadId}">
+      <div class="sidebar-header"><div id="sys-name" contenteditable="true">${werte.name || 'Firma'}</div>
+        <div id="save-status" class="save-status"></div></div>
+      <div class="sidebar-body">
+        <input id="sys-phone" value="${werte.phone || '030'}">
+        <input id="sys-web" type="hidden" value="">
+        <input id="sys-email" value="">
+        <input id="sys-stage" type="hidden" value="cold">
+        <input id="sys-k" type="hidden" value="0">
+        <input id="sys-city" type="hidden" value="">
+        <input id="sys-placeid" type="hidden" value="">
+        <textarea id="note-input">${werte.notes || ''}</textarea>
+        <div id="tasks-list"></div>
+        <input id="new-task-input-rem" value="">
+      </div>
+    </div>`;
+};
+
+// Erst abwarten, bis nichts mehr aus den vorigen Abschnitten laeuft — sonst
+// landen deren Schreibvorgaenge im Zaehler dieses Abschnitts.
+await w.leadStore.ruhe();
+
+const geschrieben16 = [];
+w.api.saveLead = async (p) => { geschrieben16.push(p); return { id: p.id, last_edited_ms: Date.now() }; };
+w.store.state.leads = [{ id: 600, name: 'Firma', phone: '030', notes: 'alt', task_text: '', stage: 'cold', status: 'Lead', last_edited_ms: 1 }];
+w.store.state.tabCache = {};
+w.store.state.currentSnoozeOffset = 0; w.store.state.currentSnoozeTargetMs = 0; w.store.state.clearSnooze = false;
+formularBauen(600, { notes: 'alt' });
+w.bindTasksToLead(w.store.state.leads[0]);
+
+check('Formular kennt seinen Lead', w.getFormLeadId() === 600);
+
+// Der entscheidende Fall: Auswahl ist bereits geleert (wie nach switchTab)
+w.store.state.currentSelectedLeadId = null;
+w.document.getElementById('note-input').value = 'Neue Notiz vor dem Wechsel';
+geschrieben16.length = 0;
+const geflusht = await w.flushLeadForm();
+check('Speichern klappt auch ohne Auswahl', geflusht === true);
+check('Notiz ist wirklich geschrieben', geschrieben16.length === 1 && geschrieben16[0].notes === 'Neue Notiz vor dem Wechsel');
+check('Und der richtige Lead', geschrieben16[0].id === 600);
+
+// Ohne Formular passiert nichts, aber es kracht auch nicht
+w.document.body.innerHTML = '';
+geschrieben16.length = 0;
+const leer = await w.flushLeadForm();
+check('Ohne Formular kein Fehler', leer === true && geschrieben16.length === 0);
+
+// Formular eines anderen Leads darf nicht auf diesen geschrieben werden
+formularBauen(601, { notes: 'gehoert zu 601' });
+geschrieben16.length = 0;
+const falsch = await w.saveLeadMain(600, true, true);
+check('Fremdes Formular wird abgelehnt', falsch === false && geschrieben16.length === 0);
+
+// ── 17. Verzoegertes Speichern wird beim Wechsel abgebrochen ─────────────
+formularBauen(600, { notes: 'alt' });
+w.bindTasksToLead(w.store.state.leads[0]);
+let debounceLief = 0;
+w._debouncedSave = Object.assign(() => { debounceLief++; }, { cancel: () => { w._debounceAbgebrochen = true; } });
+w._debounceAbgebrochen = false;
+await w.flushLeadForm();
+check('flushLeadForm bricht die Wartezeit ab', w._debounceAbgebrochen === true);
+w._debouncedSave = null;
+
+// ── 18. Statusanzeige meldet jeden Zustand ───────────────────────────────
+formularBauen(600, { notes: 'alt' });
+const statusEl = () => w.document.getElementById('save-status');
+
+w.setSaveStatus('speichert');
+check('Status zeigt "Speichert"', statusEl().textContent.includes('Speichert'));
+w.setSaveStatus('gespeichert');
+check('Status zeigt "Gespeichert" mit Uhrzeit', /Gespeichert \d{1,2}:\d{2}/.test(statusEl().textContent));
+check('Status ist gruen markiert', statusEl().innerHTML.includes('save-status-ok'));
+w.setSaveStatus('fehler', { leadId: 600, felder: { notes: 'x' }, meldung: 'Netz weg' });
+check('Status zeigt den Fehlschlag', statusEl().textContent.includes('Speichern fehlgeschlagen'));
+check('Status bietet Wiederholen an', statusEl().innerHTML.includes('retrySave'));
+check('Fehler wird gemerkt', w._letzterSaveFehler && w._letzterSaveFehler.leadId === 600);
+w.setSaveStatus('offen');
+check('Status zeigt offene Aenderung', statusEl().textContent.includes('Änderung noch nicht gespeichert'));
+check('Offen und Fehler sind unterscheidbar', !statusEl().textContent.includes('fehlgeschlagen'));
+w.setSaveStatus('gespeichert');
+check('Gemerkter Fehler ist danach weg', w._letzterSaveFehler === null);
+
+// Wiederholen schreibt die gemerkten Felder erneut
+w.setSaveStatus('fehler', { leadId: 600, felder: { notes: 'Nochmal' }, meldung: 'Netz weg', label: 'Lead' });
+geschrieben16.length = 0;
+await w.retrySave();
+check('Wiederholen schreibt die gemerkten Felder', geschrieben16.length === 1 && geschrieben16[0].notes === 'Nochmal');
+
+// Der Schreibweg meldet von sich aus
+formularBauen(600, { notes: 'alt' });
+w.store.state.leads = [{ id: 600, name: 'Firma', notes: 'alt', last_edited_ms: 1 }];
+w.api.saveLead = async (p) => { throw new Error('Netzwerkfehler'); };
+const misslungen = await w.leadStore.save(600, { notes: 'geht nicht' }, { label: 'Lead', silent: true });
+check('Fehlschlag wird gemeldet', misslungen === false);
+check('Statuszeile steht auf Fehler', statusEl().textContent.includes('Speichern fehlgeschlagen'));
+
+// Der Fehler muss ein Neuzeichnen der Seitenleiste ueberleben
+formularBauen(600, { notes: 'alt' });
+check('Frisch gezeichnete Zeile ist erst leer', statusEl().textContent.trim() === '');
+w.restoreSaveStatus();
+check('Offener Fehler wird wieder angezeigt', statusEl().textContent.includes('Speichern fehlgeschlagen'));
+
+w.api.saveLead = async (p) => { geschrieben16.push(p); return { id: p.id, last_edited_ms: Date.now() }; };
+await w.leadStore.save(600, { notes: 'geht wieder' }, { label: 'Lead' });
+check('Nach Erfolg steht wieder "Gespeichert"', /Gespeichert/.test(statusEl().textContent));
+
+formularBauen(600, { notes: 'alt' });
+w.restoreSaveStatus();
+check('Ohne offenen Fehler bleibt die Zeile leer', statusEl().textContent.trim() === '');
+
+// ── 19. Aufgabenreiter zeigt auch Kaltakquise-Leads ──────────────────────
+// Vorher fielen alle Leads mit claimed_by = null aus dem Aufgabenreiter, weil
+// dort ohne Ruecksicht auf den Einzelplatz-Betrieb nach Zuweisung gefiltert
+// wurde. Genau das trifft jeden frisch angelegten Kaltakquise-Lead.
+const reiterFilter = (leads, multiUser, user) => leads.filter(l => {
+  if (multiUser && user && user.role !== 'admin' && user.role !== 'developer'
+      && l.claimed_by && l.claimed_by !== user.id) return false;
+  if (!l.task_text) return false;
+  try { const a = JSON.parse(l.task_text); return Array.isArray(a) && a.some(t => !t.done); }
+  catch (e) { return false; }
+});
+const offeneAufgabe = '[{"id":1,"text":"Anrufen","done":false,"subtasks":[]}]';
+const testLeads = [
+  { id: 1, name: 'Kalt, niemandem zugewiesen', claimed_by: null, task_text: offeneAufgabe },
+  { id: 2, name: 'Mir zugewiesen',              claimed_by: 'ich', task_text: offeneAufgabe },
+  { id: 3, name: 'Kollege',                     claimed_by: 'du',  task_text: offeneAufgabe },
+  { id: 4, name: 'Alles erledigt',              claimed_by: null,  task_text: '[{"id":9,"text":"fertig","done":true,"subtasks":[]}]' }
+];
+const einzelplatz = reiterFilter(testLeads, false, { id: 'ich', role: 'agent' });
+check('Einzelplatz: Kaltakquise-Lead ist dabei', einzelplatz.some(l => l.id === 1));
+check('Einzelplatz: alle mit offenen Aufgaben', einzelplatz.map(l => l.id).join(',') === '1,2,3');
+check('Erledigte Aufgaben bringen keinen Lead in den Reiter', !einzelplatz.some(l => l.id === 4));
+
+const mitTeam = reiterFilter(testLeads, true, { id: 'ich', role: 'agent' });
+check('Team: unzugewiesene bleiben sichtbar', mitTeam.some(l => l.id === 1));
+check('Team: eigene bleiben sichtbar', mitTeam.some(l => l.id === 2));
+check('Team: fremde sind ausgeblendet', !mitTeam.some(l => l.id === 3));
+
+// ── 20. Loeschen wird geschrieben ────────────────────────────────────────
+w.store.state.leads = [{ id: 700, name: 'L', task_text: '', last_edited_ms: 1 }];
+w.store.state.tabCache = {};
+w.document.body.innerHTML = '<div id="tasks-list"></div>';
+w.bindTasksToLead({ id: 700, task_text: '[{"id":1,"text":"A","done":false,"subtasks":[{"id":11,"text":"A1","done":false}]},{"id":2,"text":"B","done":true,"done_ms":5,"subtasks":[]}]' });
+geschrieben16.length = 0;
+w.deleteTask(2);
+await w.leadStore.ruhe();
+check('Erledigte aus der Historie loeschen schreibt', geschrieben16.length === 1);
+check('Und zwar ohne die uebrigen', !geschrieben16[0].task_text.includes('"B"') && geschrieben16[0].task_text.includes('"A"'));
+
+geschrieben16.length = 0;
+w.deleteSubtask(1, 11);
+await w.leadStore.ruhe();
+check('Teilaufgabe loeschen schreibt', geschrieben16.length === 1 && !geschrieben16[0].task_text.includes('A1'));
+
+geschrieben16.length = 0;
+w.deleteTask(999);
+await w.leadStore.ruhe();
+check('Loeschen einer unbekannten Aufgabe schreibt nichts', geschrieben16.length === 0);
+
+
+// ── 21. Angefangene Texte gehen nie verloren ─────────────────────────────
+// Aufgabentexte sind contenteditable. Ihre Eingabe landet ueber onblur in
+// window.currentTasks — und blur feuert NICHT, wenn das Fenster selbst den
+// Fokus verliert (Handy sperren, Browser-Tab wechseln). Deshalb liest
+// captureTaskEdits die Felder direkt aus dem DOM.
+await w.leadStore.ruhe();
+w.document.body.innerHTML = '';
+const formular21 = w.document.createElement('div');
+formular21.className = 'focused-lead';
+formular21.setAttribute('data-lead-id', '800');
+formular21.innerHTML = `
+  <div class="sidebar-header"><div id="sys-name" contenteditable="true">X</div></div>
+  <div class="sidebar-body">
+    <input id="sys-phone" value=""><input id="sys-web" type="hidden" value=""><input id="sys-email" value="">
+    <input id="sys-stage" type="hidden" value="cold"><input id="sys-k" type="hidden" value="0">
+    <input id="sys-city" type="hidden" value=""><input id="sys-placeid" type="hidden" value="">
+    <div id="tasks-list"></div><input id="new-task-input-rem" value="">
+  </div>`;
+w.document.body.appendChild(formular21);
+
+w.store.state.leads = [{ id: 800, name: 'X', task_text: '', last_edited_ms: 1 }];
+w.store.state.tabCache = {};
+const geschrieben21 = [];
+w.api.saveLead = async (p) => { geschrieben21.push(p); return { id: p.id, last_edited_ms: Date.now() }; };
+
+w.bindTasksToLead({ id: 800, task_text: '[{"id":1,"text":"Alt","done":false,"subtasks":[{"id":11,"text":"Alt-Teil","done":false}]}]' });
+w.renderTasksList();
+
+const hauptFeld = w.document.querySelector('#tasks-list [data-task-id="1"]:not([data-subtask-id])');
+const teilFeld  = w.document.querySelector('#tasks-list [data-subtask-id="11"]');
+check('Aufgabentext ist im DOM auffindbar', !!hauptFeld && !!teilFeld);
+
+// Text aendern, ohne dass blur feuert
+hauptFeld.textContent = 'Frisch getippt';
+teilFeld.textContent  = 'Teil frisch getippt';
+w.document.getElementById('new-task-input-rem').value = 'Nie mit Enter bestätigt';
+
+const etwasGeaendert = w.capturePendingTasks();
+check('Aenderungen werden erkannt', etwasGeaendert === true);
+check('Hauptaufgabe uebernommen', w.currentTasks[0].text === 'Frisch getippt');
+check('Teilaufgabe uebernommen', w.currentTasks[0].subtasks[0].text === 'Teil frisch getippt');
+check('Angefangene neue Aufgabe uebernommen', w.currentTasks.some(t => t.text === 'Nie mit Enter bestätigt'));
+
+// Ein leer geraeumtes Feld darf den Text NICHT loeschen
+w.renderTasksList();
+const hauptFeld2 = w.document.querySelector('#tasks-list [data-task-id="1"]:not([data-subtask-id])');
+hauptFeld2.textContent = '   ';
+w.captureTaskEdits();
+check('Leeres Feld loescht den Text nicht', w.currentTasks[0].text === 'Frisch getippt');
+
+// Ohne Bindung wird nichts angefasst
+const vorherText = w.currentTasks[0].text;
+const gemerkt = w.currentTasksLeadId;
+w.currentTasksLeadId = null;
+w.renderTasksList();
+check('Ohne Bindung wird nichts eingesammelt', w.captureTaskEdits() === false && w.currentTasks[0].text === vorherText);
+w.currentTasksLeadId = gemerkt;
+
+// Und der ganze Weg: flushLeadForm schreibt alles zusammen
+w.renderTasksList();
+const hf = w.document.querySelector('#tasks-list [data-task-id="1"]:not([data-subtask-id])');
+hf.textContent = 'Ganz zum Schluss';
+geschrieben21.length = 0;
+await w.flushLeadForm();
+await w.leadStore.ruhe();
+const raus = geschrieben21.find(p => 'task_text' in p);
+check('flushLeadForm nimmt den Aufgabentext mit', !!raus && raus.task_text.includes('Ganz zum Schluss'));
+check('flushLeadForm schreibt auf den richtigen Lead', !!raus && raus.id === 800);
+
+// Auch bei unvollstaendigem Formular (Seitenleiste wird gerade neu gezeichnet)
+// duerfen die Aufgaben nicht verloren gehen.
+w.document.body.innerHTML = '';
+const halbesFormular = w.document.createElement('div');
+halbesFormular.className = 'focused-lead';
+halbesFormular.setAttribute('data-lead-id', '800');
+halbesFormular.innerHTML = '<div id="tasks-list"></div><input id="new-task-input-rem" value="Gerettete Aufgabe">';
+w.document.body.appendChild(halbesFormular);
+geschrieben21.length = 0;
+await w.flushLeadForm();
+await w.leadStore.ruhe();
+const gerettet = geschrieben21.find(p => 'task_text' in p);
+check('Aufgaben ueberleben ein unvollstaendiges Formular', !!gerettet && gerettet.task_text.includes('Gerettete Aufgabe'));
+
 console.log('\n✅ BESTANDEN (' + ok.length + ')');
 ok.forEach(t => console.log('   ' + t));
 if (fail.length) {

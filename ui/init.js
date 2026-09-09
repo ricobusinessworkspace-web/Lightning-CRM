@@ -485,6 +485,20 @@ window.addEventListener('online', () => {
   import { initProfileModal } from './profile-modal.js';
   initProfileModal();
 
+  // ── Letzter Fluchtweg: Seite verlassen oder Fenster wechseln ───────────────
+  // Auf dem Handy heisst "App in den Hintergrund" oft das Ende der Seite. Was
+  // dann noch im Formular steht und nur auf den Ablauf der kurzen Wartezeit des
+  // Autospeicherns wartet, waere weg. visibilitychange ist der einzige Weg, der
+  // auf iOS zuverlaessig noch feuert — pagehide und beforeunload nicht immer.
+  const sichereFormular = () => {
+    if (typeof window.flushLeadForm === 'function') window.flushLeadForm();
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') sichereFormular();
+  });
+  window.addEventListener('pagehide', sichereFormular);
+  window.addEventListener('beforeunload', sichereFormular);
+
   // ── Supabase Realtime Integration ──────────────────────────────────────────
   window.pendingLocalWrites = window.pendingLocalWrites || new Set();
 

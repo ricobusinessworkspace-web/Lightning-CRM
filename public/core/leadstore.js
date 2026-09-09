@@ -68,6 +68,21 @@
 
   const istKonflikt = (err) => /Konflikt/i.test((err && err.message) || '');
 
+  // ── Zustandsmeldung nach aussen ────────────────────────────────────────────
+  // Die Seitenleiste zeigt daran, ob gerade geschrieben wird, wann zuletzt
+  // gespeichert wurde und ob etwas offen geblieben ist. Ohne diese Rueckmeldung
+  // sieht ein stillschweigend fehlgeschlagener Schreibvorgang genauso aus wie
+  // ein erfolgreicher — genau daran ist das Vertrauen in das Autospeichern
+  // zerbrochen.
+  const melde = (zustand, extra) => {
+    if (typeof window.setSaveStatus === 'function') {
+      try { window.setSaveStatus(zustand, extra); } catch (e) { /* Anzeige darf nie stoeren */ }
+    }
+  };
+
+  // Offene Schreibvorgaenge. Solange > 0, laeuft noch etwas.
+  let offen = 0;
+
   /**
    * Schreibt genau die uebergebenen Spalten. Nicht genannte Spalten bleiben
    * unberuehrt (db.js beherrscht Teil-Updates).
@@ -87,6 +102,8 @@
       return window.api.saveLead(payload);
     };
 
+    offen++;
+    melde('speichert');
     try {
       const bekannt = get(id);
       let res;
@@ -113,9 +130,13 @@
       if (!opts.noRefresh && typeof window.refreshLeadCard === 'function') {
         window.refreshLeadCard(id);
       }
+      offen--;
+      if (offen === 0) melde('gespeichert', { leadId: id, felder: Object.keys(fields) });
       return true;
     } catch (err) {
+      offen--;
       console.error('leadStore.save:', err);
+      melde('fehler', { leadId: id, felder: fields, meldung: err.message, label: opts.label });
       if (!opts.silent && typeof window.showToast === 'function') {
         window.showToast(`${opts.label || 'Änderung'} konnte nicht gespeichert werden: ${err.message}`, true);
       }
@@ -145,5 +166,8 @@
     return out;
   };
 
-  window.leadStore = { get, patch, save, diff };
+  // Warten, bis alle laufenden Schreibvorgaenge durch sind.
+  const ruhe = () => window.queueSave(async () => true);
+
+  window.leadStore = { get, patch, save, diff, ruhe, offeneVorgaenge: () => offen };
 })();

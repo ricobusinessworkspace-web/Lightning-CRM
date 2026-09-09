@@ -305,9 +305,49 @@ window.setPipeline = async (type) => {
       }
     });
     
+    if (window.captureTaskEdits()) changed = true;
+
     if (changed && typeof window.renderTasksList === 'function') {
       window.renderTasksList();
     }
+    return changed;
+  };
+
+  // ── Bearbeitete Aufgabentexte aus dem DOM holen ────────────────────────────
+  // Die Aufgabentexte sind contenteditable-Felder. Ihre Eingabe landet sonst
+  // erst über onblur in window.currentTasks — und blur feuert NICHT, wenn das
+  // Fenster selbst den Fokus verliert (Handy sperren, Browser-Tab wechseln)
+  // oder wenn der Knoten neu gezeichnet wird. Dann wäre der zuletzt getippte
+  // Text weg.
+  //
+  // Deshalb wird hier direkt gelesen, was in den Feldern steht. Jedes Feld
+  // trägt dafür data-task-id (und bei Teilaufgaben data-subtask-id).
+  window.captureTaskEdits = () => {
+    if (!window.currentTasksLeadId || !Array.isArray(window.currentTasks)) return false;
+    const liste = document.getElementById('tasks-list');
+    if (!liste) return false;
+
+    let changed = false;
+    liste.querySelectorAll('[data-task-id]').forEach(node => {
+      const taskId = parseInt(node.getAttribute('data-task-id'), 10);
+      if (Number.isNaN(taskId)) return;
+      const t = window.currentTasks.find(x => x.id === taskId);
+      if (!t) return;
+
+      // innerText bevorzugt (respektiert Zeilenumbrüche), textContent als
+      // Rückfall — manche Umgebungen kennen innerText nicht.
+      const text = String(node.innerText ?? node.textContent ?? '').trim();
+      if (!text) return;   // Leeres Feld nie übernehmen — das löschte den Text
+
+      const subAttr = node.getAttribute('data-subtask-id');
+      if (subAttr === null) {
+        if (t.text !== text) { t.text = text; changed = true; }
+      } else {
+        const subId = parseInt(subAttr, 10);
+        const st = (t.subtasks || []).find(x => x.id === subId);
+        if (st && st.text !== text) { st.text = text; changed = true; }
+      }
+    });
     return changed;
   };
 
@@ -340,12 +380,148 @@ window.setPipeline = async (type) => {
   // haben. Vorher gingen alle ~25 Spalten mit — jeder Tastendruck im
   // Notizfeld hat damit auch Umsatz, Zählernummern und Abschlussdatum neu
   // geschrieben, obwohl sie niemand angefasst hatte.
-  window.saveLeadMain = async (id, noClose = false, noRender = false) => {
-    if (!id || window.store.state.currentSelectedLeadId !== id) {
-      // Die Seitenleiste zeigt einen anderen Lead — die Formularfelder gehören
-      // dann nicht zu diesem Lead.
-      return false;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Speicher-Statusanzeige
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Ohne Rückmeldung sieht ein fehlgeschlagener Schreibvorgang genauso aus wie
+  // ein erfolgreicher. Die Zeile im Kopf der Seitenleiste sagt immer, woran
+  // man ist: "Speichert…", "Gespeichert 14:32" oder "Nicht gespeichert" mit
+  // einem Knopf zum Wiederholen.
+  window._letzterSaveFehler = null;
+
+  // Die Seitenleiste wird bei jedem Lead-Wechsel neu gezeichnet — dabei ist die
+  // Statuszeile wieder leer. Steht noch ein Fehler offen, muss er zurueck an
+  // die Anzeige, sonst verschwindet die Warnung stillschweigend.
+  window.restoreSaveStatus = () => {
+    if (window._letzterSaveFehler) window.setSaveStatus('fehler', window._letzterSaveFehler);
+    else window.setSaveStatus('leer');
+  };
+
+  window.setSaveStatus = (zustand, extra = {}) => {
+    const el = document.getElementById('save-status');
+    if (zustand === 'fehler') {
+      window._letzterSaveFehler = extra;
+    } else if (zustand === 'gespeichert') {
+      window._letzterSaveFehler = null;
     }
+    if (!el) return;
+
+    const uhr = () => new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+    if (zustand === 'speichert') {
+      el.innerHTML = '<span class="save-status-dot save-status-busy"></span>Speichert…';
+      el.className = 'save-status save-status-pending';
+      el.title = 'Änderung wird geschrieben';
+    } else if (zustand === 'gespeichert') {
+      el.innerHTML = `<span class="save-status-dot save-status-ok"></span>Gespeichert ${uhr()}`;
+      el.className = 'save-status save-status-done';
+      el.title = 'Alle Änderungen sind gespeichert';
+      // Kurz aufblitzen, damit man es auch im Augenwinkel mitbekommt
+      el.classList.add('save-status-flash');
+      setTimeout(() => el && el.classList.remove('save-status-flash'), 900);
+    } else if (zustand === 'fehler') {
+      el.innerHTML = '<span class="save-status-dot save-status-fail"></span>Speichern fehlgeschlagen '
+        + '<button type="button" onclick="window.retrySave()" class="save-status-retry">Erneut versuchen</button>';
+      el.className = 'save-status save-status-error';
+      el.title = extra.meldung || 'Der letzte Schreibvorgang ist fehlgeschlagen';
+    } else if (zustand === 'offen') {
+      // Eindeutig anders formuliert als der Fehlerfall — sonst liest man beides
+      // als "kaputt", obwohl hier nur der Schreibvorgang noch bevorsteht.
+      el.innerHTML = '<span class="save-status-dot save-status-busy"></span>Änderung noch nicht gespeichert';
+      el.className = 'save-status save-status-pending';
+      el.title = 'Es gibt Änderungen, die gleich geschrieben werden';
+    } else {
+      el.innerHTML = '';
+      el.className = 'save-status';
+      el.title = '';
+    }
+  };
+
+  // Den fehlgeschlagenen Schreibvorgang noch einmal versuchen.
+  window.retrySave = async () => {
+    const f = window._letzterSaveFehler;
+    if (!f || !f.leadId || !f.felder) {
+      // Kein gemerkter Fehler — dann einfach den aktuellen Formularstand schreiben
+      await window.flushLeadForm();
+      return;
+    }
+    await window.leadStore.save(f.leadId, f.felder, { label: f.label });
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // flushLeadForm — vor JEDER Navigation aufrufen
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Nimmt sofort auf, was im Formular steht, und startet den Schreibvorgang.
+  // Verzögertes Autospeichern wird dabei abgebrochen, damit nichts doppelt oder
+  // zu spät läuft.
+  //
+  // Aufrufer: openLead / openLeadDirectly, switchTab, closeLeadSidebar sowie
+  // das Verlassen der Seite. Ohne diesen Aufruf ist eine Eingabe verloren, die
+  // innerhalb der Wartezeit des Autospeicherns getätigt wurde — genau das war
+  // der Fehler "Eingabe gemacht, Reiter gewechselt, Änderung weg".
+  window._flushLaeuft = false;
+  window.flushLeadForm = async () => {
+    // Ohne diese Sperre ruft der gleich ausgelöste Fokusverlust flushLeadForm
+    // erneut auf — eine Schleife.
+    if (window._flushLaeuft) return true;
+    window._flushLaeuft = true;
+    try {
+      if (window._debouncedSave && window._debouncedSave.cancel) window._debouncedSave.cancel();
+
+      // Das gerade bearbeitete Feld aus dem Fokus nehmen. Erst dadurch laufen
+      // seine onblur-Handler — bei den Aufgabentexten (contenteditable) ist das
+      // der einzige Weg, wie die Eingabe in window.currentTasks landet. Ohne
+      // diesen Schritt wäre der zuletzt getippte Aufgabentext verloren, sobald
+      // man direkt auf einen anderen Lead klickt.
+      const aktiv = document.activeElement;
+      if (aktiv && aktiv !== document.body && typeof aktiv.blur === 'function') {
+        aktiv.blur();
+      }
+
+      const id = window.getFormLeadId();
+      if (!id) return true;
+
+      const ok = await window.saveLeadMain(id, true, true);
+      if (ok) return true;
+
+      // saveLeadMain hat abgelehnt — etwa weil die Seitenleiste gerade neu
+      // gezeichnet wird und ein Feld fehlt. Die Aufgaben haben ihre eigene,
+      // vom Formular unabhängige Bindung; die lassen sich trotzdem retten.
+      if (window.currentTasksLeadId) {
+        window.capturePendingTasks();
+        await window.persistTasks();
+      }
+      return false;
+    } finally {
+      window._flushLaeuft = false;
+    }
+  };
+
+  // Zu welchem Lead gehören die Felder, die gerade in der Seitenleiste stehen?
+  // Das steht am Formular selbst — NICHT in store.state.currentSelectedLeadId.
+  //
+  // Der Unterschied ist der Kern des Problems, an dem Änderungen verloren
+  // gingen: switchTab und closeLeadSidebar setzen die Auswahl sofort auf null.
+  // Ein Speichervorgang, der danach noch anlief (verzögertes Autospeichern),
+  // fand dann keine Auswahl mehr und hat still verworfen. Das Formular weiß es
+  // besser — es gehört zu genau einem Lead, egal was die Auswahl gerade sagt.
+  window.getFormLeadId = () => {
+    const formular = document.querySelector('.focused-lead[data-lead-id]');
+    if (!formular) return null;
+    const roh = parseInt(formular.getAttribute('data-lead-id'), 10);
+    return Number.isNaN(roh) ? null : roh;
+  };
+
+  window.saveLeadMain = async (id, noClose = false, noRender = false) => {
+    const formLeadId = window.getFormLeadId();
+
+    // Ohne Angabe speichert die Funktion das, was gerade im Formular steht.
+    if (id === undefined || id === null) id = formLeadId;
+    if (!id) return false;
+
+    // Das Formular muss zu diesem Lead gehören. Sonst schriebe man die Felder
+    // des einen Leads auf einen anderen.
+    if (formLeadId === null || formLeadId !== id) return false;
 
     window._sessionRecentLeads = window._sessionRecentLeads || new Set();
     window._sessionRecentLeads.add(id);
@@ -353,15 +529,6 @@ window.setPipeline = async (type) => {
     const saveBtn = document.getElementById('main-save-btn');
     const nameNode = document.getElementById('sys-name');
     if (!nameNode) return false; // Seitenleiste zeigt kein Formular
-
-    // Das Formular traegt die ID des Leads, fuer den es gezeichnet wurde.
-    // Waehrend eines Lead-Wechsels steht die Auswahl schon auf dem neuen Lead,
-    // die Felder zeigen aber noch den alten. Ohne diese Pruefung hat ein
-    // Auto-Save in diesem Moment die alten Werte auf den neuen Lead geschrieben.
-    const formular = document.querySelector('.focused-lead[data-lead-id]');
-    if (formular && String(formular.getAttribute('data-lead-id')) !== String(id)) {
-      return false;
-    }
 
     if (saveBtn) {
       saveBtn.classList.add('btn-loading');
@@ -401,7 +568,7 @@ window.setPipeline = async (type) => {
     const istKunde = (parseInt(document.getElementById('sys-k')?.value) || 0) === 1;
 
     const kandidat = {
-      name:        (nameNode.innerText || nameNode.value || '').trim(),
+      name:        String(nameNode.innerText ?? nameNode.value ?? nameNode.textContent ?? '').trim(),
       phone:       wert('sys-phone',  lData ? lData.phone : ''),
       website_url: wert('sys-web',    lData ? lData.website_url : ''),
       email:       wert('sys-email',  lData ? lData.email : ''),
@@ -611,7 +778,10 @@ window.setPipeline = async (type) => {
 
   window.persistTasks = async () => {
     const leadId = window.currentTasksLeadId;
-    if (!leadId) return false;
+    if (!leadId) {
+      console.warn('persistTasks ohne Lead-Bindung — nichts geschrieben.');
+      return false;
+    }
 
     return window.leadStore.save(
       leadId,
@@ -689,7 +859,7 @@ window.setPipeline = async (type) => {
           subtasksHtml += `
             <div class="task-item" style="padding: 8px 0; ${borderBottom} display:flex; align-items:flex-start; gap:8px;">
               ${appleCheckbox(st.done, `toggleTask(${t.id}, ${!st.done}, ${st.id})`)}
-              <div style="flex:1; font-size:12px; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:2px; ${stStyle}" contenteditable="${st.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateSubtaskText(${t.id}, ${st.id}, this.innerText)">${escapeHtml(st.text)}</div>
+              <div data-task-id="${t.id}" data-subtask-id="${st.id}" style="flex:1; font-size:12px; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:2px; ${stStyle}" contenteditable="${st.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateSubtaskText(${t.id}, ${st.id}, this.innerText)">${escapeHtml(st.text)}</div>
               ${stBadge}
               <button onclick="deleteSubtask(${t.id}, ${st.id})" class="task-delete-btn" style="font-size: 10px; margin-top:2px;">✕</button>
             </div>
@@ -723,7 +893,7 @@ window.setPipeline = async (type) => {
         <div class="task-item" style="flex-direction:column; align-items: stretch; ${kartenStil} border-radius: 12px; margin-bottom: ${t.done ? '8px' : '16px'}; padding: 12px;">
           <div style="display:flex; align-items:flex-start; gap: 10px;">
             ${appleCheckbox(t.done, `toggleTask(${t.id}, ${!t.done})`)}
-            <div style="flex:1; min-width:0; font-size:14px; font-weight:600; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}" contenteditable="${t.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateTaskText(${t.id}, this.innerText)">${escapeHtml(t.text)}</div>
+            <div data-task-id="${t.id}" style="flex:1; min-width:0; font-size:14px; font-weight:600; color:var(--text-main); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}" contenteditable="${t.done ? 'false' : 'true'}" onfocus="this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.background='transparent'; updateTaskText(${t.id}, this.innerText)">${escapeHtml(t.text)}</div>
             ${deadlineBadge}
             ${fristWaehler}
             <button onclick="deleteTask(${t.id})" class="task-delete-btn" style="margin-top:1px;" title="${t.done ? 'Aus der Historie löschen' : 'Aufgabe löschen'}">✕</button>
@@ -854,9 +1024,8 @@ window.setPipeline = async (type) => {
       if (typeof window.triggerMissionPassed === 'function') window.triggerMissionPassed();
     }
 
-    if (typeof window.showToast === 'function') {
-      showToast(done ? 'Aufgabe erledigt!' : 'Aufgabe wieder offen.');
-    }
+    // Kein Toast: die Statuszeile im Kopf der Seitenleiste meldet den
+    // Schreibvorgang. Ein Toast bei jedem Haken wäre nur Lärm.
   };
 
   // Verlaufseintrag fuer eine erledigte Aufgabe. Laeuft nebenher — schlaegt er
@@ -928,7 +1097,9 @@ window.setPipeline = async (type) => {
 
   window.deleteTask = (id) => {
     if (!window.currentTasks) return;
+    const vorher = window.currentTasks.length;
     window.currentTasks = window.currentTasks.filter(x => x.id !== id);
+    if (window.currentTasks.length === vorher) return;
     renderTasksList();
     window.persistTasks();
   };
@@ -936,11 +1107,12 @@ window.setPipeline = async (type) => {
   window.deleteSubtask = (parentId, subtaskId) => {
     if (!window.currentTasks) return;
     const pt = window.currentTasks.find(x => x.id === parentId);
-    if (pt && pt.subtasks) {
-      pt.subtasks = pt.subtasks.filter(x => x.id !== subtaskId);
-      renderTasksList();
-      window.persistTasks();
-    }
+    if (!pt || !pt.subtasks) return;
+    const vorher = pt.subtasks.length;
+    pt.subtasks = pt.subtasks.filter(x => x.id !== subtaskId);
+    if (pt.subtasks.length === vorher) return;
+    renderTasksList();
+    window.persistTasks();
   };
 
   window.updateTaskText = (id, text) => {

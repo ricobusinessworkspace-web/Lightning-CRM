@@ -89,14 +89,14 @@ core/api.js       (92)  window.api — dünne Fassade über db.js
 core/auth.js      (33)  Passkey-Stub, Developer-Unlock
 public/core/config.js   DER SCHALTER (multiUser)
 public/core/store.js    Proxy-Store, window.store.state
-public/core/leadstore.js (149) DER EINZIGE SCHREIBWEG (siehe §4)
+public/core/leadstore.js (173) DER EINZIGE SCHREIBWEG (siehe §4)
 public/ui/pipeline_ui.js (2860) Listen, Karten, Sidebar, Karte, Dashboard
 public/ui/main_ui.js    (1523) Speichern, Aufgaben, Snooze, Toasts, Bulk
 public/modules/scraper.js (746) Radar Scout (Google Places / OSM)
 ui/init.js        (513) Bootstrap, Login, Realtime-Abo
 api/              Vercel Functions + api/_lib/auth.js
 admin_scripts/    SQL für Wartung (siehe §8)
-tests/ui.test.mjs 99 Prüfungen, ohne Browser
+tests/ui.test.mjs 142 Prüfungen, ohne Browser
 ```
 
 ---
@@ -135,6 +135,59 @@ Drei Einstiegspunkte:
 | `persistTasks()` | `task_text` | jede Aufgaben-Änderung, sofort |
 | `persistSnooze(ms)` | `snooze_until_ms` | Snooze setzen/aufheben, sofort |
 | `saveLeadMain(id)` | nur geänderte Spalten | Feld verlassen, Stufenwechsel |
+
+`saveLeadMain(null)` speichert das, was gerade im Formular steht — die ID kommt
+dann aus `data-lead-id`.
+
+### Autospeichern: vier Auslöser und ein Fluchtpunkt
+
+Es gibt keinen Speichern-Knopf. Damit trotzdem nichts verloren geht:
+
+| Auslöser | wann |
+|---|---|
+| `input` in der Seitenleiste | 900 ms nach der letzten Eingabe |
+| `change` | Auswahl- und Datumsfelder, sofort |
+| `focusout` | Feld verlassen heißt fertig getippt |
+| **`flushLeadForm()`** | **vor jeder Navigation** |
+
+**`window.flushLeadForm()` ist der Fluchtpunkt und darf nirgends fehlen.**
+Aufrufer: `openLeadDirectly`, `switchTab`, `closeLeadSidebar` sowie
+`visibilitychange` / `pagehide` / `beforeunload` in `ui/init.js`.
+
+Warum das nötig ist: `switchTab` und `closeLeadSidebar` setzen
+`currentSelectedLeadId` sofort auf `null` und werfen die Seitenleiste weg. Ein
+verzögertes Autospeichern, das danach anlief, fand nichts mehr vor und hat
+**still verworfen** — der Fehler „etwas eingegeben, Reiter gewechselt,
+Änderung weg".
+
+Zwei Dinge machen `flushLeadForm` verlässlich:
+
+- **Die Lead-Zugehörigkeit steht am Formular** (`data-lead-id` auf
+  `.focused-lead`), gelesen über `window.getFormLeadId()` — **nicht** in
+  `store.state.currentSelectedLeadId`. Das Formular weiß es besser: es gehört
+  zu genau einem Lead, egal was die Auswahl gerade sagt.
+- **Angefangene Eingaben werden direkt aus dem DOM geholt**, nicht über
+  `onblur` erwartet. `capturePendingTasks()` liest das Feld für neue Aufgaben,
+  `captureTaskEdits()` die Aufgabentexte (contenteditable, erkennbar an
+  `data-task-id` / `data-subtask-id`). Grund: `blur` feuert **nicht**, wenn das
+  Fenster selbst den Fokus verliert — Handy sperren, Browser-Tab wechseln.
+
+Schlägt `saveLeadMain` fehl (etwa weil die Seitenleiste gerade neu gezeichnet
+wird und ein Feld fehlt), rettet `flushLeadForm` wenigstens die Aufgaben über
+`persistTasks` — die haben ihre eigene, vom Formular unabhängige Bindung.
+
+### Die Statuszeile ist Teil des Vertrags
+
+`#save-status` im Kopf der Seitenleiste zeigt immer, woran man ist:
+„Speichert…", „Gespeichert 14:32", „Änderung noch nicht gespeichert" oder
+„Speichern fehlgeschlagen" mit „Erneut versuchen". Gespeist wird sie von
+`leadStore` über `window.setSaveStatus()`.
+
+**Nicht wegoptimieren.** Ohne diese Rückmeldung sieht ein stillschweigend
+fehlgeschlagener Schreibvorgang genauso aus wie ein erfolgreicher — genau
+daran ist das Vertrauen in das Autospeichern schon einmal zerbrochen. Ein
+offener Fehler wird in `_letzterSaveFehler` gemerkt und überlebt über
+`restoreSaveStatus()` das Neuzeichnen der Seitenleiste.
 
 ### Zwei Bindungen, die nicht wegdürfen
 
@@ -183,7 +236,9 @@ Das sind Antworten auf konkrete Beschwerden, keine Zufälle.
   des Leads bleiben sie unter „Erledigt" stehen — neueste zuerst, mit
   Zeitpunkt, per Klick wieder zu öffnen, einzeln oder gesammelt löschbar. Der
   **Aufgabenreiter** zeigt sie nicht; der beantwortet nur „was ist noch offen",
-  bei Teilaufgaben genauso. Am Erledigungszeitpunkt hängt `done_ms` an der
+  bei Teilaufgaben genauso. Dort wird **nur bei mehreren Nutzern** nach
+  Zuweisung gefiltert, und unzugewiesene Leads bleiben immer sichtbar — sonst
+  fällt jeder Lead aus der Kaltakquise heraus, denn der hat `claimed_by = null`. Am Erledigungszeitpunkt hängt `done_ms` an der
   Aufgabe; Altbestand hat den nicht und zeigt dann einfach kein Datum.
 - **Erledigen schreibt in den Verlauf** (`lead_activities`, Typ `task_done`,
   mit dem Aufgabentext). Eine Hauptaufgabe abzuhaken hakt ihre Teilaufgaben mit
@@ -275,7 +330,7 @@ vorher Backup über Supabase → Database → Backups.
 ```bash
 npm install
 npm run dev      # Vite, Port 3000
-npm test         # 99 Prüfungen, ohne Browser, ~1 Sekunde
+npm test         # 142 Prüfungen, ohne Browser, ~1 Sekunde
 npm run build
 ```
 
@@ -285,7 +340,8 @@ aufheben, dass keine Reste im Store bleiben, Einzelkarten-Aktualisierung und
 die Reihenfolge in der Speicher-Warteschlange, die Lead-Bindung der Aufgaben,
 die Selbstheilung bei veraltetem Zeitstempel, dass wirklich nur geänderte
 Spalten geschrieben werden, und die Historie der erledigten Aufgaben samt
-Teilaufgaben und Verlaufseinträgen. **Nach jeder Änderung an `main_ui.js`,
+Teilaufgaben und Verlaufseinträgen, das Sichern vor jeder Navigation und die
+Statuszeile. **Nach jeder Änderung an `main_ui.js`,
 `pipeline_ui.js` oder `leadstore.js` laufen lassen.**
 
 Die `/api/*`-Funktionen serviert Vite **nicht**. Änderungen dort lassen sich nur

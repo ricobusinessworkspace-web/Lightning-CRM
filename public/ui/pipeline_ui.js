@@ -381,13 +381,18 @@ window.handleLeadAssignmentChange = (val) => {
   };
 
   window.switchTab = async (tab) => {
+    // ZUERST das offene Formular sichern. Danach wird die Auswahl geleert und
+    // die Seitenleiste weggeworfen — ein verzögertes Autospeichern fände dann
+    // nichts mehr vor und würde die Eingabe still verwerfen.
+    if (typeof window.flushLeadForm === 'function') await window.flushLeadForm();
+
     // Subtle content fade-out
     const contentArea = document.getElementById('queue-container');
     if (contentArea) contentArea.classList.add('content-fade-out');
 
     window.store.state.currentTab = tab;
     hideMapHoverCard();
-    
+
     // Fix Lead Selection State Bug: clear selection globally
     window.store.state.currentSelectedLeadId = null;
     
@@ -1079,7 +1084,16 @@ if (typeof window.renderDashboard === 'function') {
     } else if (window.store.state.currentTab === 'tasks' && !window.store.state.currentSearch) {
       // TASKS DASHBOARD VIEW
       let leadsWithTasks = leads.filter(l => {
-         if (window.globalUser && window.globalUser.role !== 'admin' && l.claimed_by !== window.globalUser.id) return false;
+         // Zuweisungsfilter nur, wenn es überhaupt mehrere Nutzer gibt.
+         //
+         // Vorher fielen hier ALLE Leads aus der Kaltakquise raus: die haben
+         // claimed_by = null (zugewiesen wird erst ab der Pipeline), und wer
+         // nicht "admin" ist, sah dann nichts davon. Im Einzelplatz-Betrieb
+         // hat der Filter ohnehin nichts zu suchen. Unzugewiesene gehören
+         // auch bei mehreren Nutzern in die Liste — sie sind für alle da.
+         if (window.isMultiUser && window.isMultiUser() && window.globalUser
+             && window.globalUser.role !== 'admin' && window.globalUser.role !== 'developer'
+             && l.claimed_by && l.claimed_by !== window.globalUser.id) return false;
          if (!l.task_text) return false;
          try {
            const arr = JSON.parse(l.task_text);
@@ -1265,6 +1279,12 @@ if (typeof window.renderDashboard === 'function') {
   window._sessionRecentLeads = window._sessionRecentLeads || new Set();
 
   window.openLeadDirectly = async (id, keepForceLocationSearch = false, isSaving = false, draft = null) => {
+    // Den bisher offenen Lead sichern, bevor sein Formular überschrieben wird.
+    if (typeof window.flushLeadForm === 'function') {
+      const offenerLead = window.getFormLeadId ? window.getFormLeadId() : null;
+      if (offenerLead && offenerLead !== id) await window.flushLeadForm();
+    }
+
     // --- Instant Visual UI Feedback ---
     document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
     const card = document.getElementById(`lead-card-${id}`);
@@ -1479,6 +1499,9 @@ if (typeof window.renderDashboard === 'function') {
                <button class="desktop-only" style="background:transparent; border:none; font-size:20px; cursor:pointer; padding:0; color:var(--color-text-secondary, #8e8e93); transition: color 0.2s; line-height: 1; display: flex; align-items: center;" onclick="closeLeadSidebar()" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" title="Lead abwählen">✕</button>
              </div>
           </div>
+          <!-- Speicher-Status: sagt immer, woran man ist -->
+          <div id="save-status" class="save-status"></div>
+
           <div class="pipeline-bar" style="margin-top: 12px; display: flex; gap: 4px; overflow-x: auto;">
             <div id="seg-0" class="pipe-seg ${window.api.getStage(l) === 'COLD' ? 'active-cold' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('cold')">COLD</div>
             <div id="seg-1" class="pipe-seg ${window.api.getStage(l) === 'PITCH' ? 'active-pitch' : ''}" style="flex:1; text-align:center; padding:6px; font-size:10px; border-radius:6px; cursor:pointer;" onclick="setPipeline('pitch')">PITCH</div>
@@ -1664,6 +1687,7 @@ if (typeof window.renderDashboard === 'function') {
     `;
     
     renderTasksList();
+    if (typeof window.restoreSaveStatus === 'function') window.restoreSaveStatus();
 
     if (isSaving) {
       setTimeout(() => {
@@ -1675,23 +1699,27 @@ if (typeof window.renderDashboard === 'function') {
       }, 2000);
     }
     
-    // --- AUTO-SAVE LISTENERS (Phase 7) ---
-    const sBody = document.querySelector('.sidebar-body');
-    const hTitle = document.querySelector('.sidebar-header');
-    if (sBody) {
-       // Feld verlassen = fertig getippt -> sofort speichern, nicht erst
-       // nach der Verzoegerung. Betrifft vor allem die Notizen.
-       sBody.removeEventListener('focusout', window._autoSaveNow);
-       sBody.removeEventListener('change', window._autoSaveNow);
-       sBody.addEventListener('focusout', window._autoSaveNow);
-       sBody.addEventListener('change', window._autoSaveNow);
-    }
-    if (hTitle) {
-       hTitle.removeEventListener('input', window._triggerAutoSave);
-       hTitle.removeEventListener('change', window._autoSaveNow);
-       hTitle.addEventListener('input', window._triggerAutoSave);
-       hTitle.addEventListener('change', window._autoSaveNow);
-    }
+    // ── Autospeichern anmelden ──────────────────────────────────────────────
+    // Die Seitenleiste wird bei jedem Lead-Wechsel komplett neu gezeichnet;
+    // die Ereignisknoten sind danach neu. Deshalb hier anmelden, nicht einmalig
+    // beim Start.
+    //
+    // Drei Auslöser, bewusst nebeneinander:
+    //   input     -> nach kurzer Ruhe schreiben (auch für contenteditable,
+    //                das kein change kennt)
+    //   change    -> Auswahlfelder und Datumsfelder sofort
+    //   focusout  -> Feld verlassen heißt fertig getippt
+    // Und darüber hinaus sichert flushLeadForm jede Navigation ab.
+    ['.sidebar-body', '.sidebar-header'].forEach(sel => {
+      const el = document.querySelector(sel);
+      if (!el) return;
+      el.removeEventListener('input', window._triggerAutoSave);
+      el.removeEventListener('change', window._autoSaveNow);
+      el.removeEventListener('focusout', window._autoSaveNow);
+      el.addEventListener('input', window._triggerAutoSave);
+      el.addEventListener('change', window._autoSaveNow);
+      el.addEventListener('focusout', window._autoSaveNow);
+    });
 
   };
 
@@ -1711,7 +1739,10 @@ if (typeof window.renderDashboard === 'function') {
 
   // --- NEW FEATURES: Pin Click, Call Tracking & Calendar ---
   
-  window.closeLeadSidebar = () => {
+  window.closeLeadSidebar = async () => {
+    // Erst sichern, dann schließen — sonst geht die letzte Eingabe verloren.
+    if (typeof window.flushLeadForm === 'function') await window.flushLeadForm();
+
     const schliessen = () => {
       window.store.state.currentSelectedLeadId = null;
       // Aufgaben-Bindung mit loesen. Ohne das zeigt currentTasksLeadId noch auf
@@ -2838,23 +2869,25 @@ window.patchLeadCard = (leadId) => {
 
 // Feld verlassen = Eingabe fertig -> sofort speichern, nicht erst nach der
 // Verzoegerung. Betrifft vor allem die Notizen.
+// Feld verlassen = Eingabe fertig -> sofort schreiben.
 window._autoSaveNow = () => {
-    if (window._debouncedSave && window._debouncedSave.cancel) window._debouncedSave.cancel();
-    const id = window.store.state.currentSelectedLeadId;
-    if (id) window.saveLeadMain(id, true, true);
+    window.flushLeadForm();
 };
 
+// Waehrend des Tippens: nach kurzer Ruhe schreiben, ohne auf das Verlassen des
+// Feldes zu warten. Wichtig fuer den Lead-Namen und die Aufgabentexte — das
+// sind contenteditable-Felder, die gar kein change-Ereignis kennen.
+//
+// 900 ms statt der frueheren 1500: kurz genug, dass ein Klick auf einen
+// anderen Reiter den Schreibvorgang meist schon vorfindet, lang genug, dass
+// nicht bei jedem Buchstaben geschrieben wird. Zusaetzlich sichert
+// flushLeadForm jede Navigation ab, falls die Zeit doch nicht reicht.
 window._triggerAutoSave = () => {
+    if (typeof window.setSaveStatus === 'function') window.setSaveStatus('offen');
     if (!window._debouncedSave) {
         window._debouncedSave = window.debounce(() => {
-            const id = window.store.state.currentSelectedLeadId;
-            if (id) {
-                window.saveLeadMain(id, true, true).then((success) => {
-                    if (success === false) return;
-/* Saved silently */
-                });
-            }
-        }, 1500);
+            window.saveLeadMain(null, true, true);
+        }, 900);
     }
     window._debouncedSave();
 };
