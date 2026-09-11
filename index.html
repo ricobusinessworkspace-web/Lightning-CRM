@@ -10,7 +10,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
-  <script src="lib/papaparse.min.js"></script>
+  <!-- papaparse kommt ueber das Modul core/api.js (ui/init.js importiert es und
+       legt window.Papa an). Die mitgelieferte Kopie unter lib/ war ein zweiter
+       Weg fuer dieselbe Sache und wurde bei jedem Aufruf zusaetzlich geladen. -->
   <script src="lib/phoneutil.js?v=4.3"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

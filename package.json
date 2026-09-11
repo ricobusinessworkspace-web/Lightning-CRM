@@ -14,12 +14,11 @@
   "license": "ISC",
   "dependencies": {
     "@supabase/supabase-js": "^2.110.0",
-    "googleapis": "^171.4.0",
-    "jsdom": "^29.1.1",
     "papaparse": "^5.5.3",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "jsdom": "^29.1.1",
     "vite": "^8.1.4"
   }
 }

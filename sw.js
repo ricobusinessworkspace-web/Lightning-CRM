@@ -1,5 +1,5 @@
 // Safer Service Worker for Offline Fallback & caching
-const CACHE_NAME = 'lightning-crm-cache-v3';
+const CACHE_NAME = 'lightning-crm-cache-v4';
 const urlsToCache = [
   '/',
   '/index.html',

@@ -1,6 +1,6 @@
 ---
 last_updated: 2026-09-10
-last_agent: Claude Opus 5 (MCP-Server angelegt)
+last_agent: Claude Opus 5 (Weaknesses und Threats abgearbeitet)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -17,6 +17,7 @@ status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz o
 | `AGENTS.md` | Verweis auf `~/dev/coding-workflow-standards.md` | Vor der allerersten Prompt |
 | `docs/*.md` | Runbooks — Schritt-für-Schritt, einmalige Vorgänge | Nur wenn gerade gebraucht |
 | `docs/mcp-server-einrichten.md` | Adresse, Zugangswort, Connector eintragen | Wenn der MCP-Zugang klemmt |
+| `docs/ungeschuetzte-tabellen.md` | Neun Jarvis-Tabellen ohne Zugriffsregeln | Wenn jemand Jarvis anfasst |
 
 ---
 
@@ -62,14 +63,18 @@ Anmeldung abrufbar. In `admin_scripts/backfill_places.js:12` steht ein
 **Google-Schlüssel im Klartext**. Er ist damit für jeden lesbar und kann auf
 deine Rechnung benutzt werden.
 
-Zu tun, in dieser Reihenfolge:
-1. Schlüssel in der Google Cloud Console sperren, neuen anlegen.
+Zu tun:
+1. **Schlüssel in der Google Cloud Console sperren, neuen anlegen.** Das ist
+   der eigentliche Fix und nur von dort aus möglich.
 2. Neuen Schlüssel einschränken — nur die benötigte Schnittstelle, nur die
    Adresse der App.
-3. Schlüssel aus der Datei nehmen (Umgebungsvariable statt fest im Code).
-   **Wichtig:** Der alte bleibt in der Versionsgeschichte lesbar — Schritt 1
-   ist der eigentliche Fix, nicht Schritt 3.
-4. Entscheiden, ob das Repository überhaupt öffentlich sein soll.
+3. Entscheiden, ob das Repository überhaupt öffentlich sein soll.
+
+~~4. Schlüssel aus der Datei nehmen.~~ **Erledigt am 11.09.2026:**
+`backfill_places.js` liest ihn jetzt aus `GOOGLE_PLACES_API_KEY` und bricht
+ohne die Variable mit einem Hinweis ab. **Das entschärft nichts rückwirkend** —
+der alte Schlüssel steht weiter in der Versionsgeschichte und ist von dort
+nicht zu entfernen. Schritt 1 bleibt offen.
 
 Der Supabase-Schlüssel gleich daneben ist **kein** Problem: der „anon"-Schlüssel
 ist öffentlich gedacht, geschützt wird über die Zugriffsregeln.
@@ -390,25 +395,23 @@ Stelle zum Nachsehen.
   und `main_ui.js` (1695) halten zusammen 142 der 152 globalen Funktionen. In
   `pipeline_ui.js` steht auf 2893 Zeilen genau eine Abschnittsüberschrift — man
   findet dort nichts durch Blättern, nur durch Suchen.
-- **Das Dashboard rechnet auf gedeckelten Daten** (`core/db.js:904`, Details
-  unter „Offene Entscheidungen").
-- **Kommentare, die nicht mehr stimmen.** `public/core/config.js` warnt unter
-  Punkt 5, `saveLeadMain` schreibe beim Speichern alle Spalten zurück — seit
-  dem leadStore-Umbau schreibt es nur die geänderten (`leadStore.diff`,
-  `main_ui.js:634`), und Prüfung 12 sichert das ab. Der Kopf von `core/db.js`
-  spricht von „main.js and all IPC handlers", einem Rest der alten Desktop-App.
-  Beides führt den nächsten Agenten in die Irre — genau die Sorte Falle, die
-  `scratch/schema.sql` schon einmal gestellt hat.
-- **Eine Abhängigkeit ohne Nutzen.** `googleapis` wird nirgends eingebunden und
-  ist die alleinige Ursache der einzigen Sicherheitsmeldung (`qs`, mittel).
-  `jsdom` steht bei den echten Abhängigkeiten, obwohl es nur die Tests
-  brauchen — landet damit unnötig im Betrieb.
-- **Papaparse wird zweimal geladen** — als Datei über `index.html:13` und als
-  Paket-Import in `core/api.js`.
-- **Chart.js kommt unversioniert vom fremden Server.** `index.html:406` lädt
-  `npm/chart.js` ohne Versionsnummer und ohne Prüfsumme. Leaflet zwei Zeilen
-  darüber ist vorbildlich festgenagelt und geprüft — der Unterschied ist
-  Versehen, nicht Absicht.
+- ~~**Das Dashboard rechnet auf gedeckelten Daten.**~~ *(Rico hat die
+  Kennzahlen auf die Datenbank-Sichten `crm_daily_metrics` und
+  `crm_stock_metrics` umgestellt — das Hauptdashboard zieht nichts mehr
+  ungefiltert in den Browser. `getAgentStats` läuft nur noch im Team-Betrieb
+  und meldet seit dem 11.09.2026 selbst, wenn es an die 1000-Zeilen-Grenze
+  stößt: in der Konsole und als Hinweis im Dashboard, statt still zu niedrige
+  Zahlen zu zeigen.)*
+- ~~**Kommentare, die nicht mehr stimmen.**~~ *(11.09.2026: Punkt 5 in
+  `public/core/config.js` und der Kopf von `core/db.js` richtiggestellt. Der
+  db.js-Kopf sagt jetzt auch, dass es einen zweiten Schreibweg gibt.)*
+- ~~**Eine Abhängigkeit ohne Nutzen.**~~ *(11.09.2026: `googleapis` entfernt —
+  `npm audit` meldet jetzt null Lücken, `node_modules` von 273 MB auf 66 MB.
+  `jsdom` steht bei den Entwicklungs-Abhängigkeiten, wo es hingehört.)*
+- ~~**Papaparse wird zweimal geladen.**~~ *(11.09.2026: die mitgelieferte Kopie
+  unter `public/lib/` ist weg, es kommt nur noch über `core/api.js`.)*
+- ~~**Chart.js kommt unversioniert vom fremden Server.**~~ *(von Rico entfernt —
+  wurde nirgends mehr verwendet, gegengeprüft.)*
 - **Cache-Handhabung von Hand.** Jedes Skript trägt ein `?v=`-Anhängsel, dazu
   kommt der eigene Zwischenspeicher des Service Workers. Wer beim Ändern ein
   Anhängsel vergisst, liefert stillschweigend die alte Datei aus.
@@ -425,8 +428,9 @@ Stelle zum Nachsehen.
   weiterhin.)*
 - **Kein Weg, Daten aus der Anwendung herauszubekommen.** Einlesen gibt es,
   Ausgeben nicht.
-- **`.gitignore` sagt `scratch/`, zehn Dateien daraus sind trotzdem
-  eingecheckt** — alte Einmal-Skripte, die niemand mehr braucht.
+- ~~**`.gitignore` sagt `scratch/`, zehn Dateien daraus sind trotzdem
+  eingecheckt.**~~ *(11.09.2026: aus der Versionskontrolle genommen. Auf der
+  Platte bleiben sie liegen — `.gitignore` hält sie jetzt auch wirklich raus.)*
 
 ### Chancen
 - **Zwei Handgriffe, große Wirkung.** Schlüssel tauschen (zehn Minuten) und
@@ -450,11 +454,19 @@ Stelle zum Nachsehen.
   auf `crm_leads` erlaubt jedem Angemeldeten alles — und angemeldet wird man in
   jeder App dieses Supabase-Projekts. Solange nur ein Konto existiert,
   ungefährlich; mit dem ersten fremden Konto nicht mehr.
+- **Neun Tabellen ganz ohne Zugriffsregeln** (`core_*`, `ingest_*`). Wer den
+  öffentlich einsehbaren anon-Schlüssel hat, liest und ändert sie ohne
+  Anmeldung. **Kein CRM-Bestand betroffen** — alle `crm_*` und
+  `lead_activities` sind geschützt (11.09.2026 geprüft). Die Tabellen gehören
+  zu Jarvis; absichtlich nicht angefasst, weil Regeln einzuschalten ohne
+  Regeln zu hinterlegen die App aussperrt. Fertiges Vorgehen in
+  [docs/ungeschuetzte-tabellen.md](docs/ungeschuetzte-tabellen.md).
 - **Alles hängt an einem Supabase-Projekt, ohne eigene Sicherung.** Kein
   Export, keine zweite Kopie. Ein Fehlgriff in `admin_scripts/` oder ein
   Ausfall trifft ungebremst.
-- **Das Wachstum arbeitet gegen das Dashboard.** ~300 Anrufe heute, ab 1000
-  zählt es still falsch. Dieser Termin kommt von allein.
+- ~~**Das Wachstum arbeitet gegen das Dashboard.**~~ *(entschärft: die Sichten
+  rechnen in der Datenbank, und wo noch gedeckelt geladen wird, sagt es das
+  jetzt.)*
 - **Fremder Code zur Laufzeit.** Chart.js (unversioniert), Leaflet und Google
   Fonts werden bei jedem Aufruf von fremden Servern geholt. Ändert sich dort
   etwas, ändert sich die App ohne Zutun.
@@ -545,6 +557,16 @@ heilt sich selbst, jede Navigation sichert vorher ab.
 ---
 
 ## Handover-Historie
+- 2026-09-11 — Schwachstellen und Risiken aus der SWOT abgearbeitet:
+  Google-Schlüssel aus `backfill_places.js` (kommt jetzt aus der Umgebung;
+  **Sperren in der Google Cloud Console bleibt offen**), `googleapis` entfernt
+  (null Sicherheitsmeldungen, `node_modules` 273 → 66 MB), `jsdom` zu den
+  Entwicklungs-Abhängigkeiten, doppeltes Papaparse aufgelöst, veraltete
+  Kommentare in `config.js` und `db.js` richtiggestellt, `scratch/` aus der
+  Versionskontrolle, `getAgentStats` meldet seinen Deckel jetzt selbst.
+  Runbook für die neun ungeschützten Jarvis-Tabellen angelegt. Nach dem
+  Entfernen im Browser gegengeprüft: alle Dateien laden, keine Fehler in der
+  Konsole, `window.Papa` ist da (Claude Opus 5).
 - 2026-09-11 — MCP-Server angelegt (`api/mcp.js`, `api/_lib/mcp_werkzeuge.js`,
   `api/_lib/crm.js`): neun Werkzeuge auf dem CRM, lesend und schreibend, hinter
   einem eigenen Zugangswort (`MCP_TOKEN`). Transportweg „Streamable HTTP" von

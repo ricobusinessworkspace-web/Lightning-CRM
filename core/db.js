@@ -1,9 +1,15 @@
 /**
- * core/db.js — Supabase Cloud Backend
+ * core/db.js — Zugriff auf Supabase
  * ─────────────────────────────────────────────────────────────────────────────
- * Hybrid Migration: SQLite → Supabase
- * The public API (exported functions) is 100% identical to the old SQLite
- * version — main.js and all IPC handlers require ZERO changes (except additions).
+ * Die Funktionsnamen stammen noch aus der Zeit, als das CRM eine Electron-App
+ * mit lokaler SQLite-Datenbank war ("Calling Station"). Beim Umzug in die Cloud
+ * wurde die Schnittstelle absichtlich gleich gelassen, damit der Oberflächen-
+ * Code unverändert bleiben konnte. Ein "main.js" oder IPC-Handler gibt es seit
+ * dem Umzug nicht mehr — falls dieser Kopf das noch behauptet hat: tut er nicht.
+ *
+ * ⚠️  Zweiter Schreibweg: api/_lib/crm.js schreibt dieselben Tabellen von der
+ *     Serverseite aus (MCP-Server). Wer hier an den Schreibregeln etwas ändert,
+ *     muss dort nachziehen. Siehe HANDOVER.md.
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * Anrufe werden NICHT nach "erreicht / nicht erreicht" unterschieden.
@@ -285,7 +291,7 @@ export const db = {
       'closed_gas', 'zaehlernummern', 'abschlussdatum', 'provi_umsatz', 'last_edited_ms',
       'locations', 'email', 'impressum_phone', 'legal_company_name', 'director_name',
       'phone_source', 'estimated_kwh', 'opening_hours', 'linked_leads', 'last_contact_ms',
-      'claimed_by', 'created_at_ms'
+      'claimed_by', 'created_at_ms', 'closed_at_ms'
     ];
 
     let payload = {};
@@ -332,7 +338,9 @@ export const db = {
         closed_gas:         lead.closed_gas          ?? 0,
         zaehlernummern:     lead.zaehlernummern      ?? '',
         abschlussdatum:     lead.abschlussdatum      ?? '',
-        provi_umsatz:       lead.provi_umsatz        ?? 0,
+        // NICHT ?? 0 — sonst ist "Wert noch nicht eingetragen" von "Abschluss
+        // ueber 0 Euro" nicht mehr zu unterscheiden. NULL heisst: fehlt noch.
+        provi_umsatz:       lead.provi_umsatz        ?? null,
         last_edited_ms:     now,
         locations,
         email:              lead.email               ?? '',
@@ -356,7 +364,7 @@ export const db = {
       // Phase 3.1: Check error on .single()!
       const { data: existing, error } = await supabase
         .from(TABLE)
-        .select('created_at_ms, claimed_by, stage, status, last_edited_ms')
+        .select('created_at_ms, claimed_by, stage, status, last_edited_ms, closed_at_ms')
         .eq('id', lead.id)
         .single();
         
@@ -391,18 +399,33 @@ export const db = {
         payload.created_at_ms = now;
       }
 
-      // Phase 3.3: Statuswechsel-Logging (entkoppelt von window.api)
+      // Stufenwechsel protokollieren — mit BEIDEN Stufen.
+      //
+      // Vorher wurde nur die neue Stufe als Fliesstext festgehalten
+      // ("Status geaendert auf OFFER"). Damit war data -> offer (Fortschritt)
+      // nicht von closed -> offer (Rueckschritt) zu unterscheiden, und
+      // gezaehlt wurde per Textsuche. Beides zusammen macht jede
+      // Conversion-Rate wertlos.
       try {
-        // Determine what advanced status changed based on stage
         const oldStage = existing.stage || 'cold';
         const newStage = lead.stage || oldStage;
-        
-        if (newStage === 'pitch' && oldStage !== 'pitch') await db.logStatusChange(lead.id, 'PITCH');
-        if (newStage === 'data' && oldStage !== 'data') await db.logStatusChange(lead.id, 'DATA');
-        if (newStage === 'offer' && oldStage !== 'offer') await db.logStatusChange(lead.id, 'OFFER');
-        if (newStage === 'closed' && oldStage !== 'closed') await db.logStatusChange(lead.id, 'CLOSED');
-        if (newStage === 'cold' && oldStage !== 'cold') await db.logStatusChange(lead.id, 'COLD');
+        if (newStage !== oldStage) {
+          await db.logStatusChange(lead.id, newStage, oldStage);
 
+          // Abschlusszeitpunkt einfrieren. Ohne ihn haengt "Abschluesse im
+          // September" am HEUTIGEN Zustand des Leads — ein Lead, der im
+          // Oktober zurueckgesetzt wird, wuerde den September rueckwirkend
+          // aendern.
+          //
+          // Nur beim ERSTEN Abschluss gesetzt und beim Zuruecksetzen nicht
+          // geloescht: ein bereits datierter Abschluss behaelt sein Datum.
+          // Die Auswertung zaehlt ohnehin nur Leads, die aktuell auf 'closed'
+          // stehen — ein zurueckgesetzter Lead faellt dort heraus, ohne dass
+          // sein Datum verloren geht.
+          if (newStage === 'closed' && !existing.closed_at_ms && !('closed_at_ms' in payload)) {
+            payload.closed_at_ms = now;
+          }
+        }
       } catch(e) {
         console.warn('Could not log status change', e);
       }
@@ -499,10 +522,43 @@ export const db = {
       return { id: data.id, inserted: true, last_edited_ms: payload.last_edited_ms || now, name_clash: nameClash };
     }
   },
+  // ── logCall ────────────────────────────────────────────────────────────────
+  // Die Einordnung des Anrufs wird JETZT festgehalten, nicht spaeter aus dem
+  // Lead abgeleitet. Vorher hing die Auswertung an einem Verbund auf den
+  // HEUTIGEN Zustand des Leads — ein Kaltanruf von gestern wurde damit morgen
+  // zum "warmen", sobald der Lead in die Pipeline wanderte. Die Zahlen der
+  // letzten Woche haben sich so jede Nacht geaendert.
+  //
+  // Gelesen wird aus der Datenbank, nicht aus dem Formular: copyPhone
+  // speichert absichtlich keine Lead-Daten, im Formular koennte also eine
+  // Stufe stehen, die nie gespeichert wurde.
   logCall: async (id) => {
     const now = Date.now();
     try {
-      const entry = { lead_id: id, ts: now, type: 'call' };
+      let stageAtCall = null;
+      let sizeAtCall = null;
+      let gemessen = false;
+      try {
+        const { data: momentaufnahme } = await supabase
+          .from(TABLE).select('stage, size').eq('id', id).maybeSingle();
+        if (momentaufnahme) {
+          stageAtCall = momentaufnahme.stage || 'cold';
+          sizeAtCall = momentaufnahme.size || null;
+          gemessen = true;
+        }
+      } catch (e) {
+        console.warn('Einordnung des Anrufs nicht lesbar', e);
+      }
+
+      const entry = {
+        lead_id: id, ts: now, type: 'call',
+        stage_at_call: stageAtCall,
+        size_at_call: sizeAtCall,
+        // Nur wahr, wenn die Einordnung wirklich gelesen wurde. Konnte sie
+        // nicht ermittelt werden, ist die Zeile als unsicher markiert statt
+        // stillschweigend als Messwert durchzugehen.
+        is_estimated: !gemessen
+      };
       if (currentUser) {
         entry.by_user_id = currentUser.id;
         entry.by_user_name = currentUser.name;
@@ -604,10 +660,23 @@ export const db = {
   },
 
   // ── logStatusChange ────────────────────────────────────────────────────────
-  logStatusChange: async (id, newStatus) => {
+  // from_stage und to_stage sind eigene Spalten, KEIN Fliesstext. Ausgewertet
+  // wird ausschliesslich ueber sie. Der Text in details bleibt nur fuer die
+  // Verlaufsanzeige stehen — wer ihn umformuliert, veraendert damit keine
+  // einzige Kennzahl mehr.
+  //
+  // is_estimated bleibt false: beide Stufen sind hier gemessen, nicht geraten.
+  // Die acht Altzeilen tragen true, weil ihnen die alte Stufe fehlt.
+  logStatusChange: async (id, newStage, oldStage = null) => {
     const now = Date.now();
     try {
-      const entry = { lead_id: id, ts: now, type: 'status_change', details: `Status geändert auf ${newStatus}` };
+      const entry = {
+        lead_id: id, ts: now, type: 'status_change',
+        details: `Status geändert auf ${String(newStage).toUpperCase()}`,
+        from_stage: oldStage,
+        to_stage: newStage,
+        is_estimated: false
+      };
       if (currentUser) {
         entry.by_user_id = currentUser.id;
         entry.by_user_name = currentUser.name;
@@ -901,6 +970,98 @@ export const db = {
     return true;
   },
 
+  // ── Kennzahlen ─────────────────────────────────────────────────────────────
+  // Gelesen wird aus den Sichten crm_daily_metrics und crm_stock_metrics, NICHT
+  // aus den Rohtabellen. Grund: getAgentStats zieht Leads, Anrufe und
+  // Aktivitaeten ungefiltert in den Browser — PostgREST liefert hoechstens 1000
+  // Zeilen und meldet nicht, dass gekuerzt wurde. Bei 100 Anrufen am Tag waere
+  // das Dashboard nach gut zwei Wochen still falsch.
+  //
+  // Die Sichten fassen serverseitig zusammen; hier kommen ein paar Dutzend
+  // Zeilen an statt des ganzen Bestands.
+
+  // Tageswerte in einem Zeitraum. vonTag/bisTag als 'YYYY-MM-DD'.
+  getDailyMetrics: async (vonTag, bisTag) => {
+    let q = supabase.from('crm_daily_metrics').select('metric_key, tag, wert');
+    if (vonTag) q = q.gte('tag', vonTag);
+    if (bisTag) q = q.lte('tag', bisTag);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  // Bestandswerte — Momentaufnahme, bewusst ohne Datum.
+  getStockMetrics: async () => {
+    const { data, error } = await supabase.from('crm_stock_metrics').select('metric_key, wert');
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  // Alle Zielzeilen, inklusive Historie. Welche Zeile an einem Tag gilt,
+  // entscheidet zielFuerTag() — hier wird nichts vorgefiltert, damit
+  // vergangene Tage gegen das damals gueltige Ziel gemessen werden.
+  getMetricTargets: async () => {
+    const { data, error } = await supabase
+      .from('crm_metric_targets')
+      .select('id, metric_key, label, base_value, target_value, comparator, sort_order, valid_from')
+      .order('sort_order').order('valid_from');
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  // Legt eine NEUE Zeile an, statt die alte zu ueberschreiben — sonst wuerde
+  // eine Zieländerung die Vergangenheit umschreiben. Aendert man ein Ziel
+  // zweimal am selben Tag, gewinnt die letzte Aenderung (unique auf
+  // metric_key + valid_from).
+  saveMetricTarget: async ({ metric_key, label, base_value, target_value, comparator, sort_order, valid_from }) => {
+    const zeile = {
+      metric_key,
+      label: label ?? null,
+      base_value: (base_value === '' || base_value === undefined) ? null : base_value,
+      target_value: (target_value === '' || target_value === undefined) ? null : target_value,
+      comparator: comparator || '>=',
+      sort_order: sort_order ?? 100,
+      valid_from: valid_from || new Date().toISOString().slice(0, 10),
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase
+      .from('crm_metric_targets')
+      .upsert(zeile, { onConflict: 'metric_key,valid_from' });
+    if (error) throw new Error(error.message);
+    return true;
+  },
+
+  // Abgeschlossene Leads, bei denen Wert oder Datum fehlt. Das ist die
+  // Arbeitsliste im Dashboard — 55 Abschluesse ohne Wert sind keine Statistik,
+  // sondern etwas zu tun.
+  getClosedNeedingInput: async (grenze = 50) => {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('id, name, size, provi_umsatz, closed_at_ms, last_contact_ms')
+      .eq('stage', 'closed')
+      .or('provi_umsatz.is.null,closed_at_ms.is.null')
+      .order('last_contact_ms', { ascending: false, nullsFirst: false })
+      .limit(grenze);
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  getSettings: async () => {
+    const { data, error } = await supabase.from('crm_settings').select('key, value, label');
+    if (error) throw new Error(error.message);
+    const map = {};
+    (data || []).forEach(r => { map[r.key] = r.value; });
+    return map;
+  },
+
+  saveSetting: async (key, value) => {
+    const { error } = await supabase
+      .from('crm_settings')
+      .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    if (error) throw new Error(error.message);
+    return true;
+  },
+
   getAgentStats: async () => {
     if (!currentUser) throw new Error("Keine Berechtigung");
     
@@ -931,6 +1092,22 @@ export const db = {
 
     const { data: allCalls } = await supabase.from('crm_calls').select('by_user_id, ts, status, crm_leads!inner(stage, status, size)');
     const { data: allActs } = await supabase.from('lead_activities').select('by_user_id, ts, type, details');
+
+    // ── Deckel sichtbar machen ─────────────────────────────────────────────
+    // Alle drei Abfragen holen ungefiltert. PostgREST liefert hoechstens 1000
+    // Zeilen und sagt NICHT, dass gekuerzt wurde — die Zahlen waeren dann
+    // stillschweigend zu niedrig. Ein zu niedriger Wert, den niemand bemerkt,
+    // ist schlimmer als gar keiner, deshalb steht der Hinweis ab hier in der
+    // Rueckgabe und wird im Dashboard angezeigt.
+    const DECKEL = 1000;
+    const gekuerzt = [
+      (leads    || []).length >= DECKEL ? 'Leads'        : null,
+      (allCalls || []).length >= DECKEL ? 'Anrufe'       : null,
+      (allActs  || []).length >= DECKEL ? 'Aktivitäten'  : null
+    ].filter(Boolean);
+    if (gekuerzt.length) {
+      console.warn(`getAgentStats: ${gekuerzt.join(', ')} an der Ladegrenze von ${DECKEL} Zeilen — die Zahlen sind zu niedrig.`);
+    }
 
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -990,7 +1167,14 @@ export const db = {
         }
       }
     }
-    return Object.values(stats);
+    const ergebnis = Object.values(stats);
+    if (gekuerzt.length) {
+      // Am Ergebnis statt als zusaetzlicher Rueckgabewert: die Aufrufer
+      // behandeln es als Liste, ein zweiter Wert wuerde stillschweigend
+      // verlorengehen.
+      ergebnis.unvollstaendig = `${gekuerzt.join(', ')} an der Ladegrenze (${DECKEL} Zeilen) — die Zahlen sind zu niedrig.`;
+    }
+    return ergebnis;
   },
   getUserRP: async (userId) => {
     const { data, error } = await supabase

@@ -24,9 +24,10 @@
  *      Zudem teilen sich mehrere Apps diese Datenbank — ein Login gilt überall.
  *   4. Vercel: VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY setzen, sonst bleibt der
  *      Sales-Bell-Push aus (siehe api/push_sales_bell.js).
- *   5. saveLeadMain in public/ui/main_ui.js schreibt beim Speichern ALLE Spalten
- *      zurück. Bei einem Nutzer harmlos, bei zweien überschreibt man sich
- *      gegenseitig. Vorher auf Teil-Updates umbauen.
+ *   5. (erledigt) saveLeadMain schrieb früher beim Speichern alle Spalten
+ *      zurück — bei zwei Nutzern hätte man sich gegenseitig überschrieben.
+ *      Seit dem leadStore-Umbau schreibt es nur noch die geänderten Spalten
+ *      (leadStore.diff in public/ui/main_ui.js), Prüfung 12 sichert das ab.
  */
 
 window.APP_CONFIG = {

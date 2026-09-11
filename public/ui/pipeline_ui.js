@@ -2814,7 +2814,7 @@ if (typeof window.renderDashboard === 'function') {
             <section class="cc-karte cc-karte-gross">
               <div class="cc-kopf">
                 <h2>Team</h2>
-                <span class="cc-sub">gedeckelte Abfrage — siehe Handover</span>
+                <span class="cc-sub">${team.unvollstaendig ? escapeHtml(team.unvollstaendig) : 'gedeckelte Abfrage — siehe Handover'}</span>
               </div>
               <div class="cc-zeilen">
                 ${team.map(t => `<div class="cc-zeile">
