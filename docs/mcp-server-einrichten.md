@@ -6,7 +6,7 @@ Notizen und Aufgaben anlegen, Pipeline-Stufe setzen, Anrufe festhalten.
 **Die Adresse, die in das Feld „Server-URL" gehört:**
 
 ```
-https://calling-station-wardogs.vercel.app/api/mcp
+https://calling-station.vercel.app/api/mcp
 ```
 
 > Falls die Live-Adresse eine andere ist: es ist immer die Adresse der
@@ -47,13 +47,13 @@ stehen lassen.
 In Claude unter „Connector hinzufügen":
 
 - **Name:** Lightning CRM
-- **Server-URL:** `https://calling-station-wardogs.vercel.app/api/mcp`
+- **Server-URL:** `https://calling-station.vercel.app/api/mcp`
 - **Authentifizierung:** Bearer Token → das Zugangswort aus Schritt 1
 
 ## 4. Prüfen
 
 ```bash
-curl -s -X POST https://calling-station-wardogs.vercel.app/api/mcp \
+curl -s -X POST https://calling-station.vercel.app/api/mcp \
   -H "Authorization: Bearer DEIN_ZUGANGSWORT" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
