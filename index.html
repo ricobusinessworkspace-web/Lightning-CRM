@@ -14,9 +14,9 @@
   <script src="lib/phoneutil.js?v=4.3"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <link rel="stylesheet" href="theme.css">
-  <link rel="stylesheet" href="styles.css?v=4.6">
-  <link rel="stylesheet" href="mobile.css?v=1.0">
+  <link rel="stylesheet" href="theme.css?v=4.7">
+  <link rel="stylesheet" href="styles.css?v=4.7">
+  <link rel="stylesheet" href="mobile.css?v=1.1">
 </head>
 <body>
 
@@ -249,7 +249,10 @@
       <div class="sidebar collapsed" id="main-sidebar">
         <div class="empty-state">Nächsten Lead wählen</div>
       </div>
-      <button class="mobile-close-sidebar" style="display:none;" onclick="document.getElementById('main-sidebar').innerHTML = '<div class=\'empty-state\'>Nächsten Lead wählen</div>'; window._currentSelectedLeadId = null;">Zurück</button>
+      <!-- Schliesst ueber denselben Weg wie ueberall sonst: closeLeadSidebar
+           sichert zuerst das Formular. Vorher hat dieser Knopf die Seitenleiste
+           direkt ueberschrieben — angefangene Eingaben waren damit weg. -->
+      <button class="mobile-close-sidebar" style="display:none;" onclick="closeLeadSidebar()">Zurück</button>
 
 
       <!-- Right Column: Search, Filters, Lead List and Map -->
@@ -277,9 +280,9 @@
             <div id="bulk-action-bar" style="display:none; align-items:center; justify-content:space-between; padding:16px 24px; background:rgba(20,20,22,0.85); backdrop-filter:blur(16px); border:1px solid var(--border-focus); border-radius:12px; margin-top:16px; box-shadow:0 12px 32px rgba(0,0,0,0.6); animation:slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); z-index: var(--z-sticky);">
               <span id="bulk-count" style="font-weight:600; font-size:14px; color:var(--text-main);">0 Leads ausgewählt</span>
               <div style="display:flex; gap:12px; align-items:center;">
-                <button id="bulk-uncalled-btn" class="action-btn-small outline" onclick="executeBulkDeleteUncalled()" style="border-color:#ff453a; color:#ff453a; display:none;">Alle unangerufenen löschen</button>
+                <button id="bulk-uncalled-btn" class="action-btn-small outline" onclick="executeBulkDeleteUncalled()" style="border-color:var(--color-intent-danger); color:var(--color-intent-danger); display:none;">Alle unangerufenen löschen</button>
                 <button class="action-btn-small outline" onclick="toggleBulkMode()" style="border-color:var(--border-focus); color:var(--text-muted);">Abbrechen</button>
-                <button class="action-btn-small" onclick="executeBulkDelete()" style="background:#ff453a; border-color:#ff453a; color:#fff; font-weight:600;">Ausgewählte löschen 🗑️</button>
+                <button class="action-btn-small" onclick="executeBulkDelete()" style="background:var(--color-intent-danger); border-color:var(--color-intent-danger); color:#fff; font-weight:600;">Ausgewählte löschen</button>
               </div>
             </div>
           </div>
@@ -399,12 +402,11 @@
   <script src="core/leads.js?v=4.2"></script>
   <script src="core/tasks.js?v=4.2"></script>
   <script src="core/pipeline.js?v=4.2"></script>
-  <script src="ui/pipeline_ui.js?v=4.6"></script>
-  <script src="ui/main_ui.js?v=4.6"></script>
-  <script src="modules/scraper.js?v=4.2"></script>
+  <script src="ui/pipeline_ui.js?v=4.7"></script>
+  <script src="ui/main_ui.js?v=4.7"></script>
+  <script src="modules/scraper.js?v=4.3"></script>
   <script type="module" src="ui/profile-modal.js?v=4.2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script type="module" src="ui/init.js?v=4.6"></script>
+  <script type="module" src="ui/init.js?v=4.7"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

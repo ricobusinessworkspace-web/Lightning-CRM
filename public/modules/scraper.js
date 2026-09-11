@@ -158,9 +158,9 @@
       r.legal_company_name = data.legal_company_name || '';
       r.director_name = data.director_name || '';
       r.impressum_phone = data.impressum_phone || '';
-      showToast(`Daten gefunden (Tel: ${r.phone}) ⚡`);
+      showToast(`Telefonnummer gefunden: ${r.phone}`);
     } else {
-      showToast(`Keine Telefonnummer auf der Website gefunden.`, true);
+      showToast('Keine Telefonnummer auf der Website gefunden', true);
     }
     const existingLeads = await window.api.getLeads({ all: true });
     renderScoutedCards(scoutedResults, existingLeads);
@@ -259,7 +259,7 @@
             ${typeBadge}
             <span style="font-family: monospace; font-size:12px; color: var(--text-main);">${escapeHtml(r.phone)}</span>
             ${waIcon}
-            <button class="copy-btn" style="padding: 2px 6px; font-size: 10px; margin-left: auto;" onclick="window.api.copyText('${escapeHtml(r.phone)}').then(() => showToast('Telefonnummer kopiert!'))">Kopieren</button>
+            <button class="copy-btn" style="padding: 2px 6px; font-size: 10px; margin-left: auto;" onclick="window.api.copyText('${escapeHtml(r.phone)}').then(() => showToast('Kopiert'))">Kopieren</button>
           </div>
         `;
       } else if (r.website) {
@@ -625,9 +625,9 @@
 
       if (extLead) {
         if (extLead.status === 'Uninteressant') {
-          showToast("Import übersprungen: Lead ist als uninteressant ausgeschlossen!", true);
+          showToast('Übersprungen — der Lead ist als uninteressant ausgeschlossen', true);
         } else {
-          showToast("Lead existiert bereits im CRM!", true);
+          showToast('Lead existiert bereits', true);
         }
         return;
       }
@@ -657,7 +657,7 @@
         impressum_phone: r.impressum_phone, estimated_kwh: r.estimated_kwh, locations
       });
 
-      showToast(`"${r.name}" erfolgreich in Kaltakquise importiert! 📥`);
+      showToast(`„${r.name}" in die Kaltakquise übernommen`);
       
       const refreshedLeads = await window.api.getLeads({ all: true });
       renderScoutedCards(scoutedResults, refreshedLeads);

@@ -38,6 +38,19 @@
   --color-border-base:      var(--primitive-gray-700);
   --color-border-active:    var(--primitive-gray-600);
 
+  /* Hairline & Fills — die duennen Trennlinien und die aufgehellten Flaechen,
+     die auf dunklem Grund ueberall vorkommen (Knopf beim Ueberfahren, Leisten,
+     Karten-Trenner). Standen vorher als handverteilte rgba(255,255,255,x) in
+     acht verschiedenen Staerken in styles.css. */
+  --hairline-soft:          rgba(255,255,255,0.05);
+  --hairline:               rgba(255,255,255,0.08);
+  --hairline-strong:        rgba(255,255,255,0.10);
+
+  --fill-faint:             rgba(255,255,255,0.03);
+  --fill-subtle:            rgba(255,255,255,0.06);
+  --fill-hover:             rgba(255,255,255,0.10);
+  --fill-strong:            rgba(255,255,255,0.14);
+
   /* Typography */
   --color-text-primary:     var(--primitive-gray-100);
   --color-text-secondary:   var(--primitive-gray-400);

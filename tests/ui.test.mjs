@@ -22,10 +22,24 @@ dom.window.eval(fs.readFileSync('public/core/leadstore.js', 'utf8'));
 const code = fs.readFileSync('public/ui/main_ui.js', 'utf8');
 dom.window.eval(code);
 
-// _autoSaveNow / _triggerAutoSave liegen in pipeline_ui.js — nur diesen Teil laden
+// Teile von pipeline_ui.js werden ueber Textmarken herausgeschnitten. Wird eine
+// Marke umbenannt, muss der Test LAUT scheitern — frueher lieferte indexOf
+// stillschweigend -1 und der Test hat danach schlicht nichts mehr geprueft.
 const pipeSrc = fs.readFileSync('public/ui/pipeline_ui.js', 'utf8');
-const autoSaveBlock = pipeSrc.slice(pipeSrc.indexOf('window.patchLeadCard = (leadId) => {'));
-dom.window.eval(autoSaveBlock.slice(0, autoSaveBlock.indexOf('window._debouncedSave();') + 30));
+const ausschnitt = (von, bis) => {
+  const a = pipeSrc.indexOf(von);
+  if (a === -1) throw new Error(`Testaufbau: Marke "${von}" steht nicht mehr in pipeline_ui.js`);
+  if (!bis) return pipeSrc.slice(a);
+  const b = pipeSrc.indexOf(bis, a);
+  if (b === -1) throw new Error(`Testaufbau: Marke "${bis}" steht nicht mehr in pipeline_ui.js`);
+  return pipeSrc.slice(a, b + bis.length);
+};
+
+// _autoSaveNow / _triggerAutoSave liegen in pipeline_ui.js — nur diesen Teil laden
+dom.window.eval(ausschnitt('window.patchLeadCard = (leadId) => {', 'window._debouncedSave();\n};'));
+
+// Mehrfachauswahl: toggleBulkMode / handleLeadClick / updateBulkUI
+dom.window.eval(ausschnitt('window.toggleBulkMode = () => {', 'window.executeBulkDelete'));
 
 // Abschnitt 4 ersetzt persistTasks durch einen Zaehler — Original merken
 const echtPersistTasks = w.persistTasks;
@@ -454,10 +468,18 @@ check('Zwei erledigte werden gezeigt', liste13.textContent.includes('Erledigt (2
 check('Neueste zuerst', liste13.textContent.indexOf('Fertig B') < liste13.textContent.indexOf('Fertig A'));
 
 let bestaetigt = null;
-w.showConfirmDialog = (titel, text, label, cb) => { bestaetigt = titel; cb(); };
+w.confirmAction = ({ title }) => { bestaetigt = title; return Promise.resolve(true); };
 w.clearDoneTasks();
+await Promise.resolve();   // confirmAction antwortet ueber ein Promise
 check('Nachfrage vor dem Loeschen', (bestaetigt || '').includes('2 erledigte'));
 check('Nur die erledigten sind weg', w.currentTasks.length === 1 && w.currentTasks[0].text === 'Offen');
+
+// Abgelehnt heisst: nichts passiert.
+w.bindTasksToLead({ id: 500, task_text: '[{"id":1,"text":"Offen","done":false,"subtasks":[]},{"id":2,"text":"Fertig A","done":true,"done_ms":111,"subtasks":[]}]' });
+w.confirmAction = () => Promise.resolve(false);
+w.clearDoneTasks();
+await Promise.resolve();
+check('Abbrechen laesst die Aufgaben stehen', w.currentTasks.length === 2);
 
 
 // ── 16. Autospeichern haelt an jedem Wechsel ─────────────────────────────
@@ -710,6 +732,253 @@ await w.flushLeadForm();
 await w.leadStore.ruhe();
 const gerettet = geschrieben21.find(p => 'task_text' in p);
 check('Aufgaben ueberleben ein unvollstaendiges Formular', !!gerettet && gerettet.task_text.includes('Gerettete Aufgabe'));
+
+// ── 22. Mehrfachauswahl zeichnet die Liste nicht neu ─────────────────────
+// Der Fehler, den das verhindert: jeder Haken hat frueher loadUi() gerufen —
+// die Liste wurde verworfen, aus dem Zwischenspeicher gezeichnet, erneut vom
+// Server geholt und noch einmal gezeichnet. Auswaehlen aendert keine Daten,
+// also darf es auch nichts nachladen.
+w.document.body.innerHTML = '';
+const karte = w.document.createElement('div');
+karte.className = 'lead-card';
+karte.id = 'lead-card-7';
+karte.innerHTML = '<input type="checkbox" class="lead-card-checkbox">';
+w.document.body.appendChild(karte);
+
+w.store.state.isBulkMode = true;
+w.store.state.selectedBulkIds = new Set();
+let neuGezeichnet = 0;
+w.loadUi = () => { neuGezeichnet++; };
+
+w.handleLeadClick(7);
+check('Auswaehlen merkt sich den Lead', w.store.state.selectedBulkIds.has(7));
+check('Auswaehlen markiert die Karte', karte.classList.contains('is-selected'));
+check('Auswaehlen setzt das Kaestchen', karte.querySelector('.lead-card-checkbox').checked === true);
+check('Auswaehlen zeichnet die Liste NICHT neu', neuGezeichnet === 0);
+
+w.handleLeadClick(7);
+check('Nochmal antippen waehlt ab', !w.store.state.selectedBulkIds.has(7));
+check('Abwaehlen nimmt die Markierung weg', !karte.classList.contains('is-selected'));
+check('Abwaehlen zeichnet die Liste NICHT neu', neuGezeichnet === 0);
+
+// Ein Lead, der gerade nicht im Sichtfeld haengt, darf nichts umwerfen.
+w.handleLeadClick(999);
+check('Unbekannte Karte stoert nicht', w.store.state.selectedBulkIds.has(999) && neuGezeichnet === 0);
+
+// Umschalten der Mehrfachauswahl baut die Karten neu — aber aus dem
+// Zwischenspeicher, ohne Netzverkehr.
+let ausCache = null;
+w.loadUi = (optimistic) => { neuGezeichnet++; ausCache = optimistic; };
+w.toggleBulkMode();
+check('Auswahlmodus verlassen zeichnet einmal neu', neuGezeichnet === 1);
+check('Und zwar aus dem Zwischenspeicher', ausCache === true);
+check('Auswahl ist danach leer', w.store.state.selectedBulkIds.size === 0);
+
+
+// ── 23. Die Liste wird nur neu gezeichnet, wenn sich wirklich etwas aendert ──
+// loadUi zeichnet zweimal: sofort aus dem Zwischenspeicher, dann mit den
+// frischen Daten. Sind beide gleich, ist der zweite Durchgang nur Flackern —
+// die Einblend-Bewegung laeuft von vorn und Karten springen unter dem Zeiger
+// weg. Die Kennung entscheidet darueber, darf aber nichts uebersehen.
+dom.window.eval(ausschnitt('window.listenKennung = (cacheKey, leads) => [', '].join(\'|\');'));
+
+const bestand = [{ id: 1, last_edited_ms: 100 }, { id: 2, last_edited_ms: 200 }];
+w.store.state.isBulkMode = false;
+w.store.state.currentSelectedLeadId = null;
+const grund = w.listenKennung('queue_all_all_', bestand);
+
+check('Gleicher Bestand, gleiche Kennung', w.listenKennung('queue_all_all_', bestand) === grund);
+check('Anderer Reiter faellt auf', w.listenKennung('cold_all_all_', bestand) !== grund);
+check('Geaenderter Lead faellt auf',
+      w.listenKennung('queue_all_all_', [{ id: 1, last_edited_ms: 101 }, { id: 2, last_edited_ms: 200 }]) !== grund);
+check('Fehlender Lead faellt auf', w.listenKennung('queue_all_all_', [bestand[0]]) !== grund);
+
+// Die beiden hier haben schon einmal gefehlt: sie aendern das Aussehen jeder
+// Karte, ohne dass sich ein einziger Wert am Lead aendert.
+w.store.state.isBulkMode = true;
+check('Auswahlmodus faellt auf', w.listenKennung('queue_all_all_', bestand) !== grund);
+w.store.state.isBulkMode = false;
+w.store.state.currentSelectedLeadId = 2;
+check('Offene Karte faellt auf', w.listenKennung('queue_all_all_', bestand) !== grund);
+w.store.state.currentSelectedLeadId = null;
+
+// Eine einzeln getauschte Karte macht die Kennung ungueltig.
+w.store.state.leads = [{ id: 7, name: 'X' }];
+w._listenKennung = 'irgendwas';
+w._renderLeadCard = () => '<div id="lead-card-7"></div>';
+w.document.body.innerHTML = '<div id="lead-card-7"></div>';
+w.patchLeadCard(7);
+check('Getauschte Karte macht die Kennung ungueltig', w._listenKennung === null);
+
+
+// ── 24. Meldungen stapeln sich, ohne aus dem Bild zu wandern ─────────────
+// Der Fehler, den das verhindert: die Stapelung rechnete mit dem Wert, der
+// gerade im Stil stand. Kommen zwei Meldungen kurz hintereinander, steht dort
+// bei der ersten noch der Startwert -100px — aus -100 + 60 wurde -40, und die
+// Meldung verschwand nach unten aus dem Bild, statt nach oben zu ruecken.
+w.document.body.innerHTML = '';
+// w.showToast ist hier bereits das Original aus main_ui.js — die Attrappe vom
+// Testanfang wurde beim Laden der Datei ersetzt.
+w.showToast('Erste');
+w.showToast('Zweite', true);
+w.showToast('Dritte');
+
+const meldungen = [...w.document.querySelectorAll('.app-toast')];
+const plaetze = meldungen.map(t => parseInt(t.style.bottom, 10));
+check('Drei Meldungen liegen uebereinander', meldungen.length === 3);
+check('Keine Meldung rutscht aus dem Bild', plaetze.every(p => p >= 0));
+check('Jede hat einen eigenen Platz', new Set(plaetze).size === 3);
+check('Die neueste liegt unten', plaetze[2] < plaetze[1] && plaetze[1] < plaetze[0]);
+check('Fehler ist als solcher erkennbar', meldungen[1].className.includes('toast-error'));
+check('Meldungen zeigen reinen Text', meldungen[0].textContent === 'Erste' && !meldungen[0].innerHTML.includes('<'));
+
+// Mehr als drei liest niemand — die aelteste faellt weg.
+w.showToast('Vierte');
+const nachher = [...w.document.querySelectorAll('.app-toast')];
+check('Hoechstens drei auf einmal', nachher.length === 3);
+check('Die aelteste ist weg', !nachher.some(t => t.textContent === 'Erste'));
+w.document.body.innerHTML = '';
+
+
+// ── 25. Rueckfragen laufen alle ueber denselben Weg ──────────────────────
+// Der Systemdialog des Browsers (confirm()) haelt die Seite an, sieht auf
+// jedem Geraet anders aus und laesst sich nicht gestalten. Dieselbe Handlung
+// fuehlte sich je nach Stelle anders an.
+const uiQuellen = {
+  'pipeline_ui.js': pipeSrc,
+  'main_ui.js': code,
+  'init.js': fs.readFileSync('ui/init.js', 'utf8')
+};
+// Kommentare zaehlen nicht mit — dort steht confirm() als Erklaerung.
+const ohneKommentare = (q) => q.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+for (const [datei, quelle] of Object.entries(uiQuellen)) {
+  const nativ = ohneKommentare(quelle).match(/(^|[^.\w])(confirm|alert)\s*\(/g) || [];
+  check(`${datei} nutzt keinen Systemdialog`, nativ.length === 0);
+}
+check('confirmAction ist der gemeinsame Weg', code.includes('window.confirmAction = ('));
+check('showConfirmDialog leitet nur noch weiter', code.includes('window.confirmAction({ title, message, confirmLabel })'));
+
+
+// ── 26. Command Center: Blockrechnung, Zielhistorie, Tagesgrenzen ──────────
+// Diese drei rechnen still falsch, wenn sie niemand nachprueft.
+dom.window.eval(ausschnitt('const ccP = (n) => String(n).padStart(2', 'window.ccIntern = { ccTagKey, ccGrenzen, ccZiel, ccArbeitstage, ccSumme, ccKachel };'));
+const cc = w.ccIntern;
+check('Command Center: Rechenkerne geladen', !!cc && typeof cc.ccGrenzen === 'function');
+
+// Blockrechnung — muss mit Jarvis OS uebereinstimmen (12 Wochen ab 01.09.2026)
+const blockEinst = { 'block.start_date': '2026-09-01', 'block.weeks': 12 };
+const b1 = cc.ccGrenzen('block', blockEinst, new Date('2026-09-10T10:00:00'));
+check('Block 1 am 10.09.2026', b1.titel === 'Block 1' && cc.ccTagKey(b1.von) === '2026-09-01');
+
+// 84 Tage spaeter beginnt Block 2 — nicht frueher, nicht spaeter
+const b2 = cc.ccGrenzen('block', blockEinst, new Date('2026-11-24T10:00:00'));
+check('Block 2 ab dem 24.11.2026', b2.titel === 'Block 2' && cc.ccTagKey(b2.von) === '2026-11-24');
+const b1ende = cc.ccGrenzen('block', blockEinst, new Date('2026-11-23T10:00:00'));
+check('Block 1 reicht bis 23.11.2026', b1ende.titel === 'Block 1');
+
+// Blocklaenge ist Einstellung, nicht fest verdrahtet
+const b8 = cc.ccGrenzen('block', { 'block.start_date': '2026-09-01', 'block.weeks': 8 },
+                        new Date('2026-11-24T10:00:00'));
+check('Blocklaenge kommt aus den Einstellungen', cc.ccTagKey(b8.von) === '2026-10-27');
+
+// Woche beginnt Montag, auch am Sonntag
+const woSo = cc.ccGrenzen('woche', {}, new Date('2026-09-13T10:00:00')); // Sonntag
+check('Woche beginnt Montag, auch sonntags', cc.ccTagKey(woSo.von) === '2026-09-07');
+
+// Zielhistorie: das zum Tag gueltige Ziel gewinnt, spaetere zaehlen nicht
+const ziele = [
+  { id: 1, metric_key: 'sales.calls_count', base_value: 30, target_value: 100, valid_from: '2026-09-01' },
+  { id: 2, metric_key: 'sales.calls_count', base_value: 30, target_value: 120, valid_from: '2026-12-01' },
+  { id: 3, metric_key: 'sales.calls_cold_tarif', base_value: 10, target_value: 40, valid_from: '2026-09-01' }
+];
+check('Zieländerung schreibt Vergangenheit nicht um',
+  cc.ccZiel(ziele, 'sales.calls_count', '2026-09-10').target_value === 100);
+check('Ab Gueltigkeitsdatum gilt das neue Ziel',
+  cc.ccZiel(ziele, 'sales.calls_count', '2026-12-05').target_value === 120);
+check('Vor dem ersten Ziel gibt es keins',
+  cc.ccZiel(ziele, 'sales.calls_count', '2026-08-31') === null);
+check('Ziele verschiedener Kennzahlen vermischen sich nicht',
+  cc.ccZiel(ziele, 'sales.calls_cold_tarif', '2026-12-05').target_value === 40);
+
+// Arbeitstage: Sonntag zaehlt nicht mit (wie active_weekdays in Jarvis)
+const woche = cc.ccArbeitstage(new Date('2026-09-07T00:00:00'), new Date('2026-09-13T00:00:00'), [1,2,3,4,5,6]);
+check('Sonntag ist kein Arbeitstag', woche.length === 6 && !woche.includes('2026-09-13'));
+
+// Tagesgrenzen laufen nach Ortszeit — ein Anruf um 23:30 gehoert zu SEINEM Tag
+check('Tagesschluessel nutzt Ortszeit, nicht UTC',
+  cc.ccTagKey(new Date('2026-09-10T23:30:00')) === '2026-09-10');
+
+// Summieren ignoriert fremde Kennzahlen
+const zeilen = [
+  { metric_key: 'sales.calls_count', tag: '2026-09-09', wert: 12 },
+  { metric_key: 'sales.calls_count', tag: '2026-09-10', wert: 8 },
+  { metric_key: 'sales.calls_cold_tarif', tag: '2026-09-10', wert: 5 }
+];
+check('Summieren trennt die Kennzahlen', cc.ccSumme(zeilen, 'sales.calls_count') === 20);
+
+// Ein Tagesziel muss im Zeitraum hochgerechnet werden. Ohne Faktor stuende die
+// Wochensumme neben dem Tagesziel — das sieht immer nach Zielerreichung aus.
+const zielKachel = { metric_key: 'x', base_value: 10, target_value: 40, valid_from: '2026-09-01' };
+check('Tagesziel bleibt bei "Heute" unveraendert',
+  cc.ccKachel('Cold Tarif', 21, zielKachel, 1).includes('Soll 40'));
+check('Tagesziel wird auf den Zeitraum hochgerechnet',
+  cc.ccKachel('Cold Tarif', 108, zielKachel, 4).includes('Soll 160'));
+check('Wochensumme unter hochgerechnetem Ziel ist nicht gruen',
+  !cc.ccKachel('Cold Tarif', 108, zielKachel, 4).includes('cc-bar-fill cc-gut'));
+check('Ohne Soll sagt die Kachel das, statt 0 zu zeigen',
+  cc.ccKachel('Ohne Ziel', 5, { metric_key: 'y', base_value: null, target_value: null }, 1).includes('kein Soll'));
+
+// Das Dashboard darf nicht auf die gedeckelte Sammelabfrage zurueckfallen
+const dashTeil = pipeSrc.slice(pipeSrc.indexOf('window.renderDashboard = async'));
+// getAgentStats ist die gedeckelte Sammelabfrage. Im Einzelplatz-Pfad darf sie
+// nicht mehr vorkommen — nur noch hinter dem Team-Schalter.
+// Wert am Lead: leeres Feld heisst NULL, nicht 0. Sonst waere "Abschluss ohne
+// Wert" nicht von "Abschluss ueber 0 Euro" zu unterscheiden — genau die
+// Unterscheidung, wegen der provi_umsatz ueberhaupt umgestellt wurde.
+const wertFeld = (id, wert) => {
+  let e = w.document.getElementById(id);
+  if (!e) { e = w.document.createElement('input'); e.id = id; w.document.body.appendChild(e); }
+  e.value = wert; return e;
+};
+wertFeld('sys-name', 'Testfirma');
+wertFeld('sys-provi', '');
+check('Leeres Wertfeld wird zu NULL, nicht 0', w.getDomDraft().provi_umsatz === null);
+wertFeld('sys-provi', '0');
+check('Eingetragene 0 bleibt 0', w.getDomDraft().provi_umsatz === 0);
+wertFeld('sys-provi', '847,50');
+check('Komma wird als Dezimaltrenner verstanden', w.getDomDraft().provi_umsatz === 847.5);
+wertFeld('sys-provi', 'abc');
+check('Unlesbare Eingabe wird NULL statt NaN', w.getDomDraft().provi_umsatz === null);
+
+wertFeld('sys-closed-at', '2026-09-10');
+const dEntwurf = w.getDomDraft();
+check('Abschlussdatum landet auf demselben Tag',
+  new Date(dEntwurf.closed_at_ms).toLocaleDateString('sv-SE') === '2026-09-10');
+wertFeld('sys-closed-at', '');
+check('Leeres Abschlussdatum wird NULL', w.getDomDraft().closed_at_ms === null);
+
+// Fehlt das Feld im Formular, darf nichts ueberschrieben werden
+w.document.getElementById('sys-provi').remove();
+w.document.getElementById('sys-closed-at').remove();
+const ohne = w.getDomDraft();
+check('Fehlendes Feld fasst den Wert nicht an',
+  !('provi_umsatz' in ohne) && !('closed_at_ms' in ohne));
+
+// Kommentare zaehlen nicht mit — dort steht getAgentStats als Erklaerung,
+// warum der Team-Bereich sie noch benutzt.
+const dashCode = ohneKommentare(dashTeil);
+const vorTeam = dashCode.slice(0, dashCode.indexOf('window.isMultiUser()'));
+check('Einzelplatz-Pfad nutzt getAgentStats nicht mehr', !vorTeam.includes('getAgentStats'));
+check('getAgentStats kommt nur noch im Team-Bereich vor',
+  (dashCode.match(/getAgentStats/g) || []).length === 1);
+check('Dashboard liest aus den Sichten', dashTeil.includes('getDailyMetrics') && dashTeil.includes('getStockMetrics'));
+check('Ziele kommen nicht mehr aus localStorage',
+  !pipeSrc.includes('dashboard_kpi_goals') && !pipeSrc.includes('dashboard_manual_kpis'));
+check('Team-Bereich ist ausgeblendet, nicht geloescht',
+  dashTeil.includes('window.isMultiUser()') && dashTeil.includes('<h2>Team</h2>'));
+check('Team-Bereich haengt am Schalter, nicht am Zufall',
+  dashTeil.indexOf('window.isMultiUser()') < dashTeil.indexOf('<h2>Team</h2>'));
+check('Kein Chart.js mehr eingebunden', !fs.readFileSync('index.html', 'utf8').includes('chart.js'));
 
 console.log('\n✅ BESTANDEN (' + ok.length + ')');
 ok.forEach(t => console.log('   ' + t));

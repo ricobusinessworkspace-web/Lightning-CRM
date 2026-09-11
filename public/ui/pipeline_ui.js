@@ -17,27 +17,23 @@ window.handleLeadAssignmentChange = (val) => {
 };
 
 
+  // Mehrfachauswahl ein- und ausschalten. Hier muessen die Karten wirklich neu
+  // gebaut werden — die Kaestchen kommen dazu oder fallen weg. Aber aus dem
+  // Zwischenspeicher (loadUi(true)), nicht ueber den Server: die Daten haben
+  // sich nicht geaendert, nur ihre Darstellung.
   window.toggleBulkMode = () => {
-      window.store.state.isBulkMode = !window.store.state.isBulkMode;
+      const an = !window.store.state.isBulkMode;
+      window.store.state.isBulkMode = an;
       window.store.state.selectedBulkIds.clear();
+
       const btn = document.getElementById('bulk-mode-btn');
       if (btn) {
-          if (window.store.state.isBulkMode) {
-              btn.innerText = 'Auswahl abbrechen';
-              btn.style.borderColor = 'var(--text-main)';
-              btn.style.color = 'var(--text-main)';
-              const bar = document.getElementById('bulk-action-bar');
-              if(bar) bar.style.display = 'flex';
-          } else {
-              btn.innerText = 'Mehrfachauswahl';
-              btn.style.borderColor = 'var(--border)';
-              btn.style.color = 'var(--text-muted)';
-              const bar = document.getElementById('bulk-action-bar');
-              if(bar) bar.style.display = 'none';
-          }
+          btn.innerText = an ? 'Auswahl abbrechen' : 'Mehrfachauswahl';
+          btn.style.borderColor = an ? 'var(--text-main)' : 'var(--border)';
+          btn.style.color = an ? 'var(--text-main)' : 'var(--text-muted)';
       }
       updateBulkUI();
-      loadUi();
+      loadUi(true);
   };
 
   // Unternehmensgroesse. Speichert sofort und fuer sich allein.
@@ -60,18 +56,30 @@ window.handleLeadAssignmentChange = (val) => {
     window.leadStore.save(id, { size: newSize }, { label: 'Unternehmensgröße' });
   };
 
+  // Antippen in der Mehrfachauswahl aendert genau eine Karte.
+  //
+  // Vorher stand hier loadUi(): jeder Haken hat die komplette Liste verworfen,
+  // aus dem Zwischenspeicher neu gezeichnet, die Leads erneut vom Server geholt
+  // und noch einmal gezeichnet — dazu lief die Einblend-Bewegung jeder Karte
+  // von vorn. Ein Haken sah deshalb aus wie ein Neuladen der Seite.
+  //
+  // Auswaehlen ist reine Anzeige: es aendert keine Daten, also gibt es auch
+  // nichts nachzuladen. Es reicht, die Klasse und das Kaestchen der einen Karte
+  // umzulegen.
   window.handleLeadClick = (id) => {
-      if (window.store.state.isBulkMode) {
-          if (window.store.state.selectedBulkIds.has(id)) {
-              window.store.state.selectedBulkIds.delete(id);
-          } else {
-              window.store.state.selectedBulkIds.add(id);
-          }
-          updateBulkUI();
-          loadUi();
-      } else {
-          openLead(id);
+      if (!window.store.state.isBulkMode) { openLead(id); return; }
+
+      const ausgewaehlt = window.store.state.selectedBulkIds;
+      const jetztAn = !ausgewaehlt.has(id);
+      if (jetztAn) ausgewaehlt.add(id); else ausgewaehlt.delete(id);
+
+      const karte = document.getElementById(`lead-card-${id}`);
+      if (karte) {
+          karte.classList.toggle('is-selected', jetztAn);
+          const kaestchen = karte.querySelector('.lead-card-checkbox');
+          if (kaestchen) kaestchen.checked = jetztAn;
       }
+      updateBulkUI();
   };
 
   window.updateBulkUI = () => {
@@ -94,22 +102,21 @@ window.handleLeadAssignmentChange = (val) => {
       }
   };
   window.executeBulkDelete = async () => {
-      if (window.store.state.selectedBulkIds.size === 0) return;
-      showConfirmDialog(
-        'Leads in Bulk löschen?',
-        `Wirklich ${window.store.state.selectedBulkIds.size} Leads unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`,
-        `${window.store.state.selectedBulkIds.size} Leads löschen`,
-        async () => {
-          await window.api.deleteLeads(Array.from(window.store.state.selectedBulkIds));
-          toggleBulkMode(); // exits bulk mode and reloads
-          if (typeof window.renderEmptySidebar === 'function') {
-            window.renderEmptySidebar();
-          } else {
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar) sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
-          }
-          if (typeof showToast === 'function') showToast("Leads in Bulk gelöscht!");
+      const anzahl = window.store.state.selectedBulkIds.size;
+      if (anzahl === 0) return;
+
+      const ja = await window.confirmAction({
+        title: `${anzahl} ${anzahl === 1 ? 'Lead' : 'Leads'} löschen?`,
+        message: 'Sie werden dauerhaft entfernt. Das lässt sich nicht rückgängig machen.',
+        confirmLabel: 'Löschen'
       });
+      if (!ja) return;
+
+      const ids = Array.from(window.store.state.selectedBulkIds);
+      await window.api.deleteLeads(ids);
+      window.toggleBulkMode();          // verlaesst die Auswahl und zeichnet neu
+      window.resetSidebar();
+      window.showToast(`${anzahl} ${anzahl === 1 ? 'Lead' : 'Leads'} gelöscht`);
   };
 
   window.executeBulkDeleteUncalled = async () => {
@@ -119,25 +126,21 @@ window.handleLeadAssignmentChange = (val) => {
       const uncalled = leads.filter(l => (l.call_status || 'never') === 'never');
       
       if (uncalled.length === 0) {
-        if (typeof showToast === 'function') showToast("Keine unangerufenen Leads gefunden.", true);
+        window.showToast('Keine unangerufenen Leads gefunden.', true);
         return;
       }
       
-      showConfirmDialog(
-        'Leads in Bulk löschen?',
-        `Wirklich alle ${uncalled.length} unangerufenen Leads unwiderruflich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`,
-        `${uncalled.length} Leads löschen`,
-        async () => {
-          await window.api.deleteLeads(uncalled.map(l => l.id));
-          toggleBulkMode(); // exits bulk mode and reloads
-          if (typeof window.renderEmptySidebar === 'function') {
-            window.renderEmptySidebar();
-          } else {
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar) sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
-          }
-          if (typeof showToast === 'function') showToast(`${uncalled.length} unangerufene Leads gelöscht!`);
+      const ja = await window.confirmAction({
+        title: `${uncalled.length} unangerufene Leads löschen?`,
+        message: 'Alle Leads der Kaltakquise, die noch nie angerufen wurden. Das lässt sich nicht rückgängig machen.',
+        confirmLabel: 'Löschen'
       });
+      if (!ja) return;
+
+      await window.api.deleteLeads(uncalled.map(l => l.id));
+      window.toggleBulkMode();
+      window.resetSidebar();
+      window.showToast(`${uncalled.length} unangerufene Leads gelöscht`);
   };
 
   window.getLeadStatusMap = (l) => {
@@ -423,11 +426,7 @@ window.handleLeadAssignmentChange = (val) => {
     const filtersContainer = $('filters-container');
     if (filtersContainer) filtersContainer.style.display = hiddenTabs.includes(tab) ? 'none' : 'flex';
     
-    if (typeof window.renderEmptySidebar === 'function') {
-      window.renderEmptySidebar();
-    } else {
-      sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
-    }
+    window.resetSidebar();
     
     window.store.state.isBulkMode = false;
     window.store.state.selectedBulkIds.clear();
@@ -507,6 +506,28 @@ if (typeof window.renderDashboard === 'function') {
     }
   };
 
+  // ── Kennung der gezeichneten Liste ──────────────────────────────────────
+  // Zweimal dasselbe zeichnen ist nur Flackern.
+  //
+  // loadUi zeichnet absichtlich zweimal: einmal sofort aus dem Zwischenspeicher,
+  // damit die Liste nicht leer dasteht, und einmal mit den frischen Daten vom
+  // Server. In den allermeisten Faellen sind beide identisch — dann baut der
+  // zweite Durchgang dieselbe Liste noch einmal auf, die Einblend-Bewegung
+  // laeuft von vorn und die Karten springen unter dem Zeiger weg. Genau das
+  // sah aus wie mehrfaches Neuladen.
+  //
+  // Die Kennung deckt alles ab, was das Bild der Liste bestimmt: Reiter und
+  // Filter (stecken im cacheKey), den Stand jedes einzelnen Leads, und dazu
+  // den Auswahlmodus und die offene Karte — die beiden aendern das Aussehen
+  // jeder Karte (Kaestchen, Markierung), ohne dass sich ein Wert am Lead
+  // aendert. Fehlt einer davon, bleibt eine noetige Aenderung unsichtbar.
+  window.listenKennung = (cacheKey, leads) => [
+    cacheKey,
+    window.store.state.isBulkMode ? 'bulk' : '-',
+    window.store.state.currentSelectedLeadId || '-',
+    (leads || []).map(l => `${l.id}:${l.last_edited_ms || 0}`).join(',')
+  ].join('|');
+
   async function loadUi(optimistic = false) {
     if (typeof window.updateExcludedCount === 'function') {
       window.updateExcludedCount();
@@ -569,6 +590,9 @@ if (typeof window.renderDashboard === 'function') {
                 return st.advFilterLink === 'linked' ? hasLinks : !hasLinks;
              });
           }
+          const kennung = window.listenKennung(cacheKey, filtered);
+          if (kennung === window._listenKennung) return;
+          window._listenKennung = kennung;
           renderQueue(filtered);
       };
 
@@ -596,28 +620,20 @@ if (typeof window.renderDashboard === 'function') {
          renderWithFilters(leads);
       } catch(err) {
          console.error('getLeads crash in renderPipeline:', err);
-         showToast('Lade-Fehler: ' + err.message, 'error', 10000);
+         showToast('Leads konnten nicht geladen werden: ' + err.message, 'error', 10000);
          const qList = document.querySelector('.kanban-scroll-area');
          if (qList) qList.innerHTML = `<div style="padding: 20px; color: red;">Fehler beim Laden der Leads:<br>${err.message}</div>`;
          return;
       }
       
       // We return here because renderWithFilters is called above
-      if (!window.store.state.currentSelectedLeadId) {
-        if (typeof window.renderEmptySidebar === 'function') {
-          window.renderEmptySidebar();
-        }
-      }
+      if (!window.store.state.currentSelectedLeadId) window.resetSidebar();
       return;
 
 
     }
     
-    if (!window.store.state.currentSelectedLeadId) {
-      if (typeof window.renderEmptySidebar === 'function') {
-        window.renderEmptySidebar();
-      }
-    }
+    if (!window.store.state.currentSelectedLeadId) window.resetSidebar();
   }
 
   window.toggleAdvFilter = () => {
@@ -727,16 +743,16 @@ if (typeof window.renderDashboard === 'function') {
   function renderQueue(leads) {
     if(!leads || leads.length === 0) {
       let icon = '📞';
-      let stateMsg = 'Pick up the phone and start dialing.';
+      let stateMsg = 'Hörer in die Hand und loslegen.';
       if (window.store.state.currentSearch) {
         icon = '🔍';
         stateMsg = `Kein Lead für "${escapeHtml(window.store.state.currentSearch)}" gefunden.`;
       } else if (window.store.state.currentTab === 'tasks') {
         icon = '🎉';
-        stateMsg = 'Zero Inbox! Keine offenen Aufgaben.';
+        stateMsg = 'Keine offenen Aufgaben.';
       } else if (window.store.state.currentTab === 'customers') {
         icon = '👥';
-        stateMsg = 'Noch keine Kunden. Weiter so!';
+        stateMsg = 'Noch keine Kunden.';
       } else if (window.store.state.currentTab === 'cold') {
         icon = '❄️';
         stateMsg = 'Keine Leads in der Kaltakquise.';
@@ -867,8 +883,12 @@ if (typeof window.renderDashboard === 'function') {
         }
 
         let opacityStyle = (isSnoozed && window.store.state.currentTab !== 'cold') ? 'opacity: 0.55;' : '';
-        let bulkStyle = (window.store.state.isBulkMode && window.store.state.selectedBulkIds.has(l.id)) ? 'outline: 2px solid var(--accent);' : '';
-        let cboxHtml = window.store.state.isBulkMode ? `<input type="checkbox" style="position:absolute; top:12px; right:12px; pointer-events:none; transform:scale(1.2);" ${window.store.state.selectedBulkIds.has(l.id) ? 'checked' : ''}>` : '';
+        // Die Auswahl haengt als Klasse an der Karte, nicht als eingebauter Stil.
+        // Nur so laesst sie sich beim Antippen umschalten, ohne die Karte neu zu
+        // bauen — siehe handleLeadClick.
+        const istAusgewaehlt = window.store.state.selectedBulkIds.has(l.id);
+        let bulkClass = (window.store.state.isBulkMode && istAusgewaehlt) ? 'is-selected' : '';
+        let cboxHtml = window.store.state.isBulkMode ? `<input type="checkbox" class="lead-card-checkbox" tabindex="-1" ${istAusgewaehlt ? 'checked' : ''}>` : '';
         let starHtml = l.starred ? `<span style="color: #ffcc00; font-size: 14px; margin-left: 8px;" title="Priorisierter Lead">★</span>` : '';
 
         let isStarredClass = l.starred ? 'is-starred' : '';
@@ -876,7 +896,7 @@ if (typeof window.renderDashboard === 'function') {
         const isCustomerTab = window.store.state.currentTab === 'customers';
 
         return `
-        <div class="lead-card ${window.store.state.currentSelectedLeadId === l.id ? 'active-lead-card' : ''} ${isStarredClass}" style="${opacityStyle} ${bulkStyle}" onclick="handleLeadClick(${l.id})" id="lead-card-${l.id}">
+        <div class="lead-card ${window.store.state.currentSelectedLeadId === l.id ? 'active-lead-card' : ''} ${isStarredClass} ${bulkClass}" style="${opacityStyle}" onclick="handleLeadClick(${l.id})" id="lead-card-${l.id}">
           
           <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-start; min-width: 0;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
@@ -1639,6 +1659,41 @@ if (typeof window.renderDashboard === 'function') {
             </div>
           </div>
 
+          <!-- Wert — erwartete Provision und Abschlusszeitpunkt -->
+          ${(function(){
+            const stufe = window.api.getStage(l).toLowerCase();
+            const istAbschluss = stufe === 'closed';
+            // NULL heisst "noch nicht eingetragen", 0 heisst "tatsaechlich null
+            // Euro". Deshalb steht im leeren Feld nichts, keine 0.
+            const wert = (l.provi_umsatz === null || l.provi_umsatz === undefined) ? '' : l.provi_umsatz;
+            const datum = l.closed_at_ms
+              ? new Date(Number(l.closed_at_ms)).toLocaleDateString('sv-SE')   // YYYY-MM-DD, Ortszeit
+              : '';
+            const fehlt = [];
+            if (istAbschluss && wert === '') fehlt.push('Wert');
+            if (istAbschluss && !datum) fehlt.push('Datum');
+            return `
+              <div class="apple-section">
+                <h4 class="apple-section-title">Wert</h4>
+                <div class="wert-zeile">
+                  <label for="sys-provi">Erwartete Provision</label>
+                  <div class="wert-eingabe">
+                    <input type="number" step="0.01" min="0" id="sys-provi" value="${wert}" placeholder="—">
+                    <span>€</span>
+                  </div>
+                </div>
+                ${!istAbschluss ? '' : `
+                <div class="wert-zeile">
+                  <label for="sys-closed-at">Abschlussdatum</label>
+                  <div class="wert-eingabe">
+                    <input type="date" id="sys-closed-at" value="${datum}">
+                  </div>
+                </div>`}
+                ${fehlt.length === 0 ? '' :
+                  `<div class="wert-hinweis">Abschluss ohne ${fehlt.join(' und ')} — z\u00e4hlt nicht als bewerteter Abschluss.</div>`}
+              </div>`;
+          })()}
+
           <!-- Zuweisung -->
           ${(function(){
             let assignmentHtml = '';
@@ -1750,12 +1805,7 @@ if (typeof window.renderDashboard === 'function') {
       // dorthin zurueck.
       window.bindTasksToLead(null);
       document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
-      if (typeof window.renderEmptySidebar === 'function') {
-        window.renderEmptySidebar();
-      } else {
-        const sb = document.querySelector('.sidebar');
-        if (sb) sb.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
-      }
+      window.resetSidebar();
     };
 
     if (window.store.state.currentSelectedLeadId
@@ -1882,7 +1932,7 @@ if (typeof window.renderDashboard === 'function') {
            if (typeof window.renderTasksList === 'function') window.renderTasksList();
          }
          if (done && typeof window.showToast === 'function') {
-           window.showToast("Aufgabe erledigt!");
+           window.showToast('Aufgabe erledigt');
          }
          loadUi(); // refresh the view
       }
@@ -1968,7 +2018,7 @@ if (typeof window.renderDashboard === 'function') {
           lng: null,
           opening_hours: ''
         }, { label: 'Standort' });
-        showToast("Standort (Places-Verknüpfung) entfernt.");
+        showToast('Standort entfernt');
         
         if (window.store.state.currentTab === 'map') {
           if (typeof window.loadMapData === 'function') {
@@ -1981,7 +2031,7 @@ if (typeof window.renderDashboard === 'function') {
       }
     } catch(e) {
       console.error(e);
-      showToast("Fehler beim Entfernen des Standorts.");
+      showToast('Standort entfernen fehlgeschlagen', true);
     }
   };
 
@@ -2143,7 +2193,7 @@ if (typeof window.renderDashboard === 'function') {
          await window.saveLeadMain(leadId, true, true);
       }
       
-      showToast("Standort erfolgreich verknüpft! 🗺️");
+      showToast('Standort verknüpft');
       
       // Re-render the sidebar to show the new location UI
       if (window.openLeadDirectly) {
@@ -2166,7 +2216,7 @@ if (typeof window.renderDashboard === 'function') {
 
     } catch(e) {
       console.error(e);
-      showToast("Fehler beim Verknüpfen des Standorts.");
+      showToast('Standort verknüpfen fehlgeschlagen', true);
     }
   };
 
@@ -2187,13 +2237,13 @@ if (typeof window.renderDashboard === 'function') {
 
       const ok = await window.leadStore.save(l.id, { starred: neuStarred }, { label: 'Priorisierung' });
       if (!ok) return;
-      showToast(neuStarred ? "Lead priorisiert! ⭐" : "Priorisierung aufgehoben.");
+      showToast(neuStarred ? 'Lead priorisiert' : 'Priorisierung aufgehoben');
       // toggleLeadStar didn't call openLead, but if it did, we'd pass draft.
       // Wait, toggleLeadStar just calls loadUi(). It doesn't re-render the sidebar.
       // We don't need to do anything else!
     } catch(e) {
       console.error(e);
-      showToast("Fehler beim Priorisieren.");
+      showToast('Priorisieren fehlgeschlagen', true);
     }
   };
 
@@ -2208,7 +2258,7 @@ if (typeof window.renderDashboard === 'function') {
       const allLeads = await window.api.getLeads({ all: true });
       const apiKey = localStorage.getItem('googlePlacesApiKey') || '';
       
-      showToast(`${allLeads.length} Leads werden auf fehlende Daten geprüft...`);
+      showToast(`${allLeads.length} Leads werden auf fehlende Daten geprüft`);
       
       let emailEnrichedCount = 0;
       let apiEnrichedCount = 0;
@@ -2291,12 +2341,12 @@ if (typeof window.renderDashboard === 'function') {
         }
       }
       
-      showToast(`Enrichment fertig! ${apiEnrichedCount} Leads aktualisiert (davon ${emailEnrichedCount} neue E-Mails).`);
+      showToast(`Datenabgleich fertig: ${apiEnrichedCount} Leads aktualisiert, davon ${emailEnrichedCount} mit neuer E-Mail`);
       await loadUi(); // Refresh UI
       
     } catch (err) {
       console.error(err);
-      showToast(`Enrichment Fehler: ${err.message}`, true);
+      showToast(`Datenabgleich fehlgeschlagen: ${err.message}`, true);
     } finally {
       if (btn) {
         btn.innerText = 'Data Enrichment (Alle fehlenden Daten laden)';
@@ -2402,239 +2452,442 @@ if (typeof window.renderDashboard === 'function') {
     } catch(e) { console.error(e); }
   };
 
-  window.updateGlobalMetrics = async () => {
-    try {
-      const widget = document.getElementById('global-metrics-widget');
-      if (!widget) return;
-      
-      const currentUser = await window.api.getCurrentUser();
-      if (!currentUser) return;
-      
-      const stats = await window.api.getAgentStats();
-      if (!stats || stats.length === 0) return;
-      
-      const myStats = stats.find(s => s.id === currentUser.id);
-      if (!myStats) return;
-      
-      widget.style.display = 'flex';
-      
-      const goal = myStats.daily_call_goal || 100;
-      const callsToday = myStats.today.calls;
-      const emailsToday = myStats.today.emails;
-      
-      const setzeText = (id, txt) => {
-        const el = document.getElementById(id);
-        if (el) el.innerText = txt;
-      };
-      setzeText('gm-calls', `${callsToday} / ${goal}`);
-      setzeText('gm-emails', `${emailsToday}`);
-      
-      const todayStr = new Date().toISOString().split('T')[0];
-      const lsKey = `dashboard_manual_kpis_${todayStr}`;
-      let manualData = { revenue: '0 € / 2500 €' };
-      try {
-        const stored = localStorage.getItem(lsKey);
-        if (stored) manualData = { ...manualData, ...JSON.parse(stored) };
-      } catch(e) {}
-      
-      const revEl = document.getElementById('gm-revenue');
-      if (revEl) {
-        revEl.innerText = manualData.revenue || '0 €';
-      }
-      
-    } catch (err) {
-      console.warn('Failed to update global metrics:', err);
+  // ── Command Center ─────────────────────────────────────────────────────────
+  // Liest ausschliesslich aus den Sichten crm_daily_metrics / crm_stock_metrics
+  // und aus crm_metric_targets / crm_settings.
+  //
+  // NICHT mehr aus getAgentStats: das zog Leads, Anrufe UND Aktivitaeten
+  // ungefiltert in den Browser. PostgREST liefert hoechstens 1000 Zeilen und
+  // meldet nicht, dass gekuerzt wurde — bei 100 Anrufen am Tag haette das
+  // Dashboard nach gut zwei Wochen still falsch gezaehlt.
+  //
+  // Ziele stehen in der Datenbank, nicht in localStorage. Grund: Jarvis OS
+  // liest sie, und localStorage ist von aussen nicht lesbar.
+
+  window.ccZeitraum = 'heute';
+  window.ccZieleOffen = false;
+
+  const ccP = (n) => String(n).padStart(2, '0');
+  const ccTagKey = (d) => `${d.getFullYear()}-${ccP(d.getMonth() + 1)}-${ccP(d.getDate())}`;
+  const ccAusTagKey = (s) => new Date(`${s}T00:00:00`);
+
+  const ccZahl = (n) => new Intl.NumberFormat('de-DE').format(Math.round(n));
+  const ccEuro = (n) => new Intl.NumberFormat('de-DE',
+    { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n || 0);
+
+  // Zeitraum-Grenzen. Der Block rechnet nach denselben Einstellungen wie
+  // Jarvis OS (crm_settings: block.start_date / block.weeks). Zwei fest
+  // verdrahtete Datumsangaben in zwei Systemen laufen garantiert auseinander.
+  const ccGrenzen = (zeitraum, einst, heuteEingabe) => {
+    const heute = heuteEingabe ? new Date(heuteEingabe) : new Date();
+    heute.setHours(0, 0, 0, 0);
+    if (zeitraum === 'heute') return { von: heute, bis: heute, titel: 'Heute' };
+    if (zeitraum === 'woche') {
+      const wt = heute.getDay();
+      const zurueck = wt === 0 ? 6 : wt - 1;
+      const von = new Date(heute); von.setDate(heute.getDate() - zurueck);
+      return { von, bis: heute, titel: 'Diese Woche' };
     }
+    const start = ccAusTagKey(einst['block.start_date'] || '2026-09-01');
+    const tage = Number(einst['block.weeks'] || 12) * 7;
+
+    // Kalendertage, nicht Millisekunden. Beim Zeitumstellen ist ein Tag 23 oder
+    // 25 Stunden lang — mit (bis - von) / 86400000 und Math.floor rutscht der
+    // Blockbeginn dann auf den Vortag, und das CRM begaenne Block 2 einen Tag
+    // frueher als Jarvis OS. Math.round faengt die Stunde ab, setDate() rechnet
+    // in echten Kalendertagen weiter.
+    const seitStart = Math.round((heute - start) / 86400000);
+    if (seitStart < 0) return { von: start, bis: heute, titel: 'Block 1 — noch nicht begonnen' };
+    const nr = Math.floor(seitStart / tage);
+    const von = new Date(start);
+    von.setDate(start.getDate() + nr * tage);
+    return { von, bis: heute, titel: `Block ${nr + 1}` };
   };
+
+  // Welches Ziel galt an einem bestimmten Tag? Eine Zieländerung legt eine NEUE
+  // Zeile an, statt die alte zu ueberschreiben — sonst wuerde das Anheben eines
+  // Ziels die Vergangenheit rueckwirkend schlechter aussehen lassen.
+  const ccZiel = (ziele, key, tagKey) => {
+    let treffer = null;
+    for (const z of ziele) {
+      if (z.metric_key !== key || z.valid_from > tagKey) continue;
+      if (!treffer || z.valid_from > treffer.valid_from) treffer = z;
+    }
+    return treffer;
+  };
+
+  const ccSumme = (zeilen, key) =>
+    zeilen.reduce((s, z) => z.metric_key === key ? s + Number(z.wert || 0) : s, 0);
+
+  const ccProTag = (zeilen, key) => {
+    const m = new Map();
+    zeilen.forEach(z => { if (z.metric_key === key) m.set(z.tag, Number(z.wert || 0)); });
+    return m;
+  };
+
+  const ccArbeitstage = (von, bis, wochentage) => {
+    const liste = [];
+    const d = new Date(von);
+    while (d <= bis) {
+      const wt = d.getDay() === 0 ? 7 : d.getDay();
+      if (wochentage.includes(wt)) liste.push(ccTagKey(d));
+      d.setDate(d.getDate() + 1);
+    }
+    return liste;
+  };
+
+  // Fehlt ein Wert, sagt die Oberflaeche das — sie zeigt keine 0 fuer etwas,
+  // das es nicht gibt.
+  const ccFehlt = (text = 'nicht hinterlegt') =>
+    `<span class="cc-fehlt">${escapeHtml(text)}</span>`;
+
+  const ccBalken = (ist, basis, soll) => {
+    const max = Math.max(Number(soll) || 0, ist, 1);
+    const breite = Math.min(100, (ist / max) * 100);
+    const basisPos = (basis || basis === 0) ? Math.min(100, (basis / max) * 100) : null;
+    const stufe = (soll && ist >= soll) ? 'gut' : ((basis || basis === 0) && ist >= basis) ? 'mittel' : 'schwach';
+    return `<div class="cc-bar">
+        <div class="cc-bar-fill cc-${stufe}" style="width:${breite}%"></div>
+        ${basisPos === null ? '' : `<div class="cc-bar-base" style="left:${basisPos}%"></div>`}
+      </div>`;
+  };
+
+  // faktor = Anzahl Arbeitstage im Zeitraum. Ohne ihn stuende die Wochensumme
+  // neben dem TAGESziel — 108 Anrufe gegen "Soll 40" sieht grossartig aus und
+  // ist blanker Unsinn. Bei "Heute" ist der Faktor 1.
+  const ccKachel = (titel, istWert, ziel, faktor = 1) => {
+    const soll = ziel && ziel.target_value !== null ? Number(ziel.target_value) * faktor : null;
+    const basis = ziel && ziel.base_value !== null ? Number(ziel.base_value) * faktor : null;
+    return `<div class="cc-kachel">
+        <div class="cc-kachel-kopf">
+          <span class="cc-kachel-titel">${escapeHtml(titel)}</span>
+          <span class="cc-kachel-ziel">${soll === null ? ccFehlt('kein Soll') : 'Soll ' + ccZahl(soll)}</span>
+        </div>
+        <div class="cc-kachel-zahl">${ccZahl(istWert)}</div>
+        ${ccBalken(istWert, basis, soll)}
+      </div>`;
+  };
+
+  // Fuer die Pruefungen zugaenglich. Vier Dinge hier rechnen still falsch, wenn
+  // sie niemand nachprueft: die Blockrechnung (muss mit Jarvis OS
+  // uebereinstimmen), die Zielhistorie (ein neues Ziel darf die Vergangenheit
+  // nicht umschreiben), die Tagesgrenzen (Ortszeit, nicht UTC) und die
+  // Hochrechnung des Tagesziels auf einen Zeitraum.
+  window.ccIntern = { ccTagKey, ccGrenzen, ccZiel, ccArbeitstage, ccSumme, ccKachel };
 
   window.renderDashboard = async () => {
     const container = document.getElementById('dashboard-content');
     if (!container) return;
-    
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.gap = '32px';
-    
+    container.style.display = 'block';
+
     try {
       const currentUser = await window.api.getCurrentUser();
-      
-      if (currentUser.role !== 'developer') {
-        container.innerHTML = `
-          <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #000; border-radius: var(--radius-lg, 12px); min-height: 400px; width: 100%;">
-            <h1 style="color: #fff; font-size: 24px; font-weight: 700; letter-spacing: 1px;">COMING SOON</h1>
-          </div>
-        `;
+      if (currentUser && currentUser.role !== 'developer') {
+        container.innerHTML = `<div class="empty-state" style="width:100%">Das Command Center ist noch nicht freigegeben.</div>`;
         return;
       }
-      
-      container.innerHTML = '<div class="empty-state" style="width: 100%;">Lade Metriken...</div>';
-      const stats = await window.api.getAgentStats();
-      
-      if (!stats || stats.length === 0) {
-        container.innerHTML = '<div class="empty-state" style="width: 100%;">Noch keine Metriken verfügbar.</div>';
-        return;
-      }
-      
-      container.innerHTML = '';
-      
-      const myStats = stats.find(s => s.id === currentUser.id);
-      
-      if (myStats) {
-        const mySection = document.createElement('div');
-        
-        let kpiGoals = { warm: 20, cold_tarif: 10, cold_gross: 10 };
-        try {
-          const storedGoals = localStorage.getItem('dashboard_kpi_goals');
-          if (storedGoals) kpiGoals = { ...kpiGoals, ...JSON.parse(storedGoals) };
-        } catch(e) {}
-        
-        const warmAct = myStats.today.warm || 0;
-        const tarifAct = myStats.today.cold_tarif || 0;
-        const grossAct = myStats.today.cold_gross || 0;
-        const offersAct = myStats.today.offers || 0;
-        
-        mySection.innerHTML = `
-          <div style="margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="font-size: 18px; font-weight: 700; color: #fff; margin: 0;">KPI Dashboard</h2>
-            <div style="display: flex; gap: 12px; align-items: center;">
-              <div style="display: flex; align-items: center; gap: 4px;">
-                <span style="font-size: 11px; color: var(--text-muted);">Warm:</span>
-                <input type="number" id="goal-warm" value="${kpiGoals.warm}" class="modern-input-small" style="width: 50px; text-align: center; padding: 4px;" />
-              </div>
-              <div style="display: flex; align-items: center; gap: 4px;">
-                <span style="font-size: 11px; color: var(--text-muted);">Tarif:</span>
-                <input type="number" id="goal-tarif" value="${kpiGoals.cold_tarif}" class="modern-input-small" style="width: 50px; text-align: center; padding: 4px;" />
-              </div>
-              <div style="display: flex; align-items: center; gap: 4px;">
-                <span style="font-size: 11px; color: var(--text-muted);">Groß:</span>
-                <input type="number" id="goal-gross" value="${kpiGoals.cold_gross}" class="modern-input-small" style="width: 50px; text-align: center; padding: 4px;" />
-              </div>
-              <button class="action-btn-small outline" onclick="window.saveKpiGoals()" style="padding: 4px 12px;">Speichern</button>
-            </div>
-          </div>
-          
-          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px;">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
-              
-              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 24px; font-weight: 800; color: #fff;">${warmAct} <span style="font-size: 14px; color: var(--text-muted);">/ ${kpiGoals.warm}</span></div>
-                <div style="font-size: 11px; color: var(--color-crm-milestone1, #0a84ff); text-transform: uppercase; font-weight: bold;">Warme Calls</div>
-              </div>
-              
-              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 24px; font-weight: 800; color: #fff;">${tarifAct} <span style="font-size: 14px; color: var(--text-muted);">/ ${kpiGoals.cold_tarif}</span></div>
-                <div style="font-size: 11px; color: var(--color-brand-orange, #ff9f0a); text-transform: uppercase; font-weight: bold;">Cold (Tarif)</div>
-              </div>
-              
-              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 24px; font-weight: 800; color: #fff;">${grossAct} <span style="font-size: 14px; color: var(--text-muted);">/ ${kpiGoals.cold_gross}</span></div>
-                <div style="font-size: 11px; color: var(--color-crm-customer, #34c759); text-transform: uppercase; font-weight: bold;">Cold (Groß)</div>
-              </div>
 
-              <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 24px; font-weight: 800; color: #fff;">${offersAct}</div>
-                <div style="font-size: 11px; color: var(--color-crm-milestone2, #ff453a); text-transform: uppercase; font-weight: bold;">Angebote Gesendet</div>
-              </div>
-              
-            </div>
-            
-            <div style="height: 300px; width: 100%;">
-              <canvas id="kpiChart"></canvas>
-            </div>
-          </div>
-        `;
-        container.appendChild(mySection);
-        
-        // Render Chart
-        setTimeout(() => {
-          const ctx = document.getElementById('kpiChart').getContext('2d');
-          new Chart(ctx, {
-            type: 'bar',
-            data: {
-              labels: ['Warm', 'Cold (Tarif)', 'Cold (Groß)'],
-              datasets: [
-                {
-                  label: 'Ist',
-                  data: [warmAct, tarifAct, grossAct],
-                  backgroundColor: ['#0a84ff', '#ff9f0a', '#34c759'],
-                  borderRadius: 4
-                },
-                {
-                  label: 'Ziel',
-                  data: [kpiGoals.warm, kpiGoals.cold_tarif, kpiGoals.cold_gross],
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  borderColor: 'rgba(255, 255, 255, 0.3)',
-                  borderWidth: 1,
-                  borderRadius: 4
-                }
-              ]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              scales: {
-                y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: 'rgba(255, 255, 255, 0.7)' } },
-                x: { grid: { display: false }, ticks: { color: 'rgba(255, 255, 255, 0.7)' } }
-              },
-              plugins: {
-                legend: { labels: { color: 'rgba(255, 255, 255, 0.7)' } }
-              }
-            }
-          });
-        }, 100);
-        
-        window.saveKpiGoals = () => {
-          const warm = parseInt(document.getElementById('goal-warm').value) || 20;
-          const tarif = parseInt(document.getElementById('goal-tarif').value) || 10;
-          const gross = parseInt(document.getElementById('goal-gross').value) || 10;
-          localStorage.setItem('dashboard_kpi_goals', JSON.stringify({ warm, cold_tarif: tarif, cold_gross: gross }));
-          window.renderDashboard();
-        };
-      }
-      
-      const teamSection = document.createElement('div');
-      teamSection.innerHTML = `
-        <div style="margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
-          <h2 style="font-size: 18px; font-weight: 700; color: #fff; margin: 0;">Team Performance</h2>
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;" id="team-grid"></div>
-      `;
-      container.appendChild(teamSection);
-      
-      const teamGrid = document.getElementById('team-grid');
-      
-      stats.forEach(stat => {
-        const card = document.createElement('div');
-        card.style.cssText = 'background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 16px;';
-        
-        card.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <div style="width:36px; height:36px; border-radius:50%; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; color:var(--text-main);">
-                ${stat.name.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <h3 style="margin: 0 0 2px 0; font-size: 15px; font-weight: 700; color: var(--text-main);">${stat.name}</h3>
-                <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">${stat.role === 'minion' ? 'Agent' : stat.role}</div>
-              </div>
-            </div>
-            <div style="font-size: 11px; color: var(--text-muted); background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 6px;">Ziel: ${stat.daily_call_goal || 100}</div>
-          </div>
-          
-          <div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
-            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; text-align: center;">
-              <div style="font-size: 18px; font-weight: 800; color: #fff;">${stat.today.calls} <span style="font-size: 11px; color: var(--text-muted); font-weight: 500;">/ ${stat.week.calls}</span></div>
-              <div style="font-size: 9px; color: var(--text-muted); text-transform: uppercase;">Calls (Heute / Woche)</div>
-            </div>
-          </div>
-        `;
-        
-        teamGrid.appendChild(card);
+      container.innerHTML = '<div class="empty-state" style="width:100%">Kennzahlen werden geladen…</div>';
+
+      const einst = await window.api.getSettings();
+      const { von, bis, titel } = ccGrenzen(window.ccZeitraum, einst);
+      const vonKey = ccTagKey(von), bisKey = ccTagKey(bis);
+
+      const [tage, bestand, ziele, nachtragen] = await Promise.all([
+        window.api.getDailyMetrics(vonKey, bisKey),
+        window.api.getStockMetrics(),
+        window.api.getMetricTargets(),
+        window.api.getClosedNeedingInput(50)
+      ]);
+
+      const b = {};
+      bestand.forEach(z => { b[z.metric_key] = Number(z.wert || 0); });
+
+      const wochentage = Array.isArray(einst['rhythm.active_weekdays'])
+        ? einst['rhythm.active_weekdays'] : [1, 2, 3, 4, 5, 6];
+      const arbeitstage = ccArbeitstage(von, bis, wochentage);
+
+      // Im Zeitraum wird gegen das hochgerechnete Ziel gemessen, nicht gegen das
+      // Tagesziel. Die Tagesbalken darunter vergleichen weiterhin Tag fuer Tag.
+      const faktor = window.ccZeitraum === 'heute' ? 1 : Math.max(arbeitstage.length, 1);
+
+      const anrufe = ccSumme(tage, 'sales.calls_count');
+      const genaehert = ccSumme(tage, 'sales.calls_estimated');
+      const zielAnrufe = ccZiel(ziele, 'sales.calls_count', bisKey);
+
+      // ── Zeitraum-Umschalter ────────────────────────────────────────────────
+      const schalter = ['heute', 'woche', 'block'].map(z =>
+        `<button class="cc-schalter ${window.ccZeitraum === z ? 'is-aktiv' : ''}"
+                 onclick="window.ccSetzeZeitraum('${z}')">${z === 'heute' ? 'Heute' : z === 'woche' ? 'Woche' : 'Block'}</button>`
+      ).join('');
+
+      // ── Anrufe ─────────────────────────────────────────────────────────────
+      const proTag = ccProTag(tage, 'sales.calls_count');
+      const sollTag = zielAnrufe && zielAnrufe.target_value !== null ? Number(zielAnrufe.target_value) : null;
+      const basisTag = zielAnrufe && zielAnrufe.base_value !== null ? Number(zielAnrufe.base_value) : null;
+
+      let ueberSoll = 0, ueberBasis = 0;
+      arbeitstage.forEach(t => {
+        const w = proTag.get(t) || 0;
+        if (sollTag !== null && w >= sollTag) ueberSoll++;
+        else if (basisTag !== null && w >= basisTag) ueberBasis++;
       });
-      
-    } catch(err) {
+
+      const tagesBalken = arbeitstage.map(t => {
+        const w = proTag.get(t) || 0;
+        const h = sollTag ? Math.min(100, (w / sollTag) * 100) : (w > 0 ? 100 : 0);
+        const stufe = (sollTag && w >= sollTag) ? 'gut' : (basisTag !== null && w >= basisTag) ? 'mittel' : 'schwach';
+        return `<div class="cc-tag" title="${t}: ${ccZahl(w)}"><div class="cc-tag-fill cc-${stufe}" style="height:${Math.max(h, 2)}%"></div></div>`;
+      }).join('');
+
+      const anrufeBlock = `
+        <section class="cc-karte cc-karte-gross">
+          <div class="cc-kopf">
+            <h2>Anrufe</h2>
+            <span class="cc-sub">${escapeHtml(titel)}${window.ccZeitraum === 'heute' ? '' : ` · ${arbeitstage.length} Arbeitstage`}</span>
+          </div>
+          <div class="cc-gross">
+            <div class="cc-gross-zahl">${ccZahl(anrufe)}</div>
+            <div class="cc-gross-ziel">
+              ${sollTag === null ? ccFehlt('kein Soll hinterlegt')
+                : `<span>Basis ${basisTag === null ? '—' : ccZahl(basisTag * faktor)}</span><span>Soll ${ccZahl(sollTag * faktor)}</span>`}
+            </div>
+          </div>
+          ${window.ccZeitraum === 'heute'
+            ? ccBalken(anrufe, basisTag, sollTag)   /* Heute: 1:1 gegen das Tagesziel */
+            : `<div class="cc-tage">${tagesBalken}</div>
+               <div class="cc-legende">${ueberSoll} ${ueberSoll === 1 ? 'Tag' : 'Tage'} über Soll · ${ueberBasis} über Basis · ${arbeitstage.length - ueberSoll - ueberBasis} darunter</div>`}
+          ${genaehert > 0 ? `<div class="cc-hinweis">${ccZahl(genaehert)} dieser Anrufe stammen aus der Zeit vor dem Umbau — ihre Aufteilung ist genähert, nicht gemessen.</div>` : ''}
+        </section>`;
+
+      // ── Aufteilung ─────────────────────────────────────────────────────────
+      const aufteilung = `
+        <section class="cc-karte">
+          <div class="cc-kopf"><h2>Aufteilung</h2></div>
+          <div class="cc-kacheln">
+            ${ccKachel('Cold Großkunden', ccSumme(tage, 'sales.calls_cold_gross'), ccZiel(ziele, 'sales.calls_cold_gross', bisKey), faktor)}
+            ${ccKachel('Cold Tarif', ccSumme(tage, 'sales.calls_cold_tarif'), ccZiel(ziele, 'sales.calls_cold_tarif', bisKey), faktor)}
+            ${ccKachel('Nachgreifen', ccSumme(tage, 'sales.calls_followup'), ccZiel(ziele, 'sales.calls_followup', bisKey), faktor)}
+          </div>
+        </section>`;
+
+      // ── Rhythmus ───────────────────────────────────────────────────────────
+      const grossGes = ccSumme(tage, 'sales.calls_cold_gross');
+      const tarifGes = ccSumme(tage, 'sales.calls_cold_tarif');
+      const grossVm = ccSumme(tage, 'sales.calls_morning_gross');
+      const tarifNm = ccSumme(tage, 'sales.calls_afternoon_tarif');
+      const anteil = (t, g) => g > 0 ? Math.round((t / g) * 100) + ' %' : null;
+      const grenzeText = typeof einst['rhythm.morning_end'] === 'string' ? einst['rhythm.morning_end'] : '12:00';
+
+      const rhythmus = `
+        <section class="cc-karte">
+          <div class="cc-kopf">
+            <h2>Rhythmus</h2>
+            <span class="cc-sub">Grenze ${escapeHtml(grenzeText)}</span>
+          </div>
+          <div class="cc-zeilen">
+            <div class="cc-zeile"><span>Großkunden vormittags</span>
+              <strong>${anteil(grossVm, grossGes) || ccFehlt('keine Anrufe')}</strong></div>
+            <div class="cc-zeile"><span>Tarif nachmittags</span>
+              <strong>${anteil(tarifNm, tarifGes) || ccFehlt('keine Anrufe')}</strong></div>
+            <div class="cc-zeile"><span>Erstkontakte</span>
+              <strong>${ccZahl(ccSumme(tage, 'sales.calls_first_contact'))}</strong></div>
+          </div>
+        </section>`;
+
+      // ── Trichter ───────────────────────────────────────────────────────────
+      const stufen = [
+        ['Entscheider gesprochen', 'sales.stage_cold_pitch'],
+        ['Daten bekommen', 'sales.stage_pitch_data'],
+        ['Angebot raus', 'sales.stage_data_offer'],
+        ['Abschluss', 'sales.stage_offer_closed']
+      ].map(([label, key]) => ({ label, wert: ccSumme(tage, key) }));
+      const trichterLeer = stufen.every(s => s.wert === 0);
+
+      const trichter = `
+        <section class="cc-karte">
+          <div class="cc-kopf"><h2>Trichter</h2></div>
+          ${trichterLeer
+            ? `<div class="cc-leer">Noch keine gemessenen Stufenwechsel in diesem Zeitraum.<br>
+                 <span class="cc-fehlt">Die Messung beginnt mit dem Umbau — ältere Wechsel wurden ohne Vorstufe protokolliert und zählen deshalb nicht mit.</span></div>`
+            : `<div class="cc-zeilen">${stufen.map((s, i) => {
+                const vorher = i > 0 ? stufen[i - 1].wert : null;
+                const rate = vorher > 0 ? Math.round((s.wert / vorher) * 100) + ' %' : '';
+                return `<div class="cc-zeile"><span>${escapeHtml(s.label)}</span>
+                  <strong>${ccZahl(s.wert)}${rate ? `<em class="cc-rate">${rate}</em>` : ''}</strong></div>`;
+              }).join('')}
+              <div class="cc-zeile cc-warn"><span>Rückschritte</span>
+                <strong>${ccZahl(ccSumme(tage, 'sales.stage_regress'))}</strong></div>
+             </div>`}
+        </section>`;
+
+      // ── Wirkung ────────────────────────────────────────────────────────────
+      const abschluesse = ccSumme(tage, 'sales.closed_count');
+      const volumen = ccSumme(tage, 'sales.closed_value_eur');
+      const ohneWertZeitraum = ccSumme(tage, 'sales.closed_without_value');
+
+      const wirkung = `
+        <section class="cc-karte">
+          <div class="cc-kopf"><h2>Wirkung</h2></div>
+          <div class="cc-zeilen">
+            <div class="cc-zeile"><span>Abschlüsse</span><strong>${ccZahl(abschluesse)}</strong></div>
+            <div class="cc-zeile"><span>Volumen</span>
+              <strong>${ohneWertZeitraum > 0 && volumen === 0 ? ccFehlt('kein Wert eingetragen') : ccEuro(volumen)}</strong></div>
+            <div class="cc-zeile"><span>Pipeline in Angebot</span>
+              <strong>${b['sales.pipeline_count'] === 0 ? ccFehlt('leer')
+                : (b['sales.pipeline_value_eur'] > 0 ? ccEuro(b['sales.pipeline_value_eur'])
+                : ccFehlt(`${ccZahl(b['sales.pipeline_count'])} Leads, keiner bewertet`))}</strong></div>
+          </div>
+        </section>`;
+
+      // ── Offen ──────────────────────────────────────────────────────────────
+      const liste = nachtragen.slice(0, 8).map(l => `
+        <button class="cc-liste-zeile" onclick="window.openLeadDirectly(${l.id})">
+          <span>${escapeHtml(l.name || 'Ohne Namen')}</span>
+          <em>${l.provi_umsatz === null ? 'Wert fehlt' : ''}${l.provi_umsatz === null && !l.closed_at_ms ? ' · ' : ''}${!l.closed_at_ms ? 'Datum fehlt' : ''}</em>
+        </button>`).join('');
+
+      const offen = `
+        <section class="cc-karte">
+          <div class="cc-kopf">
+            <h2>Offen</h2>
+            <span class="cc-sub">Momentaufnahme, unabhängig vom Zeitraum</span>
+          </div>
+          <div class="cc-zeilen">
+            <div class="cc-zeile ${b['sales.overdue_followups'] > 0 ? 'cc-warn' : ''}">
+              <span>Überfällige Wiedervorlagen</span><strong>${ccZahl(b['sales.overdue_followups'])}</strong></div>
+            <div class="cc-zeile"><span>Kaltkartei</span>
+              <strong>${ccZahl(b['sales.cold_stock'])}<em class="cc-rate">${ccZahl(b['sales.cold_never_called'])} nie angerufen</em></strong></div>
+            <div class="cc-zeile ${b['sales.closed_without_value_total'] > 0 ? 'cc-warn' : ''}">
+              <span>Abschlüsse ohne Wert</span><strong>${ccZahl(b['sales.closed_without_value_total'])}</strong></div>
+            <div class="cc-zeile ${b['sales.closed_without_date_total'] > 0 ? 'cc-warn' : ''}">
+              <span>Abschlüsse ohne Datum</span><strong>${ccZahl(b['sales.closed_without_date_total'])}</strong></div>
+          </div>
+          ${liste ? `<div class="cc-liste"><div class="cc-liste-kopf">Nachtragen</div>${liste}</div>` : ''}
+        </section>`;
+
+      // ── Ziele ──────────────────────────────────────────────────────────────
+      const heuteKey = ccTagKey(new Date());
+      const aktuelle = [];
+      ziele.forEach(z => {
+        const gueltig = ccZiel(ziele, z.metric_key, heuteKey);
+        if (gueltig && gueltig.id === z.id && !aktuelle.find(a => a.metric_key === z.metric_key)) aktuelle.push(gueltig);
+      });
+
+      const zieleBlock = `
+        <section class="cc-karte cc-ziele ${window.ccZieleOffen ? 'is-offen' : ''}">
+          <button class="cc-kopf cc-kopf-knopf" onclick="window.ccZieleUmschalten()">
+            <h2>Ziele</h2>
+            <span class="cc-sub">${window.ccZieleOffen ? 'schließen' : 'anpassen'}</span>
+          </button>
+          ${!window.ccZieleOffen ? '' : `
+            <div class="cc-ziele-inhalt">
+              ${aktuelle.map(z => `
+                <div class="cc-ziel-zeile">
+                  <label>${escapeHtml(z.label || z.metric_key)}</label>
+                  <input type="number" id="ziel-basis-${escapeHtml(z.metric_key)}" value="${z.base_value ?? ''}" placeholder="Basis">
+                  <input type="number" id="ziel-soll-${escapeHtml(z.metric_key)}" value="${z.target_value ?? ''}" placeholder="Soll">
+                </div>`).join('')}
+              <div class="cc-ziel-zeile">
+                <label>Grenze Vormittag / Nachmittag</label>
+                <input type="time" id="ziel-grenze" value="${escapeHtml(grenzeText)}">
+              </div>
+              <button class="cc-speichern" onclick="window.ccZieleSpeichern()">Ziele sichern</button>
+              <div class="cc-hinweis">Eine Änderung legt eine neue Zeile ab heute an. Vergangene Tage werden weiter gegen das damals gültige Ziel gemessen.</div>
+            </div>`}
+        </section>`;
+
+      // ── Team ───────────────────────────────────────────────────────────────
+      // Im Einzelplatz-Betrieb ausgeblendet, NICHT geloescht — Schalter steht in
+      // public/core/config.js (multiUser), Muster wie applySingleUserMode in
+      // ui/init.js.
+      //
+      // Achtung beim Zurueckschalten: dieser Block liest noch ueber
+      // getAgentStats, also ueber die gedeckelte Sammelabfrage. Fuer echten
+      // Team-Betrieb braucht es eine Sicht je Nutzer — crm_daily_metrics fasst
+      // heute alle Anrufe zusammen, weil es genau einen Nutzer gibt.
+      let teamBlock = '';
+      if (window.isMultiUser && window.isMultiUser()) {
+        try {
+          const team = await window.api.getAgentStats();
+          teamBlock = `
+            <section class="cc-karte cc-karte-gross">
+              <div class="cc-kopf">
+                <h2>Team</h2>
+                <span class="cc-sub">gedeckelte Abfrage — siehe Handover</span>
+              </div>
+              <div class="cc-zeilen">
+                ${team.map(t => `<div class="cc-zeile">
+                    <span>${escapeHtml(t.name || '—')}</span>
+                    <strong>${ccZahl(t.today.calls)}<em class="cc-rate">${ccZahl(t.week.calls)} diese Woche</em></strong>
+                  </div>`).join('')}
+              </div>
+            </section>`;
+        } catch (e) {
+          console.warn('Team-Kennzahlen nicht ladbar', e);
+        }
+      }
+
+      container.innerHTML = `
+        <div class="cc-leiste">
+          <div class="cc-schalter-gruppe">${schalter}</div>
+        </div>
+        <div class="cc-raster">
+          ${anrufeBlock}
+          ${aufteilung}
+          ${rhythmus}
+          ${trichter}
+          ${wirkung}
+          ${offen}
+          ${zieleBlock}
+          ${teamBlock}
+        </div>`;
+
+    } catch (err) {
       console.error(err);
-      container.innerHTML = `<div class="empty-state" style="width: 100%; color: #ff453a;">Fehler beim Laden der Metriken: ${err.message}</div>`;
+      container.innerHTML = `<div class="empty-state" style="width:100%; color: var(--color-intent-danger);">Kennzahlen konnten nicht geladen werden: ${escapeHtml(err.message || String(err))}</div>`;
+    }
+  };
+
+  window.ccSetzeZeitraum = (z) => { window.ccZeitraum = z; window.renderDashboard(); };
+  window.ccZieleUmschalten = () => { window.ccZieleOffen = !window.ccZieleOffen; window.renderDashboard(); };
+
+  window.ccZieleSpeichern = async () => {
+    try {
+      const ziele = await window.api.getMetricTargets();
+      const heuteKey = ccTagKey(new Date());
+      const gesehen = new Set();
+      for (const z of ziele) {
+        if (gesehen.has(z.metric_key)) continue;
+        const gueltig = ccZiel(ziele, z.metric_key, heuteKey);
+        if (!gueltig) continue;
+        gesehen.add(z.metric_key);
+
+        const bEl = document.getElementById(`ziel-basis-${z.metric_key}`);
+        const sEl = document.getElementById(`ziel-soll-${z.metric_key}`);
+        if (!bEl || !sEl) continue;
+
+        const basis = bEl.value === '' ? null : Number(bEl.value);
+        const soll = sEl.value === '' ? null : Number(sEl.value);
+        if (basis === gueltig.base_value && soll === gueltig.target_value) continue;
+
+        await window.api.saveMetricTarget({
+          metric_key: gueltig.metric_key, label: gueltig.label,
+          base_value: basis, target_value: soll,
+          comparator: gueltig.comparator, sort_order: gueltig.sort_order,
+          valid_from: heuteKey
+        });
+      }
+
+      const gEl = document.getElementById('ziel-grenze');
+      if (gEl && gEl.value) await window.api.saveSetting('rhythm.morning_end', gEl.value);
+
+      window.showToast('Ziele gesichert', 'success');
+      window.ccZieleOffen = false;
+      window.renderDashboard();
+    } catch (e) {
+      console.error(e);
+      window.showToast('Ziele konnten nicht gesichert werden', 'error');
     }
   };
 
@@ -2696,7 +2949,12 @@ window.saveInlineLeadLink = async (sourceId, targetId) => {
 };
 
 window.removeLeadLink = async (sourceId, targetId) => {
-  if (!confirm('Verknüpfung wirklich entfernen?')) return;
+  const ja = await window.confirmAction({
+    title: 'Verknüpfung entfernen?',
+    message: 'Die Verbindung wird auf beiden Leads gelöst. Die Leads selbst bleiben bestehen.',
+    confirmLabel: 'Entfernen'
+  });
+  if (!ja) return;
   const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
   const leads = window.store.state.leads;
   const source = leads.find(l => l.id === sourceId);
@@ -2775,7 +3033,12 @@ window.renderActivity = function(act) {
 
 window.deleteActivity = async function(id, type, leadId) {
     if (!id || !type) return;
-    if (!confirm('Aktivität wirklich löschen?')) return;
+    const ja = await window.confirmAction({
+      title: 'Aktivität löschen?',
+      message: 'Der Eintrag verschwindet aus dem Verlauf des Leads.',
+      confirmLabel: 'Löschen'
+    });
+    if (!ja) return;
     const success = await window.api.deleteActivity(id, type);
     if (success) {
       // Remove from store
@@ -2846,6 +3109,9 @@ window.pushLeadActivity = function(leadId, activity) {
 // dann faellt der Aufrufer auf das vollstaendige Neuzeichnen zurueck.
 window.patchLeadCard = (leadId) => {
   try {
+    // Ein getauschter Knoten macht die Kennung der Liste ungueltig — sonst
+    // haelt loadUi den naechsten Durchgang faelschlich fuer ueberfluessig.
+    window._listenKennung = null;
     if (typeof window._renderLeadCard !== 'function') return false;
     const el = document.getElementById(`lead-card-${leadId}`);
     if (!el) return false;

@@ -232,7 +232,6 @@ window.addEventListener('online', () => {
         if(typeof autoGeocode === 'function') autoGeocode();
         if (window.updateTrayCount) window.updateTrayCount();
         if (window.updateRPUI) window.updateRPUI();
-        if (window.updateGlobalMetrics) window.updateGlobalMetrics();
         applySingleUserMode();
       } else {
         if(splash) splash.classList.add('splash-hidden');
@@ -290,7 +289,7 @@ window.addEventListener('online', () => {
         if (ok) {
           globalUser.role = 'developer';
           window.globalUser = globalUser;
-          alert('Developer mode unlocked!');
+          window.showToast('Entwicklermodus aktiv');
           openProfileModal(); // Refresh modal
         }
       } catch (err) {
@@ -393,7 +392,7 @@ window.addEventListener('online', () => {
       }
       window.globalUsersList = await window.api.getUsers(); // refresh internal list
     } catch (e) {
-      alert("Fehler beim Ändern der Rolle: " + e.message);
+      window.showToast('Rolle ändern fehlgeschlagen: ' + e.message, true);
     }
   };
 
@@ -464,19 +463,24 @@ window.addEventListener('online', () => {
       document.getElementById('profile-modal').classList.add('hidden');
     } catch(err) {
       console.error(err);
-      alert('Fehler: ' + err.message);
+      window.showToast('Profil speichern fehlgeschlagen: ' + err.message, true);
     } finally {
       btn.innerText = 'Profil speichern';
     }
   };
 
   window.deactivateUser = async (userId) => {
-    if (!confirm('Diesen Nutzer wirklich sperren? Er kann sich danach nicht mehr einloggen.')) return;
+    const ja = await window.confirmAction({
+      title: 'Nutzer sperren?',
+      message: 'Er kann sich danach nicht mehr anmelden. Seine Leads und sein Verlauf bleiben erhalten.',
+      confirmLabel: 'Sperren'
+    });
+    if (!ja) return;
     try {
       await window.api.deactivateUser(userId);
       window.openUserManagement();
     } catch(err) {
-      alert('Fehler beim Sperren: ' + err.message);
+      window.showToast('Sperren fehlgeschlagen: ' + err.message, true);
     }
   };
 

@@ -119,7 +119,7 @@ window.setPipeline = async (type) => {
       if (ok) {
         window._activeSnoozeChoice = null;
         markiere(null);
-        showToast('Wiedervorlage aufgehoben.');
+        showToast('Wiedervorlage aufgehoben');
       }
       return;
     }
@@ -200,57 +200,145 @@ window.setPipeline = async (type) => {
         }
       });
       const p = await detailsRes.json();
-    } catch(e) { showToast("❌ Fehler beim Abruf der Details"); if(preview) preview.remove(); }
+    } catch(e) { showToast('Details konnten nicht geladen werden', true); if(preview) preview.remove(); }
   };
 
+
+  // ── Meldung (Toast) ───────────────────────────────────────────────────
+  // Kurze Rueckmeldung unten in der Mitte. Mehrere stapeln sich, die neueste
+  // liegt unten.
+  //
+  // Die Stapelung rechnete vorher mit dem Wert, der gerade im Stil stand:
+  // parseInt(el.style.bottom). Kommen zwei Meldungen kurz hintereinander, steht
+  // dort bei der ersten noch der Startwert -100px (sie faehrt gerade erst ein).
+  // -100 + 60 ergab -40 — die Meldung wanderte aus dem Bild statt nach oben.
+  // Jetzt werden die Plaetze nach jedem Zu- und Abgang neu vergeben, anhand der
+  // tatsaechlichen Hoehe. Das haelt auch bei zweizeiligen Meldungen.
+  const TOAST_RAND = 40;      // Abstand vom unteren Rand
+  const TOAST_LUECKE = 10;    // Abstand zwischen zwei Meldungen
+  const TOAST_MAX = 3;        // mehr als drei auf einmal liest niemand
+
+  const toastsOrdnen = () => {
+    let unten = TOAST_RAND;
+    const alle = Array.from(document.querySelectorAll('.app-toast')).reverse();
+    for (const el of alle) {
+      el.style.bottom = unten + 'px';
+      unten += el.offsetHeight + TOAST_LUECKE;
+    }
+  };
 
   window.showToast = (msg, type = 'success', duration = 4500) => {
     if (type === true) type = 'error';
     if (type === false) type = 'success';
-    
-    const existing = document.querySelectorAll('.app-toast');
-    // Stack them vertically at the bottom
-    existing.forEach((e, i) => {
-      const currentBottom = parseInt(e.style.bottom) || 40;
-      e.style.bottom = (currentBottom + 60) + 'px';
-    });
-    
+
+    // Die aeltesten wegnehmen, wenn zu viele auflaufen.
+    const vorhanden = document.querySelectorAll('.app-toast');
+    for (let i = 0; i <= vorhanden.length - TOAST_MAX; i++) vorhanden[i].remove();
+
     const t = document.createElement('div');
     t.className = `app-toast toast-${type}`;
-    t.style.cssText = `position: fixed; left: 50%; bottom: -100px; transform: translateX(-50%); opacity: 0; z-index: 99999;`;
-    t.innerHTML = msg;
+    t.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    t.textContent = msg;   // Text, kein Markup — die Meldung zeigt nur Text
+    t.style.bottom = '-100px';
+    t.style.opacity = '0';
     document.body.appendChild(t);
-    
-    requestAnimationFrame(() => { 
-      t.style.bottom = '40px'; 
-      t.style.opacity = '1'; 
-    });
-    
-    setTimeout(() => { 
-      t.style.bottom = '-100px'; 
-      t.style.opacity = '0'; 
-      setTimeout(() => t.remove(), 400); 
+
+    // Erst den Anfangszustand festschreiben lassen, dann den Zielzustand setzen —
+    // sonst springt die Meldung ohne Uebergang an ihren Platz. Bewusst ueber ein
+    // Lesen der Hoehe statt ueber requestAnimationFrame: der Browser haelt
+    // Bildwechsel in nicht sichtbaren Reitern an, und eine Meldung, die auf den
+    // naechsten Bildwechsel wartet, bliebe dort fuer immer unsichtbar.
+    void t.offsetHeight;
+    toastsOrdnen();
+    t.style.opacity = '1';
+
+    setTimeout(() => {
+      t.style.opacity = '0';
+      setTimeout(() => { t.remove(); toastsOrdnen(); }, 400);
     }, duration);
   };
 
-  window.showConfirmDialog = (title, message, confirmLabel, onConfirm) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'confirm-overlay';
-    overlay.innerHTML = `
-      <div class="confirm-dialog">
-        <div class="confirm-dialog-icon">⚠️</div>
-        <h3 class="confirm-dialog-title">${title}</h3>
-        <p class="confirm-dialog-message">${message}</p>
-        <div class="confirm-dialog-actions">
-          <button class="confirm-btn-danger" id="confirm-yes">${confirmLabel}</button>
-          <button class="confirm-btn-cancel" id="confirm-no">Abbrechen</button>
+  // ── Eine Rueckfrage fuer die ganze Anwendung ─────────────────────────
+  // Vorher gab es drei Wege nebeneinander: den Systemdialog des Browsers
+  // (confirm()), diesen Dialog hier und Aktionen ganz ohne Rueckfrage. Der
+  // Systemdialog haelt die ganze Seite an, sieht auf jedem Geraet anders aus
+  // und laesst sich nicht gestalten — dieselbe Handlung fuehlte sich je nach
+  // Stelle anders an.
+  //
+  // Jede Rueckfrage laeuft jetzt hier durch. Gleiche Form, gleiche Tasten:
+  // Esc bricht ab, Enter bestaetigt, ein Klick daneben bricht ab. Der Fokus
+  // liegt bewusst auf "Abbrechen" — eine Loeschung darf nie die Vorauswahl
+  // sein. Nach dem Schliessen geht der Fokus dorthin zurueck, wo er herkam.
+  //
+  // Rueckgabe ist ein Promise<boolean>, damit der Aufrufer geradeaus schreiben
+  // kann:  if (!await confirmAction({ ... })) return;
+  window.confirmAction = ({ title, message = '', confirmLabel = 'OK',
+                            cancelLabel = 'Abbrechen', destructive = true }) => {
+    return new Promise((resolve) => {
+      const kamVon = document.activeElement;
+      const overlay = document.createElement('div');
+      overlay.className = 'confirm-overlay';
+      overlay.setAttribute('role', 'alertdialog');
+      overlay.setAttribute('aria-modal', 'true');
+      // Aufbau wie im Systemdialog: Text oben, Haarlinie, Knoepfe rechts.
+      // "Abbrechen" steht links davon — dieselbe Reihenfolge wie bei Apple.
+      overlay.innerHTML = `
+        <div class="confirm-dialog">
+          <div class="confirm-dialog-body">
+            <h3 class="confirm-dialog-title">${escapeHtml(title)}</h3>
+            ${message ? `<p class="confirm-dialog-message">${escapeHtml(message)}</p>` : ''}
+          </div>
+          <div class="confirm-dialog-actions">
+            <button type="button" class="confirm-btn-cancel">${escapeHtml(cancelLabel)}</button>
+            <button type="button" class="${destructive ? 'confirm-btn-danger' : 'confirm-btn-primary'}">${escapeHtml(confirmLabel)}</button>
+          </div>
         </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-    overlay.querySelector('#confirm-yes').onclick = () => { overlay.remove(); onConfirm(); };
-    overlay.querySelector('#confirm-no').onclick = () => overlay.remove();
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+      `;
+
+      let erledigt = false;
+      const schliesse = (antwort) => {
+        if (erledigt) return;          // Esc und Klick koennen gleichzeitig kommen
+        erledigt = true;
+        document.removeEventListener('keydown', taste, true);
+        overlay.classList.add('confirm-overlay-exit');
+        setTimeout(() => overlay.remove(), 150);
+        if (kamVon && typeof kamVon.focus === 'function') { try { kamVon.focus(); } catch (e) {} }
+        resolve(antwort);
+      };
+
+      const taste = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); schliesse(false); }
+        else if (e.key === 'Enter') { e.preventDefault(); schliesse(true); }
+      };
+
+      overlay.querySelector('.confirm-btn-cancel').onclick = () => schliesse(false);
+      overlay.querySelector('.confirm-btn-danger, .confirm-btn-primary').onclick = () => schliesse(true);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) schliesse(false); });
+      document.addEventListener('keydown', taste, true);
+
+      document.body.appendChild(overlay);
+      const abbrechen = overlay.querySelector('.confirm-btn-cancel');
+      if (abbrechen) abbrechen.focus();
+    });
+  };
+
+  // Alte Aufrufform mit Rueckruf. Bleibt, damit bestehende Aufrufe unveraendert
+  // weiterlaufen — sie landen jetzt aber im selben Dialog wie alles andere.
+  window.showConfirmDialog = (title, message, confirmLabel, onConfirm) => {
+    window.confirmAction({ title, message, confirmLabel }).then((ja) => { if (ja) onConfirm(); });
+  };
+
+  // ── Seitenleiste auf "nichts ausgewaehlt" zuruecksetzen ─────────────────
+  // Stand vorher als aufgeklappter Block mit Ersatzweg an acht Stellen. Der
+  // Ersatzweg war noetig, weil renderEmptySidebar erst spaeter geladen wird;
+  // die Pruefung bleibt deshalb, aber nur noch an dieser einen Stelle.
+  window.resetSidebar = () => {
+    if (typeof window.renderEmptySidebar === 'function') { window.renderEmptySidebar(); return; }
+    // #main-sidebar ist der echte Knoten. Die Ersatzwege standen frueher mit
+    // drei verschiedenen Bezeichnern da (#sidebar, .sidebar, #main-sidebar),
+    // und #sidebar gibt es im HTML gar nicht — dieser Zweig lief ins Leere.
+    const sidebar = document.getElementById('main-sidebar');
+    if (sidebar) sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
   };
 
   window.Modal = {
@@ -359,7 +447,7 @@ window.setPipeline = async (type) => {
     let sEmailNode = document.getElementById('sys-email');
     let noteEl = document.getElementById('note-input');
     
-    return {
+    const entwurf = {
         name: (sNameNode.innerText || sNameNode.value || '').trim(),
         phone: sPhoneNode?.value?.trim() ?? '',
         email: sEmailNode?.value?.trim() ?? '',
@@ -372,6 +460,31 @@ window.setPipeline = async (type) => {
         lat: parseFloat(document.getElementById('sys-lat')?.value) || null,
         lng: parseFloat(document.getElementById('sys-lng')?.value) || null
     };
+
+    // Wert und Abschlussdatum nur uebernehmen, wenn die Felder ueberhaupt im
+    // Formular stehen. Ein fehlendes Feld darf nichts ueberschreiben —
+    // leadStore.diff ueberspringt undefined.
+    //
+    // Leeres Feld heisst NULL ("noch nicht eingetragen"), nicht 0. Ein
+    // Abschluss ohne eingetragenen Wert ist etwas anderes als ein Abschluss
+    // ueber null Euro.
+    const proviEl = document.getElementById('sys-provi');
+    if (proviEl) {
+      const roh = String(proviEl.value ?? '').trim().replace(',', '.');
+      const zahl = Number(roh);
+      entwurf.provi_umsatz = (roh === '' || Number.isNaN(zahl)) ? null : zahl;
+    }
+
+    const datumEl = document.getElementById('sys-closed-at');
+    if (datumEl) {
+      // Mittags statt Mitternacht: so kippt der Tag beim Umrechnen nicht ueber
+      // eine Zeitzonen- oder Sommerzeitgrenze auf den Vortag.
+      entwurf.closed_at_ms = datumEl.value
+        ? new Date(`${datumEl.value}T12:00:00`).getTime()
+        : null;
+    }
+
+    return entwurf;
   };
 
   // Remove confirmEnrich, autoEnrich, cancelEnrich, etc. (deprecated)
@@ -653,7 +766,7 @@ window.setPipeline = async (type) => {
       window.triggerSalesBell(kandidat.name || (lData ? lData.name : ''));
     }
 
-    if (!noRender) showToast('Lead gespeichert!');
+    if (!noRender) showToast('Gespeichert');
 
     if (!noClose) {
       setTimeout(() => {
@@ -662,7 +775,7 @@ window.setPipeline = async (type) => {
         } else {
           window.store.state.currentSelectedLeadId = null;
           document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('active-lead-card'));
-          if (typeof window.renderEmptySidebar === 'function') window.renderEmptySidebar();
+          window.resetSidebar();
         }
       }, 2000);
     }
@@ -696,7 +809,7 @@ window.setPipeline = async (type) => {
     const ok = await window.persistSnooze(0);
     if (ok) {
       window._activeSnoozeChoice = null;
-      showToast('Wiedervorlage aufgehoben.');
+      showToast('Wiedervorlage aufgehoben');
     }
   };
 
@@ -1053,16 +1166,16 @@ window.setPipeline = async (type) => {
     if (!window.currentTasks) return;
     const anzahl = window.currentTasks.filter(t => t.done).length;
     if (anzahl === 0) return;
-    showConfirmDialog(
-      `${anzahl} erledigte ${anzahl === 1 ? 'Aufgabe' : 'Aufgaben'} löschen?`,
-      'Der Verlauf des Leads bleibt erhalten — dort steht weiterhin, wann was erledigt wurde.',
-      'Ja, löschen',
-      () => {
-        window.currentTasks = window.currentTasks.filter(t => !t.done);
-        renderTasksList();
-        window.persistTasks();
-      }
-    );
+    window.confirmAction({
+      title: `${anzahl} erledigte ${anzahl === 1 ? 'Aufgabe' : 'Aufgaben'} löschen?`,
+      message: 'Der Verlauf des Leads bleibt erhalten — dort steht weiterhin, wann was erledigt wurde.',
+      confirmLabel: 'Löschen'
+    }).then((ja) => {
+      if (!ja) return;
+      window.currentTasks = window.currentTasks.filter(t => !t.done);
+      renderTasksList();
+      window.persistTasks();
+    });
   };
 
   window.triggerMissionPassed = () => {
@@ -1140,9 +1253,6 @@ window.setPipeline = async (type) => {
 
   window.updateTrayCount = async () => {
     try {
-      if (typeof window.updateGlobalMetrics === 'function') {
-        window.updateGlobalMetrics();
-      }
       if (window.store.state.currentTab === 'dashboard' && typeof window.renderDashboard === 'function') {
         window.renderDashboard();
       }
@@ -1258,54 +1368,51 @@ window.setPipeline = async (type) => {
   };
 
   window.deleteLead = async (id) => {
-    showConfirmDialog(
-      'Lead endgültig löschen?',
-      'Der Lead verschwindet komplett und kann nicht wiederhergestellt werden.',
-      'Ja, endgültig löschen',
-      async () => {
-        // Block Realtime echo from reloading the page
-        if (typeof window !== 'undefined' && window.pendingLocalWrites) {
-          window.pendingLocalWrites.add(id);
-          setTimeout(() => window.pendingLocalWrites.delete(id), 5000);
-        }
+    window.confirmAction({
+      title: 'Lead löschen?',
+      message: 'Der Lead wird mit seinem gesamten Verlauf entfernt. Das lässt sich nicht rückgängig machen.',
+      confirmLabel: 'Löschen'
+    }).then(async (ja) => {
+      if (!ja) return;
+      // Block Realtime echo from reloading the page
+      if (typeof window !== 'undefined' && window.pendingLocalWrites) {
+        window.pendingLocalWrites.add(id);
+        setTimeout(() => window.pendingLocalWrites.delete(id), 5000);
+      }
 
-        await window.api.deleteLead(id);
-        
-        // Remove locally immediately from state.leads and tabCache
-        if (window.store && window.store.state) {
-          if (Array.isArray(window.store.state.leads)) {
-            window.store.state.leads = window.store.state.leads.filter(l => l.id !== id);
-          }
-          if (window.store.state.tabCache) {
-            for (const k of Object.keys(window.store.state.tabCache)) {
-              if (Array.isArray(window.store.state.tabCache[k])) {
-                window.store.state.tabCache[k] = window.store.state.tabCache[k].filter(l => l.id !== id);
-              }
+      await window.api.deleteLead(id);
+      
+      // Remove locally immediately from state.leads and tabCache
+      if (window.store && window.store.state) {
+        if (Array.isArray(window.store.state.leads)) {
+          window.store.state.leads = window.store.state.leads.filter(l => l.id !== id);
+        }
+        if (window.store.state.tabCache) {
+          for (const k of Object.keys(window.store.state.tabCache)) {
+            if (Array.isArray(window.store.state.tabCache[k])) {
+              window.store.state.tabCache[k] = window.store.state.tabCache[k].filter(l => l.id !== id);
             }
           }
         }
-
-        if (typeof window.renderEmptySidebar === 'function') {
-          window.renderEmptySidebar();
-        } else {
-          const sidebar = document.getElementById('main-sidebar');
-          if (sidebar) sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
-        }
-        if (typeof window.loadUi === 'function') {
-          window.loadUi(true);
-        } else if (typeof loadUi === 'function') {
-          loadUi();
-        }
       }
-    );
+
+      window.resetSidebar();
+      if (typeof window.loadUi === 'function') {
+        window.loadUi(true);
+      } else if (typeof loadUi === 'function') {
+        loadUi();
+      }
+    });
   };
 
   window.markLeadUninteresting = async (id) => {
-    showConfirmDialog(
-      'Lead als uninteressant markieren?',
-      'Möchtest du diesen Lead wirklich als uninteressant markieren? Er wird aus all deinen aktiven Listen ausgeblendet.',
-      'Ja, archivieren',
-      async () => {
+    window.confirmAction({
+      title: 'Als uninteressant markieren?',
+      message: 'Der Lead wird aus allen aktiven Listen ausgeblendet. Gelöscht wird nichts.',
+      confirmLabel: 'Archivieren',
+      destructive: false
+    }).then(async (ja) => {
+      if (!ja) return;
       try {
         const l = await window.resolveLead(id);
         if (l) {
@@ -1314,19 +1421,15 @@ window.setPipeline = async (type) => {
             task_text: '',
             snooze_until_ms: 0
           }, { label: 'Archivieren', noRefresh: true });
-          if (typeof window.renderEmptySidebar === 'function') {
-            window.renderEmptySidebar();
-          } else {
-            sidebar.innerHTML = `<div class="empty-state">Nächsten Lead wählen</div>`;
-          }
+          window.resetSidebar();
           await loadUi();
-          showToast("Lead archiviert! 📁");
+          showToast('Lead archiviert');
         } else {
-          showToast("Lead nicht gefunden.", true);
+          showToast('Lead nicht gefunden', true);
         }
       } catch(e) {
         console.error(e);
-        showToast("Fehler beim Archivieren.", true);
+        showToast('Archivieren fehlgeschlagen', true);
       }
     });
   };
@@ -1362,7 +1465,7 @@ window.setPipeline = async (type) => {
         });
         if (leadsToImport.length > 0) {
           await window.api.importLeads(leadsToImport);
-          showToast(`${leadsToImport.length} Leads importiert!`);
+          showToast(`${leadsToImport.length} Leads importiert`);
           loadUi();
           
           // Auto-close settings modal on success
@@ -1472,7 +1575,7 @@ window.setPipeline = async (type) => {
       const l = fullList.find(x => x.id === id);
       if (l) {
         await window.leadStore.save(id, { status: 'Lead' }, { label: 'Reaktivieren', noRefresh: true });
-        showToast("Lead erfolgreich reaktiviert! 🎉");
+        showToast('Lead reaktiviert');
         
         await loadUi();
         
@@ -1481,11 +1584,11 @@ window.setPipeline = async (type) => {
         window.renderExcludedLeadsList(q);
         window.updateExcludedCount();
       } else {
-        showToast("Lead nicht gefunden.", true);
+        showToast('Lead nicht gefunden', true);
       }
     } catch (e) {
       console.error(e);
-      showToast("Fehler bei Reaktivierung.", true);
+      showToast('Reaktivieren fehlgeschlagen', true);
     }
   };
 
@@ -1631,7 +1734,7 @@ window.setPipeline = async (type) => {
 
   window.subscribeToSalesBell = async () => {
     if (!window.isMultiUser || !window.isMultiUser()) {
-      showToast('Push ist im Einzelplatz-Modus deaktiviert.');
+      showToast('Im Einzelplatz-Betrieb sind Hinweise abgeschaltet');
       return;
     }
     const btn = document.getElementById('push-subscribe-btn');
@@ -1683,13 +1786,13 @@ window.setPipeline = async (type) => {
         btn.style.background = 'var(--success)';
         btn.disabled = true;
       }
-      showToast('Push-Benachrichtigungen aktiviert!');
+      showToast('Hinweise aktiviert');
     } catch (err) {
       console.error('Push error:', err);
       if (btn) {
         btn.textContent = 'Push aktivieren';
         btn.disabled = false;
       }
-      showToast(`Fehler: ${err.message}`, true);
+      showToast(`Hinweise aktivieren fehlgeschlagen: ${err.message}`, true);
     }
   };

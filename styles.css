@@ -20,11 +20,11 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 .desktop-only { display: block; }
 
 
-.drag-header { height: 56px; -webkit-app-region: drag; display: flex; align-items: center; padding: 0 24px; border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.5); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); justify-content: space-between; position: sticky; top: 0; z-index: var(--z-sticky); }
+.drag-header { height: 56px; -webkit-app-region: drag; display: flex; align-items: center; padding: 0 24px; border-bottom: 1px solid var(--hairline-soft); background: rgba(0,0,0,0.5); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); justify-content: space-between; position: sticky; top: 0; z-index: var(--z-sticky); }
 .logo { font-weight: 700; font-size: 14px; color: var(--text-main); letter-spacing: -0.2px; }
 .header-actions { -webkit-app-region: no-drag; }
 
-.top-nav { display: flex; gap: 4px; -webkit-app-region: no-drag; margin-left: auto; margin-right: 32px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
+.top-nav { display: flex; gap: 4px; -webkit-app-region: no-drag; margin-left: auto; margin-right: 32px; background: var(--fill-subtle); padding: 4px; border-radius: 12px; border: 1px solid var(--hairline-soft); }
 .nav-btn {
   font-size: var(--text-base, 13px);
   font-weight: var(--weight-medium, 500);
@@ -39,21 +39,25 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 }
 .nav-btn:hover {
   color: var(--color-text-primary, #f2f2f7);
-  background: rgba(255,255,255,0.06);
+  background: var(--fill-subtle);
 }
 .nav-btn.active {
   color: var(--color-text-primary, #f2f2f7);
   font-weight: var(--weight-semibold, 600);
 }
 .nav-btn.active::after {
+  /* Der zweite, widersprechende Satz (bottom: 2px, andere Breite, eigene
+     Farbvariable) stand weiter unten und hat gewonnen. Beides steht jetzt
+     hier — sichtbar ist das, was vorher tatsaechlich gegolten hat. */
   content: '';
   position: absolute;
-  bottom: -2px;
+  bottom: 2px;
   left: 25%;
-  right: 25%;
+  width: 50%;
   height: 2px;
-  background: var(--color-brand-accent, #0a84ff);
+  background: var(--color-brand-accent);
   border-radius: 1px;
+  animation: navIndicatorIn 0.2s ease-out;
 }.app-container { display: flex; flex: 1; overflow: hidden; position: relative; }
 .sidebar {
   position: absolute;
@@ -88,11 +92,12 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 
 .lead-card {
   background: var(--color-surface-base, #161618);
-  border: 1px solid rgba(255,255,255,0.05);
+  border: 1px solid var(--hairline-soft);
   border-radius: var(--radius-lg, 12px);
   padding: 14px 16px;
   cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast),
+              box-shadow var(--transition-fast), transform var(--transition-fast);
   box-shadow: none;
   position: relative;
   
@@ -107,16 +112,21 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 }
 .lead-card:hover {
   background: var(--color-surface-hover, #1e1e20);
-  border-color: rgba(255,255,255,0.1);
-  transform: translateY(-2px);
+  border-color: var(--hairline-strong);
 }
 
 .truncate-1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.truncate-2 { 
-  white-space: nowrap; 
-  overflow: hidden; 
+.truncate-2 {
+  /* Zwei Zeilen, dann Auslassungszeichen. Weiter unten stand eine zweite,
+     abweichende Regel (einzeilig, display:block) — die spaetere hat gegolten,
+     die frueher war wirkungslos. Zusammengefuehrt auf die, die gilt. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
   position: relative;
-  display: block;
 }
 .truncate-2::after {
   content: '';
@@ -136,6 +146,26 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   box-shadow: inset 0 0 0 1.5px var(--color-brand-accent, #0a84ff);
 }
 .lead-card.is-starred { border-color: rgba(255, 204, 0, 0.4); box-shadow: 0 0 12px rgba(255, 204, 0, 0.05); }
+
+/* ── Mehrfachauswahl ───────────────────────────────────────────────────────
+   Ausgewaehlt sein ist eine Klasse, kein eingebauter Stil. Nur so kann ein
+   Antippen die eine Karte umlegen, statt die ganze Liste neu zu bauen
+   (siehe handleLeadClick in pipeline_ui.js). Der Uebergang kommt aus der
+   .lead-card-Grundregel und macht das Umlegen weich statt sprunghaft. */
+.lead-card.is-selected {
+  background: var(--color-surface-hover, #1e1e20);
+  box-shadow: inset 0 0 0 1.5px var(--color-brand-accent, #0a84ff);
+}
+.lead-card-checkbox {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  pointer-events: none;
+  accent-color: var(--color-brand-accent, #0a84ff);
+}
 .lead-prio { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; display: inline-block; background: transparent; border: none; border-left: 2px solid currentColor; padding-left: 6px; opacity: 0.9; }
 .p-kalt { color: var(--color-crm-cold); }
 .p-entscheider { color: var(--color-crm-decision); }
@@ -157,7 +187,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 
 .lead-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; letter-spacing: -0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lead-phone { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
-.task-badge { font-size: 11px; margin-top: 12px; color: var(--color-intent-warning); border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px; font-weight: 500; }
+.task-badge { font-size: 11px; margin-top: 12px; color: var(--color-intent-warning); border-top: 1px solid var(--hairline-soft); padding-top: 10px; font-weight: 500; }
 
 .focused-lead { display: flex; flex-direction: column; height: 100%; }
 .focused-name { font-size: 24px; font-weight: 400; margin-bottom: 8px; }
@@ -180,12 +210,12 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   transition: border-color var(--transition-fast), background var(--transition-fast), padding var(--transition-fast);
 }
 .modern-input:hover {
-  background: rgba(255,255,255,0.02);
+  background: var(--fill-faint);
   padding: 12px 16px;
 }
 .modern-input:focus {
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(255,255,255,0.1);
+  background: var(--fill-faint);
+  border-color: var(--hairline-strong);
   padding: 12px 16px;
 }
 
@@ -201,7 +231,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   padding: 10px 18px;
   font-size: var(--text-base, 13px);
   font-weight: var(--weight-semibold, 600);
-  background: rgba(255,255,255,0.05);
+  background: var(--fill-subtle);
   color: var(--color-text-primary, #f2f2f7);
   cursor: pointer;
   transition: opacity var(--transition-fast), transform var(--transition-fast);
@@ -230,7 +260,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 
 .quick-add { display: flex; gap: 12px; margin-bottom: 32px; align-items: center; }
 .modern-input-small {
-  background: rgba(255,255,255,0.06);
+  background: var(--fill-subtle);
   border: 1px solid transparent;
   color: var(--color-text-primary, #f2f2f7);
   padding: 10px 12px;
@@ -244,7 +274,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 .modern-input-small:focus {
   border-color: var(--color-brand-accent, #0a84ff);
   box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
-  background: rgba(255,255,255,0.08);
+  background: var(--fill-hover);
 }
 .qa-btn { padding: 12px 16px; font-size: 13px; width: auto; grid-column: auto;}
 
@@ -286,7 +316,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 .modal-body { display: flex; flex-direction: column; gap: var(--space-6, 24px); }
 
 .apple-section {
-  background: rgba(255,255,255,0.03);
+  background: var(--fill-faint);
   border: 1px solid var(--color-border-base, #2c2c2e);
   border-radius: var(--radius-lg, 12px);
   padding: var(--space-4, 16px) var(--space-6, 24px);
@@ -313,7 +343,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 .header-icon-btn {
   width: 34px; height: 34px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.05);
+  background: var(--fill-subtle);
   border: 1px solid var(--color-border-base, #2c2c2e);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
@@ -322,7 +352,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   transition: all var(--transition-fast);
 }
 .header-icon-btn:hover {
-  background: rgba(255,255,255,0.1);
+  background: var(--fill-hover);
   color: var(--color-text-primary, #f2f2f7);
 }
 .stats-grid { display: flex; gap: 16px; margin-bottom: 24px; justify-content: space-between; }
@@ -348,8 +378,8 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 /* SEMANTIC PIPELINE */
 .pipeline-bar { display:flex; background:rgba(0,0,0,0.2); border-radius: 8px; padding: 2px; }
 .pipe-seg { flex:1; text-align:center; padding:10px 0; font-size:11px; font-weight:600; color:var(--text-muted); cursor:pointer; transition: background 0.2s ease, color 0.2s ease; border: none; border-radius: 8px; background: transparent; text-transform: uppercase; letter-spacing: 0.5px;}
-.pipe-seg:hover { color: var(--text-main); background: rgba(255,255,255,0.05); }
-.pipe-seg.active-blue { background:rgba(10, 132, 255, 0.1); color:var(--color-crm-decision, #0a84ff); box-shadow:0 1px 4px rgba(0,0,0,0.2); }
+.pipe-seg:hover { color: var(--text-main); background: var(--fill-subtle); }
+.pipe-seg.active-blue { background: rgba(10, 132, 255, 0.1); color: var(--color-crm-cold); box-shadow: inset 0 0 12px rgba(10, 132, 255, 0.15); }
 .pipe-seg.active-orange { background: rgba(255, 159, 10, 0.1); color: #ff9f0a; }
 .pipe-seg.active-red { background: rgba(255, 69, 58, 0.1); color: #ff453a; }
 .pipe-seg.active-success { background: rgba(48, 209, 88, 0.1); color: #30d158; }
@@ -430,7 +460,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 
 /* TYPOGRAPHY */
 .truncate-1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
-.truncate-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+/* .truncate-2 steht oben bei .truncate-1 — hier war die Dublette. */
 
 /* GAMIFICATION POPS */
 .stat-pop {
@@ -453,7 +483,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 
 .progress-bar-container {
   height: 6px;
-  background: rgba(255,255,255,0.1);
+  background: var(--fill-hover);
   border-radius: 4px;
   overflow: hidden;
   box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
@@ -570,7 +600,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 }
 .kanban-header {
   padding: 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid var(--hairline-soft);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -624,7 +654,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 /* Radar Scout Premium Styles */
 .scout-card {
   background: var(--surface);
-  border: 1px solid rgba(255,255,255,0.05);
+  border: 1px solid var(--hairline-soft);
   border-radius: 12px;
   padding: 20px;
   display: flex;
@@ -634,7 +664,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 }
 .scout-card:hover {
   background: var(--surface-hover);
-  border-color: rgba(255,255,255,0.1);
+  border-color: var(--hairline-strong);
   transform: translateY(-2px);
 }
 .scout-card-duplicate {
@@ -666,7 +696,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   white-space: nowrap;
 }
 .scout-badge.category {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--fill-subtle);
   border: 1px solid var(--border);
   color: var(--text-muted);
 }
@@ -727,7 +757,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   z-index: var(--z-modal);
   width: 240px;
   background: rgba(14, 14, 16, 0.95);
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid var(--hairline-strong);
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
   backdrop-filter: blur(20px);
@@ -900,7 +930,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 12px;
-  background: rgba(255,255,255,0.06);
+  background: var(--fill-subtle);
   border: 1px solid var(--border);
   color: var(--text-muted);
   white-space: nowrap;
@@ -910,7 +940,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   align-items: center;
   gap: 8px;
   padding: 7px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid var(--hairline-soft);
 }
 .project-task-row:last-child { border-bottom: none; }
 .project-task-done { opacity: 0.45; }
@@ -953,7 +983,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 
 /* ── Card Section (replaces inline bg/border/radius patterns) ────────────── */
 .card-section {
-  background: rgba(255,255,255,0.02);
+  background: var(--fill-faint);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px;
@@ -968,34 +998,9 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 }
 
 /* ── Button Loading State ────────────────────────────────────────────────── */
-.btn-loading {
-  pointer-events: none;
-  opacity: 0.7;
-  position: relative;
-}
-.btn-loading::after {
-  content: '';
-  width: 14px;
-  height: 14px;
-  border: 2px solid transparent;
-  border-top-color: currentColor;
-  border-radius: 50%;
-  animation: btnSpin 0.6s linear infinite;
-  display: inline-block;
-  margin-left: 8px;
-  vertical-align: middle;
-}
-@keyframes btnSpin {
-  to { transform: rotate(360deg); }
-}
-
-/* ── Button Success Flash ────────────────────────────────────────────────── */
-.btn-success-flash {
-  background: var(--success) !important;
-  color: #000 !important;
-  border-color: var(--success) !important;
-  transition: all 0.3s ease;
-}
+/* .btn-loading und .btn-success-flash stehen unten unter
+   "Bewegung & Rueckmeldung" — hier standen die aelteren, ueberschriebenen
+   Fassungen (Ring neben der Beschriftung statt darueber). */
 
 /* ── Sidebar Transitions ─────────────────────────────────────────────────── */
 .sidebar-enter {
@@ -1023,78 +1028,105 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 }
 
 /* ── Custom Confirm Dialog ───────────────────────────────────────────────── */
+/* ── Rueckfrage-Dialog ─────────────────────────────────────────────────────
+   Nachbau des Systemdialogs, den macOS und iOS zeigen — nur dunkel und auf
+   Deutsch. Der echte Systemdialog (confirm()) kann beides nicht: er folgt dem
+   Erscheinungsbild des Betriebssystems, nicht dem der Seite, und seine
+   Knoepfe heissen immer "Cancel" und "OK".
+
+   Die Form ist bewusst genau die: Text linksbuendig oben, eine Haarlinie
+   quer, darunter rechtsbuendig zwei Knoepfe aus reinem Text. Keine Flaechen,
+   kein Symbol, keine Farbe ausser der einen, die die Handlung benennt.        */
 .confirm-overlay {
   position: fixed;
-  top: 0; left: 0;
-  width: 100vw; height: 100dvh;
-  background: rgba(0,0,0,0.6);
-  backdrop-filter: blur(8px);
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
-  animation: modalFadeIn 0.2s ease-out;
+  padding: var(--space-6);
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: var(--z-modal);
+  animation: confirmFadeIn 0.15s ease-out both;
 }
+.confirm-overlay-exit { animation: confirmFadeOut 0.12s ease-in both; }
+
 .confirm-dialog {
-  width: 380px;
-  padding: 24px;
-  border-radius: 16px;
-  background: #0c0c0c;
-  border: 1px solid var(--border);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.8);
-  text-align: center;
+  width: 100%;
+  max-width: 360px;
+  border-radius: 13px;
+  background: var(--color-surface-base);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+  animation: confirmPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.confirm-dialog-icon {
-  font-size: 32px;
-  margin-bottom: 12px;
-}
+.confirm-overlay-exit .confirm-dialog { animation: none; }
+
+.confirm-dialog-body { padding: var(--space-4) 20px; }
 .confirm-dialog-title {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: #fff;
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: 1.35;
+  color: var(--color-text-primary);
 }
 .confirm-dialog-message {
-  margin: 0 0 24px 0;
-  font-size: 13px;
-  color: var(--text-muted);
-  line-height: 1.4;
+  margin: 6px 0 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-secondary);
 }
+
 .confirm-dialog-actions {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-top: 1px solid var(--hairline);
 }
-.confirm-btn-danger {
-  width: 100%;
-  padding: 12px;
-  font-size: 13px;
-  font-weight: 600;
-  background: rgba(255, 69, 58, 0.1);
-  color: #ff453a;
-  border: 1px solid #ff453a;
-  border-radius: 10px;
+.confirm-dialog-actions button {
+  padding: 7px 14px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
+  font-family: inherit;
+  font-size: var(--text-md);
+  line-height: 1.2;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background var(--transition-fast);
 }
-.confirm-btn-danger:hover {
-  background: rgba(255, 69, 58, 0.2);
+.confirm-dialog-actions button:hover { background: var(--fill-subtle); }
+.confirm-dialog-actions button:focus-visible {
+  outline: 2px solid var(--color-brand-accent);
+  outline-offset: -1px;
 }
+/* "Abbrechen" ist die ruhige Wahl: gleiche Groesse, weniger Gewicht. */
 .confirm-btn-cancel {
-  width: 100%;
-  padding: 12px;
-  font-size: 13px;
-  font-weight: 600;
-  background: transparent;
-  color: var(--text-muted);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-regular);
 }
-.confirm-btn-cancel:hover {
-  background: rgba(255,255,255,0.05);
-  color: var(--text-main);
+.confirm-btn-cancel:hover { color: var(--color-text-primary); }
+/* Die Handlung traegt die Farbe — rot, wenn etwas verschwindet, sonst blau. */
+.confirm-btn-danger {
+  color: var(--color-intent-danger);
+  font-weight: var(--weight-semibold);
+}
+.confirm-btn-primary {
+  color: var(--color-brand-accent);
+  font-weight: var(--weight-semibold);
+}
+
+@keyframes confirmFadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes confirmFadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes confirmPopIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+/* Wer Bewegung reduziert haben will, bekommt sie nicht. */
+@media (prefers-reduced-motion: reduce) {
+  .confirm-overlay, .confirm-dialog, .confirm-overlay-exit { animation: none !important; }
 }
 
 /* ── Lead Card Fade-In Animation ─────────────────────────────────────────── */
@@ -1120,17 +1152,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 .nav-btn.active {
   position: relative;
 }
-.nav-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: 2px;
-  left: 25%;
-  width: 50%;
-  height: 2px;
-  background: var(--accent);
-  border-radius: 1px;
-  animation: navIndicatorIn 0.2s ease-out;
-}
+/* .nav-btn.active::after steht oben bei .nav-btn — hier war die Dublette. */
 @keyframes navIndicatorIn {
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
@@ -1145,43 +1167,51 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Toast System Upgrade ────────────────────────────────────────────────── */
+/* ── Meldung (Toast) ──────────────────────────────────────────────────────
+   Dieselbe Sprache wie der Rueckfrage-Dialog: eine ruhige dunkle Karte mit
+   Haarlinie. Vorher trug jede Meldung ihre eigene, kraeftig eingefaerbte
+   Flaeche mit farbigem Rahmen — vier verschiedene Farbwelten fuer denselben
+   Zweck. Jetzt sagt ein kleiner Punkt, worum es geht; der Rest bleibt neutral.
+   Fehler bekommen zusaetzlich einen roten Rand, weil man die nicht uebersehen
+   soll.                                                                       */
 .app-toast {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  padding: 10px 24px;
-  border-radius: 30px;
-  font-size: 14px;
-  font-weight: 600;
-  z-index: 9999;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 11px var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-base);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-modal);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  line-height: 1.35;
+  color: var(--color-text-primary);
+  z-index: var(--z-toast);
   pointer-events: none;
-  backdrop-filter: blur(12px);
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  color: #fff;
+  backdrop-filter: var(--blur-base);
+  -webkit-backdrop-filter: var(--blur-base);
+  transition: bottom var(--transition-slow), opacity var(--transition-slow);
 }
-.app-toast.toast-success {
-  background: rgba(48, 209, 88, 0.2);
-  border: 1px solid #30d158;
+.app-toast::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-intent-muted);
 }
-.app-toast.toast-error {
-  background: rgba(255, 69, 58, 0.2);
-  border: 1px solid #ff453a;
-}
-.app-toast.toast-info {
-  background: rgba(10, 132, 255, 0.2);
-  border: 1px solid #0a84ff;
-}
-.app-toast.toast-warning {
-  background: rgba(255, 214, 10, 0.14);
-  border: 1px solid rgba(255, 214, 10, 0.45);
-  color: #ffd60a;
-}
-
+.app-toast.toast-success::before { background: var(--color-intent-success); }
+.app-toast.toast-info::before    { background: var(--color-intent-info); }
+.app-toast.toast-warning::before { background: var(--color-intent-warning); }
+.app-toast.toast-error::before   { background: var(--color-intent-danger); }
+.app-toast.toast-error { border-color: var(--color-intent-danger); }
 
 /* ── Pipeline Segment Glow on Active ─────────────────────────────────────── */
-.pipe-seg.active-blue { box-shadow: inset 0 0 12px rgba(10, 132, 255, 0.15); }
 .pipe-seg.active-orange { box-shadow: inset 0 0 12px rgba(255, 159, 10, 0.15); }
 .pipe-seg.active-red { box-shadow: inset 0 0 12px rgba(255, 69, 58, 0.15); }
 .pipe-seg.active-success { box-shadow: inset 0 0 12px rgba(48, 209, 88, 0.15); }
@@ -1245,13 +1275,13 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   padding: 10px 12px;
   margin-bottom: 6px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.04);
+  background: var(--fill-faint);
+  border: 1px solid var(--hairline-soft);
   transition: background 0.2s, border-color 0.2s;
 }
 .task-item:hover {
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(255,255,255,0.08);
+  background: var(--fill-faint);
+  border-color: var(--hairline);
 }
 .task-delete-btn {
   background: transparent;
@@ -1306,13 +1336,13 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   align-items: center;
   justify-content: space-between;
   padding: 12px;
-  background: rgba(255,255,255,0.02);
+  background: var(--fill-faint);
   border: 1px solid var(--border);
   border-radius: 8px;
   transition: background 0.2s ease;
 }
 .excluded-lead-row:hover {
-  background: rgba(255,255,255,0.04);
+  background: var(--fill-faint);
 }
 
 /* ── Notification Item Hover ─────────────────────────────────────────────── */
@@ -1323,7 +1353,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   transition: background 0.2s;
 }
 .notification-item:hover {
-  background: rgba(255,255,255,0.05);
+  background: var(--fill-subtle);
 }
 .notification-item.unread {
   background: rgba(255, 69, 58, 0.1);
@@ -1343,142 +1373,84 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 }
 
 
-/* =========================================================================
-   UX OVERHAUL (Animations, Buttons, Toasts)
-   ========================================================================= */
+/* ══════════════════════════════════════════════════════════════════════════
+   BEWEGUNG & RUECKMELDUNG
+   ──────────────────────────────────────────────────────────────────────────
+   Hier stand vorher ein zweiter, spaeterer Stil-Satz ("UX OVERHAUL"), der die
+   Regeln weiter oben mit !important ueberschrieben hat — zwei Gestaltungen fuer
+   dieselben Bauteile, die sich gegenseitig ausgehebelt haben. Sichtbare Folgen:
+   die Meldung war oben als ruhige Karte beschrieben und unten als Pille mit
+   Haken-Plakette; die Uebergaenge der Karten und Knoepfe wurden komplett
+   ersetzt, sodass Farbwechsel nicht mehr weich liefen.
 
-/* Pipeline Active States */
-.pipe-seg.active-cold { background: rgba(10, 132, 255, 0.1); color: #0a84ff; box-shadow: inset 0 0 12px rgba(10, 132, 255, 0.15); }
-.pipe-seg.active-pitch { background: rgba(255, 214, 10, 0.1); color: #ffd60a; box-shadow: inset 0 0 12px rgba(255, 214, 10, 0.15); } /* Yellow */
-.pipe-seg.active-data { background: rgba(255, 159, 10, 0.1); color: #ff9f0a; box-shadow: inset 0 0 12px rgba(255, 159, 10, 0.15); } /* Orange */
-.pipe-seg.active-offer { background: rgba(215, 0, 21, 0.1); color: #d70015; box-shadow: inset 0 0 12px rgba(215, 0, 21, 0.15); }
-.pipe-seg.active-close { background: rgba(139, 0, 0, 0.1); color: #8b0000; box-shadow: inset 0 0 12px rgba(139, 0, 0, 0.15); }
-.pipe-seg.active-kunde { background: rgba(48, 209, 88, 0.1); color: #30d158; box-shadow: inset 0 0 12px rgba(48, 209, 88, 0.15); }
+   Zusammengefuehrt, ohne !important. Was bleibt, ist das Zurueckweichen beim
+   Druecken — die einzige Bewegung, die eine Handlung bestaetigt. Was geht, ist
+   das Groesserwerden der Karten beim Ueberfahren: eine Liste, die unter dem
+   Zeiger atmet, ist Unruhe, keine Rueckmeldung.
+   ══════════════════════════════════════════════════════════════════════════ */
 
-/* 1. Button & Interaction Feedback */
-.action-btn, .action-btn-small, .nav-btn, .chip, .pipe-seg, .lead-card, .menu-item {
-  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), background 0.2s ease, box-shadow 0.2s ease !important;
-  will-change: transform;
-}
-.action-btn:active, .action-btn-small:active, .nav-btn:active, .chip:active, .pipe-seg:active, .lead-card:active, .menu-item:active {
-  transform: scale(0.97) !important;
-}
-.lead-card:hover {
-  transform: translateY(-2px) scale(1.01) !important;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.3) !important;
-}
-.lead-card.active-lead-card {
-  transform: translateY(-2px) scale(1.01) !important;
-}
+/* Pipeline-Stufen, aktiv */
+.pipe-seg.active-cold  { background: rgba(10, 132, 255, 0.1); color: var(--color-crm-cold); }
+.pipe-seg.active-pitch { background: rgba(255, 214, 10, 0.1); color: var(--color-crm-decision); }
+.pipe-seg.active-data  { background: rgba(255, 159, 10, 0.1); color: var(--color-crm-appointment); }
+.pipe-seg.active-offer { background: rgba(215, 0, 21, 0.1);   color: var(--color-crm-invoice); }
+.pipe-seg.active-close { background: rgba(139, 0, 0, 0.1);    color: #8b0000; }
+.pipe-seg.active-kunde { background: rgba(48, 209, 88, 0.1);  color: var(--color-crm-customer); }
 
-/* 2. Toasts */
-.app-toast {
-  background: rgba(28, 28, 30, 0.75) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  border-radius: 100px !important;
-  padding: 12px 24px 12px 20px !important;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4) !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 12px !important;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-  font-weight: 500 !important;
-  font-size: 14px !important;
-  color: #fff !important;
-}
-.toast-success::before {
-  content: '✓';
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  background: var(--success, #30d158);
-  color: #000;
-  border-radius: 50%;
-  font-size: 13px;
-  font-weight: bold;
-}
-.toast-error::before {
-  content: '✕';
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  background: var(--color-intent-danger, #ff453a);
-  color: #fff;
-  border-radius: 50%;
-  font-size: 13px;
-  font-weight: bold;
+/* ── Antippen bestaetigt sich selbst ─────────────────────────────────────── */
+.action-btn:active,
+.action-btn-small:active,
+.nav-btn:active,
+.chip:active,
+.pipe-seg:active,
+.lead-card:active,
+.menu-item:active {
+  transform: scale(0.97);
 }
 
-/* 3. Loading Indicators (Buttons) */
+/* ── Ladender Knopf ──────────────────────────────────────────────────────── */
 .btn-loading {
   position: relative;
-  color: transparent !important;
+  color: transparent !important;   /* verdeckt die Beschriftung, waehrend der Ring laeuft */
   pointer-events: none;
 }
 .btn-loading::after {
   content: '';
   position: absolute;
   top: 50%; left: 50%;
-  width: 18px; height: 18px;
-  margin-top: -9px; margin-left: -9px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: #fff;
-  border-radius: 50%;
+  width: 16px; height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid var(--fill-strong);
+  border-top-color: currentColor;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-primary);
   animation: ux-spinner 0.6s linear infinite;
 }
-@keyframes ux-spinner {
-  to { transform: rotate(360deg); }
-}
+@keyframes ux-spinner { to { transform: rotate(360deg); } }
+
 .btn-success-flash {
-  background: var(--success, #30d158) !important;
-  color: #000 !important;
-  border-color: var(--success, #30d158) !important;
-  transition: all 0.3s cubic-bezier(0.2, 0, 0, 1) !important;
+  background: var(--color-intent-success);
+  border-color: var(--color-intent-success);
+  color: #000;
 }
 
-/* 4. Sidebar Slide-In */
+/* ── Seitenleiste faehrt ein ─────────────────────────────────────────────── */
 .sidebar-body, .sidebar-header, #lead-sidebar-content > div {
   animation: ux-slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 @keyframes ux-slideInRight {
   from { opacity: 0; transform: translateX(30px); }
-  to { opacity: 1; transform: translateX(0); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
-/* Confirm Dialog Overlay */
-.confirm-overlay {
-  animation: ux-fadeIn 0.2s ease forwards;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
-  background: rgba(0,0,0,0.5) !important;
-}
-.confirm-overlay > div {
-  animation: ux-popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-}
-@keyframes ux-fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes ux-popIn {
-  from { opacity: 0; transform: scale(0.95) translateY(10px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-/* 5. Staggered List / Kanban Cards Fade-in */
+/* ── Karten blenden gestaffelt ein ───────────────────────────────────────── */
 .lead-card {
   animation: ux-fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 @keyframes ux-fadeInUp {
   from { opacity: 0; transform: translateY(15px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-/* Staggering delays for natural feel */
 .lead-card:nth-child(1) { animation-delay: 0.03s; }
 .lead-card:nth-child(2) { animation-delay: 0.06s; }
 .lead-card:nth-child(3) { animation-delay: 0.09s; }
@@ -1489,6 +1461,13 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 .lead-card:nth-child(8) { animation-delay: 0.24s; }
 .lead-card:nth-child(9) { animation-delay: 0.27s; }
 .lead-card:nth-child(n+10) { animation-delay: 0.30s; }
+
+/* Wer Bewegung reduziert haben will, bekommt keine. */
+@media (prefers-reduced-motion: reduce) {
+  .lead-card, .sidebar-body, .sidebar-header, #lead-sidebar-content > div { animation: none !important; }
+  .action-btn:active, .action-btn-small:active, .nav-btn:active,
+  .chip:active, .pipe-seg:active, .lead-card:active, .menu-item:active { transform: none; }
+}
 
 /* ── Speicher-Status in der Seitenleiste ──────────────────────────────────
    Sagt jederzeit, ob eine Änderung geschrieben wurde. Ohne diese Zeile sieht
@@ -1539,4 +1518,220 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 
 @media (prefers-reduced-motion: reduce) {
   .save-status-busy { animation: none; opacity: 0.6; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Command Center (cc-*)
+   Ruhig, wenig Farbe, grosse Zahlen. Farbe ist hier Information, keine
+   Dekoration: gruen = Soll erreicht, gelb = ueber Basis, rot = darunter.
+   Alle Werte kommen aus theme.css — keine neuen rgba(255,255,255,x) von Hand.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.cc-leiste {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
+.cc-schalter-gruppe {
+  display: inline-flex; gap: 2px; padding: 2px;
+  background: var(--fill-faint); border-radius: var(--radius-md);
+}
+.cc-schalter {
+  appearance: none; border: 0; cursor: pointer;
+  padding: 6px 16px; border-radius: calc(var(--radius-md) - 2px);
+  background: transparent; color: var(--text-muted);
+  font-family: var(--font-family); font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.cc-schalter:hover { color: var(--text-main); }
+.cc-schalter.is-aktiv { background: var(--fill-subtle); color: var(--text-main); }
+
+.cc-raster {
+  display: grid; gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  align-items: start;
+}
+
+.cc-karte {
+  background: var(--fill-faint);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+}
+.cc-karte-gross { grid-column: 1 / -1; }
+
+.cc-kopf {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3); margin-bottom: var(--space-4);
+}
+.cc-kopf h2 {
+  margin: 0; font-size: var(--text-base); font-weight: var(--weight-semibold);
+  color: var(--text-main); letter-spacing: 0.02em;
+}
+.cc-sub { font-size: var(--text-xs); color: var(--text-muted); }
+
+.cc-kopf-knopf {
+  width: 100%; appearance: none; background: none; border: 0; cursor: pointer;
+  padding: 0; text-align: left; font-family: var(--font-family);
+}
+
+/* Die grosse Zahl */
+.cc-gross {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--space-4); margin-bottom: var(--space-3);
+}
+.cc-gross-zahl {
+  font-size: 56px; line-height: 1; font-weight: var(--weight-semibold);
+  color: var(--text-main); letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.cc-gross-ziel {
+  display: flex; gap: var(--space-4); font-size: var(--text-sm);
+  color: var(--text-muted); padding-bottom: 6px;
+}
+
+/* Balken mit Basis-Marke */
+.cc-bar {
+  position: relative; height: 6px; border-radius: var(--radius-pill);
+  background: var(--fill-subtle); overflow: hidden;
+}
+.cc-bar-fill { height: 100%; border-radius: var(--radius-pill); transition: width var(--transition-slow); }
+.cc-bar-base {
+  position: absolute; top: -2px; bottom: -2px; width: 2px;
+  background: var(--color-text-secondary); opacity: 0.8;
+}
+.cc-gut    { background: var(--color-intent-success); }
+.cc-mittel { background: var(--color-intent-warning); }
+.cc-schwach{ background: var(--color-intent-danger); }
+
+/* Tagesbalken fuer Woche / Block */
+.cc-tage {
+  display: flex; align-items: flex-end; gap: 3px;
+  height: 72px; margin-bottom: var(--space-2);
+}
+.cc-tag {
+  flex: 1; height: 100%; display: flex; align-items: flex-end;
+  background: var(--fill-faint); border-radius: var(--radius-sm); overflow: hidden;
+}
+.cc-tag-fill { width: 100%; border-radius: var(--radius-sm); }
+.cc-legende { font-size: var(--text-xs); color: var(--text-muted); }
+
+/* Kacheln der Aufteilung */
+.cc-kacheln { display: grid; gap: var(--space-3); }
+.cc-kachel-kopf {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 2px;
+}
+.cc-kachel-titel { font-size: var(--text-sm); color: var(--text-main); }
+.cc-kachel-ziel  { font-size: var(--text-xs); color: var(--text-muted); }
+.cc-kachel-zahl {
+  font-size: var(--text-2xl); font-weight: var(--weight-semibold);
+  color: var(--text-main); line-height: 1.1; margin-bottom: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Zeilenlisten */
+.cc-zeilen { display: flex; flex-direction: column; }
+.cc-zeile {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3); padding: 10px 0;
+  border-bottom: 1px solid var(--hairline-soft);
+  font-size: var(--text-base);
+}
+.cc-zeile:last-child { border-bottom: 0; padding-bottom: 0; }
+.cc-zeile > span { color: var(--text-muted); }
+.cc-zeile > strong {
+  color: var(--text-main); font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums; text-align: right;
+}
+.cc-zeile.cc-warn > strong { color: var(--color-intent-warning); }
+.cc-rate {
+  display: block; font-size: var(--text-xs); font-style: normal;
+  font-weight: var(--weight-regular); color: var(--text-muted); margin-top: 1px;
+}
+
+/* Fehlende Werte werden benannt, nicht als 0 dargestellt */
+.cc-fehlt {
+  color: var(--text-muted); font-weight: var(--weight-regular);
+  font-size: var(--text-sm); font-style: italic;
+}
+.cc-leer { font-size: var(--text-base); color: var(--text-muted); line-height: 1.6; }
+.cc-hinweis {
+  margin-top: var(--space-3); font-size: var(--text-xs);
+  color: var(--text-muted); line-height: 1.5;
+}
+
+/* Arbeitsliste */
+.cc-liste { margin-top: var(--space-4); border-top: 1px solid var(--hairline); padding-top: var(--space-3); }
+.cc-liste-kopf {
+  font-size: var(--text-xs); color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-2);
+}
+.cc-liste-zeile {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3);
+  width: 100%; appearance: none; border: 0; cursor: pointer;
+  background: transparent; padding: 7px var(--space-2); border-radius: var(--radius-sm);
+  font-family: var(--font-family); font-size: var(--text-base);
+  color: var(--text-main); text-align: left;
+  transition: background var(--transition-fast);
+}
+.cc-liste-zeile:hover { background: var(--fill-subtle); }
+.cc-liste-zeile > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-liste-zeile > em {
+  font-style: normal; font-size: var(--text-xs);
+  color: var(--color-intent-warning); flex-shrink: 0;
+}
+
+/* Ziele */
+.cc-ziele .cc-kopf-knopf:hover .cc-sub { color: var(--text-main); }
+.cc-ziele-inhalt { display: flex; flex-direction: column; gap: var(--space-3); }
+.cc-ziel-zeile {
+  display: grid; grid-template-columns: 1fr 88px 88px; gap: var(--space-2);
+  align-items: center;
+}
+.cc-ziel-zeile label { font-size: var(--text-base); color: var(--text-muted); }
+.cc-ziel-zeile input {
+  background: var(--fill-subtle); border: 1px solid var(--hairline);
+  border-radius: var(--radius-md); padding: 7px var(--space-2);
+  color: var(--text-main); font-family: var(--font-family);
+  font-size: var(--text-base); text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.cc-ziel-zeile input:focus { outline: none; border-color: var(--color-brand-accent); }
+.cc-ziel-zeile input[type="time"] { grid-column: 2 / -1; }
+.cc-speichern {
+  appearance: none; border: 1px solid var(--hairline-strong); cursor: pointer;
+  background: var(--fill-subtle); color: var(--text-main);
+  border-radius: var(--radius-md); padding: 9px var(--space-4);
+  font-family: var(--font-family); font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  transition: background var(--transition-fast);
+}
+.cc-speichern:hover { background: var(--fill-hover); }
+
+@media (max-width: 720px) {
+  .cc-gross-zahl { font-size: 44px; }
+  .cc-raster { grid-template-columns: 1fr; }
+  .cc-ziel-zeile { grid-template-columns: 1fr 72px 72px; }
+}
+
+/* Wert am Lead — erwartete Provision und Abschlusszeitpunkt */
+.wert-zeile {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); padding: 6px 0;
+}
+.wert-zeile label { font-size: var(--text-md); color: var(--color-text-secondary); }
+.wert-eingabe { display: flex; align-items: center; gap: 6px; }
+.wert-eingabe input {
+  background: transparent; border: none; outline: none;
+  color: var(--color-text-primary); font-family: var(--font-family);
+  font-size: var(--text-md); text-align: right; width: 120px;
+  font-variant-numeric: tabular-nums;
+}
+.wert-eingabe input::placeholder { color: var(--color-text-secondary); }
+.wert-eingabe > span { font-size: var(--text-md); color: var(--color-text-secondary); }
+.wert-hinweis {
+  margin-top: var(--space-2); font-size: var(--text-xs);
+  color: var(--color-intent-warning); line-height: 1.5;
 }
