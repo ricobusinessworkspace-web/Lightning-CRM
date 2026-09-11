@@ -22,6 +22,7 @@
  */
 import { timingSafeEqual } from 'node:crypto';
 import { WERKZEUGE, NACH_NAME } from './_lib/mcp_werkzeuge.js';
+import { mache_auf, basisAdresse, mcpAdresse } from './_lib/oauth.js';
 
 const PROTOKOLL = '2025-06-18';
 const BEKANNTE_PROTOKOLLE = new Set([PROTOKOLL, '2025-03-26', '2024-11-05']);
@@ -33,17 +34,41 @@ const SERVER = {
 };
 
 // ── Zugang ─────────────────────────────────────────────────────────────────
-// Vergleich über die gesamte Länge, damit die Antwortzeit nicht verrät, wie
-// viele Zeichen am Anfang schon gestimmt haben.
-function zugangGeprueft(req) {
+// Zwei Wege werden anerkannt:
+//
+//   1. Das feste Zugangswort MCP_TOKEN direkt. Praktisch für curl und für
+//      Clients, die eine Kopfzeile mitgeben können (z. B. Claude Code).
+//   2. Ein Zeichen, das der eigene Anmelde-Server ausgestellt hat. Diesen Weg
+//      verlangt die Connector-Maske von Claude — sie kennt kein Feld für ein
+//      festes Wort und läuft immer über OAuth.
+//
+// Beim festen Wort wird über die gesamte Länge verglichen, damit die
+// Antwortzeit nicht verrät, wie viele Zeichen am Anfang schon gestimmt haben.
+function festesWortStimmt(gegeben) {
   const erwartet = process.env.MCP_TOKEN;
   if (!erwartet || erwartet.length < 24) return false;   // fehlt oder zu kurz → zu
+  const a = Buffer.from(gegeben);
+  const b = Buffer.from(erwartet);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+function zugangGeprueft(req) {
   const kopf = req.headers.authorization || '';
   if (!kopf.startsWith('Bearer ')) return false;
-  const gegeben = Buffer.from(kopf.slice(7).trim());
-  const soll = Buffer.from(erwartet);
-  if (gegeben.length !== soll.length) return false;
-  return timingSafeEqual(gegeben, soll);
+  const gegeben = kopf.slice(7).trim();
+  if (!gegeben) return false;
+
+  if (festesWortStimmt(gegeben)) return true;
+
+  // Ein ausgestelltes Zeichen muss für GENAU diesen Server gedacht sein.
+  // Ohne diese Prüfung würde ein Zeichen, das für etwas anderes ausgestellt
+  // wurde, hier durchgehen — die Spezifikation nennt das ausdrücklich als
+  // Einfallstor (Token-Weiterreichung).
+  let zeichen = null;
+  try { zeichen = mache_auf(gegeben, 'zeichen'); } catch (e) { return false; }
+  if (!zeichen) return false;
+  return zeichen.aud === mcpAdresse(req);
 }
 
 // ── JSON-RPC ───────────────────────────────────────────────────────────────
@@ -132,8 +157,15 @@ export default async function handler(req, res) {
   }
 
   if (!zugangGeprueft(req)) {
-    res.setHeader('WWW-Authenticate', 'Bearer');
-    return res.status(401).json({ error: 'Zugang verweigert.' });
+    // Der Wegweiser im 401 ist das, woran der Connector den Anmelde-Vorgang
+    // überhaupt erst findet (RFC 9728). Ohne ihn bleibt er stehen.
+    const beschreibung = `${basisAdresse(req)}/.well-known/oauth-protected-resource`;
+    res.setHeader('WWW-Authenticate',
+      `Bearer realm="Lightning CRM", resource_metadata="${beschreibung}"`);
+    return res.status(401).json({
+      error: 'invalid_token',
+      error_description: 'Zugang verweigert.'
+    });
   }
 
   let koerper = req.body;
