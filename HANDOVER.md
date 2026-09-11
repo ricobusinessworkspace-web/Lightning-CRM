@@ -18,6 +18,7 @@ status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz o
 | `docs/*.md` | Runbooks — Schritt-für-Schritt, einmalige Vorgänge | Nur wenn gerade gebraucht |
 | `docs/mcp-server-einrichten.md` | Adresse, Zugangswort, Connector eintragen | Wenn der MCP-Zugang klemmt |
 | `docs/ungeschuetzte-tabellen.md` | Neun Jarvis-Tabellen ohne Zugriffsregeln | Wenn jemand Jarvis anfasst |
+| `docs/wohin-das-geht.md` | Richtung und Reihenfolge der nächsten Schritte | Wenn unklar ist, was als Nächstes dran ist |
 
 ---
 
@@ -480,12 +481,15 @@ Stelle zum Nachsehen.
 
 ## Offene Entscheidungen
 
-- **`getAgentStats` lädt alles Ungefilterte in den Browser** (`core/db.js:904`):
-  Leads, Anrufe **und** Aktivitäten, je eine Abfrage ohne Grenze — nicht nur
-  die Anrufe. PostgREST liefert höchstens 1000 Zeilen und meldet nicht, dass
-  gekürzt wurde; das Dashboard zählt darüber still falsch. ~300 Anrufe
-  aktuell, also Monate Puffer. Sollte eine Datenbank-Auswertung mit
-  `GROUP BY` werden. Einziger Posten mit Ablaufdatum.
+> **Reihenfolge und Begründung stehen in
+> [docs/wohin-das-geht.md](docs/wohin-das-geht.md).** Hier nur die Liste.
+
+- **`getAgentStats` lädt drei Tabellen ungefiltert** (`core/db.js`). Läuft nur
+  noch im Team-Betrieb und meldet seit dem 11.09. selbst, wenn es an die
+  1000-Zeilen-Grenze stößt — ein Hinweis ersetzt aber keine Auswertung in der
+  Datenbank. Voraussetzung für Team-Betrieb.
+- **Keine Sicherung ausserhalb von Supabase.** Kein Export aus der App, keine
+  zweite Kopie. Der Posten mit dem besten Gegenwert im ganzen Plan.
 - **`crm_calls.by_user_id` ist `text` statt `uuid` + Foreign Key.** Bei ~300
   Zeilen harmlos, später nicht mehr.
 - **`pipeline_ui.js` hat 2893 Zeilen** — und darin genau **eine**
@@ -495,9 +499,11 @@ Stelle zum Nachsehen.
 - **Echtes Schema versioniert ablegen**, `scratch/schema.sql` löschen. Zehn
   Minuten, verhindert Falle 1 dauerhaft. Die Datei ist **nicht** eingecheckt —
   Löschen kostet nichts und trifft niemanden sonst.
-- **`googleapis` aus den Abhängigkeiten werfen?** Wird nirgends eingebunden
-  (geprüft) und ist die alleinige Ursache der einzigen Sicherheitsmeldung
-  (`qs`, mittel). Ein Befehl, kein Risiko.
+- **Der Engpass ist nicht die Software.** 23 Anrufe in der Woche gegen ein
+  Tagesziel von 30 bis 100 aus `crm_metric_targets`; 8 von 195 Leads haben eine
+  offene Aufgabe; 41 stehen auf `pitch` ohne Nachfass. Wer hier neue Funktionen
+  baut, löst das falsche Problem — siehe Phase 2 in
+  [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 - **Soll das GitHub-Repository öffentlich bleiben?** Siehe Kasten ganz oben.
 - **Wann auf `multiUser: true` umschalten?** Siehe
   [docs/multi-user-aktivieren.md](docs/multi-user-aktivieren.md) — noch nicht
@@ -525,10 +531,27 @@ Tech-Stack, Entwicklungsbefehle und Verzeichnisübersicht stehen in
 
 ## Vision & Langziel
 
-Robustes, verlässliches Einzelplatz-CRM, das bei Bedarf ohne Codeänderung auf
-Team-Betrieb umschaltet (Schalter, nicht Umbau). Kernprinzip: nichts geht
-still verloren — jede Speicherung ist sichtbar rückgemeldet, jeder Konflikt
-heilt sich selbst, jede Navigation sichert vorher ab.
+Ein Werkzeug, das die tägliche Vertriebsarbeit **trägt** statt sie zu
+verwalten — bedienbar über die App *und* über Claude, ehrlich in jeder Zahl,
+und ohne Umbau auf mehrere Leute erweiterbar.
+
+Kernprinzip unverändert: **nichts geht still verloren.** Jede Speicherung ist
+sichtbar rückgemeldet, jeder Konflikt heilt sich selbst, jede Navigation
+sichert vorher ab.
+
+Zwei Dinge sind seit dem 11.09.2026 dazugekommen und verändern, was „fertig"
+heißt:
+
+- **Zwei Bedienoberflächen.** Die App und der MCP-Server. Jede neue Funktion
+  muss ab jetzt zweimal gedacht werden — bedienbar *und* aufrufbar. Wo das
+  auseinanderläuft, entstehen genau die stillen Fehler, gegen die dieses
+  Projekt seit Monaten kämpft.
+- **Aus dem Karteikasten wird ein Disziplin-System.** `crm_metric_targets`
+  hält Tagesziele (100 Anrufe, aufgeteilt nach Art, von 30 hochgezogen). Ein
+  CRM beantwortet „wo steht dieser Lead?". Ein Disziplin-System beantwortet
+  „habe ich heute die Arbeit gemacht, aus der Abschlüsse entstehen?".
+
+Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 
 ---
 
@@ -560,6 +583,13 @@ heilt sich selbst, jede Navigation sichert vorher ab.
 ---
 
 ## Handover-Historie
+- 2026-09-12 — Richtung festgehalten (`docs/wohin-das-geht.md`): fünf Phasen
+  von „was brennt" bis Team-Betrieb, mit Begründung der Reihenfolge. Die Vision
+  im Handover nachgezogen — sie kannte den MCP-Server und das Kennzahl-System
+  noch nicht. Veraltete offene Entscheidungen entfernt (`googleapis` ist raus,
+  `getAgentStats` entschärft). Kernbefund: die Software ist der Nutzung voraus
+  — 23 Anrufe die Woche gegen ein Tagesziel von 30–100, 8 von 195 Leads mit
+  offener Aufgabe, 41 auf `pitch` ohne Nachfass (Claude Opus 5).
 - 2026-09-11 — OAuth 2.1 für den MCP-Connector (`api/oauth/*`, `vercel.json`).
   Grund: die Connector-Maske von Claude nimmt kein festes Zugangswort, sie
   verlangt RFC 9728 + RFC 8414 + OAuth mit PKCE. Alles ohne Datenbank — Codes
