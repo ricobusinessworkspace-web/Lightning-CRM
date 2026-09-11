@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-09-09
-last_agent: Claude Sonnet 5 (Doku-Struktur nach SSOT-Regel)
-status: Ready for Next Phase
+last_updated: 2026-09-10
+last_agent: Claude Opus 5 (MCP-Server angelegt)
+status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
 > **SSOT-Regel:** HANDOVER.md ist Single Source of Truth für den **Zustand**
@@ -16,6 +16,7 @@ status: Ready for Next Phase
 | `README.md` | Menschen-Einstieg, Tech-Stack, Befehle, Verzeichnisse | Einmal beim Einstieg |
 | `AGENTS.md` | Verweis auf `~/dev/coding-workflow-standards.md` | Vor der allerersten Prompt |
 | `docs/*.md` | Runbooks — Schritt-für-Schritt, einmalige Vorgänge | Nur wenn gerade gebraucht |
+| `docs/mcp-server-einrichten.md` | Adresse, Zugangswort, Connector eintragen | Wenn der MCP-Zugang klemmt |
 
 ---
 
@@ -34,7 +35,44 @@ Web-CRM für Leadgenerierung, Kaltakquise und Vertriebs-Pipeline. Aktuell im
 - **Aufgaben:** erledigte bleiben als Historie mit Zeitpunkt sichtbar,
   Aufgabenreiter zeigt nur Offenes, auch für Kaltakquise-Leads korrekt gefiltert.
 - **Statuszeile:** zeigt Speicherzustand live (Speichert/Gespeichert/Fehler).
-- **Tests:** 142 Prüfungen, alle grün.
+- **Rückfragen:** ein Dialog für die ganze Anwendung (`confirmAction`) in der
+  Form des Apple-Systemdialogs — dunkel und auf Deutsch. Der echte Systemdialog
+  kommt nicht mehr vor.
+- **Meldungen:** eine ruhige dunkle Karte mit farbigem Punkt, gleiche Sprache
+  wie der Dialog. Höchstens drei gleichzeitig.
+- **Mehrfachauswahl:** Antippen ändert genau eine Karte, ohne die Liste neu zu
+  laden.
+- **Stile:** ein Satz Tokens statt zweier konkurrierender Ebenen; die Fassung
+  mit `!important`, die alles überschrieben hat, ist aufgelöst.
+- **MCP-Server:** `api/mcp.js` — neun Werkzeuge, lesend und schreibend, hinter
+  einem eigenen Zugangswort. **Noch nicht scharf**: `MCP_TOKEN` muss bei Vercel
+  gesetzt und neu veröffentlicht werden, siehe
+  [docs/mcp-server-einrichten.md](docs/mcp-server-einrichten.md).
+- **Tests:** 265 Prüfungen, alle grün — 178 für die Oberfläche
+  (`tests/ui.test.mjs`), 87 für den MCP-Server (`tests/mcp.test.mjs`).
+  `npm test` fährt beide.
+
+---
+
+## 🔴 Sofort — offener Schlüssel im öffentlichen Repository
+
+Am 10.09.2026 geprüft: das GitHub-Repository
+`ricobusinessworkspace-web/Lightning-CRM` steht auf **öffentlich** und ist ohne
+Anmeldung abrufbar. In `admin_scripts/backfill_places.js:12` steht ein
+**Google-Schlüssel im Klartext**. Er ist damit für jeden lesbar und kann auf
+deine Rechnung benutzt werden.
+
+Zu tun, in dieser Reihenfolge:
+1. Schlüssel in der Google Cloud Console sperren, neuen anlegen.
+2. Neuen Schlüssel einschränken — nur die benötigte Schnittstelle, nur die
+   Adresse der App.
+3. Schlüssel aus der Datei nehmen (Umgebungsvariable statt fest im Code).
+   **Wichtig:** Der alte bleibt in der Versionsgeschichte lesbar — Schritt 1
+   ist der eigentliche Fix, nicht Schritt 3.
+4. Entscheiden, ob das Repository überhaupt öffentlich sein soll.
+
+Der Supabase-Schlüssel gleich daneben ist **kein** Problem: der „anon"-Schlüssel
+ist öffentlich gedacht, geschützt wird über die Zugriffsregeln.
 
 ---
 
@@ -112,9 +150,19 @@ ist genau daran monatelang stillschweigend gescheitert.
 
 ## Was funktioniert (behalte das)
 
-- **Einziger Schreibweg:** `window.leadStore.save()` in `public/core/leadstore.js`.
-  Neue Schreibpfade gehen dort durch, nicht direkt über `api.saveLead`. Einzige
-  Ausnahme: *neue* Leads ohne `id` (Scout-Import, „Neuer Lead").
+- **Ein Schreibweg im Browser:** `window.leadStore.save()` in
+  `public/core/leadstore.js`. Neue Schreibpfade gehen dort durch, nicht direkt
+  über `api.saveLead`. Einzige Ausnahme: *neue* Leads ohne `id` (Scout-Import,
+  „Neuer Lead").
+
+  ⚠️ **Seit 11.09.2026 gibt es einen zweiten Schreibweg**, und der lässt sich
+  nicht vermeiden: `api/_lib/crm.js` schreibt von der Serverseite aus für den
+  MCP-Server. Dort gibt es weder `window` noch eine angemeldete Sitzung, also
+  auch keinen `leadStore`. Die **Regeln** sind dieselben und stehen dort noch
+  einmal ausgeschrieben: nur genannte Spalten, `last_edited_ms` mitziehen,
+  Fremdänderung erkennen, Stufenwechsel mit alter *und* neuer Stufe festhalten,
+  `closed_at_ms` nur einmal setzen. **Wer an diesen Regeln etwas ändert, muss
+  beide Dateien anfassen.** Prüfblock 7 in `tests/mcp.test.mjs` sichert sie ab.
   ```js
   await window.leadStore.save(leadId, { task_text: '…' }, { label: 'Aufgabe' });
   ```
@@ -162,6 +210,53 @@ ist genau daran monatelang stillschweigend gescheitert.
 - **Single-Card-Refresh:** `refreshLeadCard(id)` → `patchLeadCard(id)` tauscht
   nur einen DOM-Knoten. **Nicht auf `loadUi()` zurückbauen** — kostet
   Scrollposition und Sortierung.
+
+- **Eine Rückfrage für alles:** `window.confirmAction({ title, message,
+  confirmLabel, destructive })` in `public/ui/main_ui.js`, Rückgabe ist ein
+  `Promise<boolean>`.
+  ```js
+  if (!await window.confirmAction({
+        title: 'Lead löschen?',
+        message: 'Der Lead wird mit seinem gesamten Verlauf entfernt.',
+        confirmLabel: 'Löschen' })) return;
+  ```
+  Esc bricht ab, Enter bestätigt, Klick daneben bricht ab, der Fokus liegt auf
+  „Abbrechen" und geht danach dorthin zurück, wo er herkam. `destructive: false`
+  macht den Knopf blau statt rot. **Kein `confirm()` und kein `alert()` mehr** —
+  Prüfung 24 lässt keinen durch, Fehlermeldungen laufen über `showToast`. Die
+  alte Form `showConfirmDialog(titel, text, label, rückruf)` leitet nur noch
+  hierher weiter.
+
+- **Eine Bildsprache, an einer Stelle festgelegt.** Farben, Abstände, Radien,
+  Schrift und Bewegung stehen in `theme.css`; `styles.css` benutzt sie. Für die
+  dünnen Linien und aufgehellten Flächen auf dunklem Grund gibt es je drei
+  Stufen: `--hairline-soft/-/-strong` und `--fill-faint/-subtle/-hover`.
+  **Keine neuen `rgba(255,255,255,x)` von Hand** — vorher lagen dort acht
+  verschiedene Stärken für denselben Zweck.
+
+- **`!important` ist die Ausnahme, nicht das Mittel.** In `styles.css` stand ein
+  zweiter, späterer Stil-Satz („UX OVERHAUL"), der die Regeln darüber
+  durchgehend mit `!important` ausgehebelt hat — zwei Gestaltungen für dieselben
+  Bauteile. Zusammengeführt. Wer etwas ändern will, ändert die eine Regel.
+
+- **Anzeige-Zustand lädt nichts nach.** Auswählen, Markieren, Aufklappen ändern
+  keine Daten — also darf nichts nachgeladen werden. `handleLeadClick` legt in
+  der Mehrfachauswahl nur die Klasse `is-selected` und das Kästchen der einen
+  Karte um. Regel für neue Bedienelemente: **erst fragen, ob sich Daten ändern.
+  Wenn nein, gehört kein `loadUi()` hinein.**
+
+- **`window.listenKennung(cacheKey, leads)` verhindert doppeltes Zeichnen.**
+  `loadUi` zeichnet absichtlich zweimal (erst Zwischenspeicher, dann Server).
+  Sind beide gleich, wird der zweite Durchgang übersprungen. Die Kennung deckt
+  Reiter, Filter, den Stand jedes Leads, den Auswahlmodus und die offene Karte
+  ab. **Wer etwas hinzufügt, das das Aussehen der Karten ändert, ohne einen
+  Wert am Lead zu ändern, muss es in die Kennung aufnehmen** — sonst bleibt die
+  Änderung unsichtbar. Prüfung 23 sichert die bekannten Fälle.
+
+- **`window.resetSidebar()` ist der eine Weg zur leeren Seitenleiste.** Stand
+  vorher achtmal als aufgeklappter Block da, mit drei verschiedenen Ersatz-
+  Bezeichnern (`#sidebar`, `.sidebar`, `#main-sidebar`) — und `#sidebar` gibt es
+  im HTML gar nicht. Der echte Knoten ist `#main-sidebar`.
 
 - **Aufgaben-Historie:** erledigte bleiben in der Detailansicht sichtbar
   (neueste zuerst, mit Zeitpunkt `done_ms`), wieder zu öffnen, einzeln oder
@@ -221,24 +316,174 @@ Antworten auf konkrete Beschwerden, keine Zufälle.
   **Warum wichtig:** Ohne Rückmeldung ist ein Fehlschlag von Erfolg nicht zu
   unterscheiden — genau daran war Vertrauen verloren gegangen.
 
+- **Problem:** Zwei Meldungen kurz hintereinander — die erste rutschte aus dem
+  Bild statt nach oben.
+  **Lösung:** Die Plätze werden nach jedem Zu- und Abgang neu vergeben, anhand
+  der tatsächlichen Höhe.
+  **Warum wichtig:** Gerechnet wurde mit dem Wert, der gerade im Stil stand. Bei
+  der noch einfahrenden Meldung war das der Startwert `-100px`; aus `-100 + 60`
+  wurde `-40`. Nebenbei hängt das Einblenden nicht mehr am nächsten Bildwechsel
+  (`requestAnimationFrame`) — den hält der Browser in nicht sichtbaren Reitern
+  an, und die Meldung wäre dort für immer unsichtbar geblieben.
+
+- **Problem:** Jeder Haken in der Mehrfachauswahl lud die Liste neu — sichtbar
+  als mehrfaches Aufblitzen.
+  **Lösung:** `handleLeadClick` legt nur noch Klasse und Kästchen der einen
+  Karte um; `loadUi` überspringt einen zweiten, inhaltsgleichen Durchgang
+  (`listenKennung`).
+  **Warum wichtig:** Auswählen ändert keine Daten. `loadUi()` verwarf die
+  Liste, zeichnete aus dem Zwischenspeicher, holte die Leads erneut vom Server
+  und zeichnete nochmal — dazu lief die Einblend-Bewegung jeder Karte von vorn.
+
+- **Problem:** Dieselbe Handlung fühlte sich je nach Stelle anders an — mal der
+  Systemdialog des Browsers, mal ein eigener Dialog, mal gar keine Rückfrage.
+  **Lösung:** `confirmAction` als einziger Weg, alle acht Stellen umgestellt.
+  **Warum wichtig:** Der Systemdialog hält die ganze Seite an, sieht auf jedem
+  Gerät anders aus und lässt sich nicht gestalten. Dazu kam, dass die
+  Dialog-Regeln zweimal in `styles.css` standen und sich gegenseitig
+  überschrieben haben.
+
+- **Problem:** Der mobile „Zurück"-Knopf hat angefangene Eingaben verworfen.
+  **Lösung:** Er ruft jetzt `closeLeadSidebar()` wie jeder andere Weg.
+  **Warum wichtig:** Er hat die Seitenleiste direkt überschrieben und dabei
+  `flushLeadForm()` übersprungen — genau der Fluchtpunkt, der Datenverlust
+  verhindert. Nebenbei setzte er `window._currentSelectedLeadId`, eine Variable,
+  die sonst nirgends vorkommt.
+
 - **Problem:** „Speichert erst nach Neuladen" bei Zeitstempel-Konflikten.
   **Lösung:** `leadStore.save` holt bei Konflikt einmal den echten Stand und
   wiederholt automatisch.
 
 ---
 
+## SWOT — Zustand der Codebase (10.09.2026)
+
+Einmal-Bestandsaufnahme, am Code geprüft statt geschätzt. Jeder Punkt nennt die
+Stelle zum Nachsehen.
+
+### Stärken
+- **Ein Schreibweg, und er begründet sich selbst.** `public/core/leadstore.js`
+  sind 173 Zeilen, in denen jeder Mechanismus mit dem Fehler erklärt wird, der
+  ihn nötig gemacht hat. Warteschlange, Konflikt-Selbstheilung und
+  Speicher-Nachzug liegen an einer einzigen Stelle.
+- **Autospeichern ist sichtbar.** Vier Auslöser, ein Fluchtpunkt, dazu die
+  Statuszeile: Ein Fehlschlag sieht nicht mehr aus wie ein Erfolg.
+- **Die Tests prüfen genau das, was schon einmal kaputt war.** 146 Prüfungen in
+  21 Themenblöcken (`tests/ui.test.mjs`) — Aufgaben-Zuordnung beim Lead-Wechsel,
+  Wiedervorlage, gleichzeitiges Speichern, Kaltakquise-Filter. Keine
+  Alibi-Tests.
+- **Rechteprüfung liegt auf dem Server, wo sie hingehört.** `api/_lib/auth.js`
+  prüft den Anmelde-Token gegen Supabase, Rollen und Sperr-Marker serverseitig
+  und sagt im Kommentar auch, warum der Client-Check nur Kosmetik ist. Die
+  Weiterleitung `api/proxy.js` verlangt Anmeldung und blockt interne Adressen.
+- **Ausgabe wird entschärft.** `escapeHtml` an 53 Stellen; die Stichprobe auf
+  ungeschützte Lead-Daten in HTML fand nichts.
+- **Sauberer Haushalt.** Null TODO/FIXME, acht `console.log` im gesamten
+  Anwendungscode. Kommentare erklären das Warum, nicht das Was.
+- **Schlanker Stack.** Kein Framework, fünf echte Abhängigkeiten, keine
+  Bündelungs-Magie — die Anwendung läuft auch ohne Werkzeugkette.
+
+### Schwächen
+- 🔴 **Google-Schlüssel im Klartext in einem öffentlichen Repository** —
+  siehe Kasten ganz oben. Der einzige Punkt mit echtem Schadenspotenzial.
+- **Zwei Dateien tragen die halbe Anwendung.** `pipeline_ui.js` (2893 Zeilen)
+  und `main_ui.js` (1695) halten zusammen 142 der 152 globalen Funktionen. In
+  `pipeline_ui.js` steht auf 2893 Zeilen genau eine Abschnittsüberschrift — man
+  findet dort nichts durch Blättern, nur durch Suchen.
+- **Das Dashboard rechnet auf gedeckelten Daten** (`core/db.js:904`, Details
+  unter „Offene Entscheidungen").
+- **Kommentare, die nicht mehr stimmen.** `public/core/config.js` warnt unter
+  Punkt 5, `saveLeadMain` schreibe beim Speichern alle Spalten zurück — seit
+  dem leadStore-Umbau schreibt es nur die geänderten (`leadStore.diff`,
+  `main_ui.js:634`), und Prüfung 12 sichert das ab. Der Kopf von `core/db.js`
+  spricht von „main.js and all IPC handlers", einem Rest der alten Desktop-App.
+  Beides führt den nächsten Agenten in die Irre — genau die Sorte Falle, die
+  `scratch/schema.sql` schon einmal gestellt hat.
+- **Eine Abhängigkeit ohne Nutzen.** `googleapis` wird nirgends eingebunden und
+  ist die alleinige Ursache der einzigen Sicherheitsmeldung (`qs`, mittel).
+  `jsdom` steht bei den echten Abhängigkeiten, obwohl es nur die Tests
+  brauchen — landet damit unnötig im Betrieb.
+- **Papaparse wird zweimal geladen** — als Datei über `index.html:13` und als
+  Paket-Import in `core/api.js`.
+- **Chart.js kommt unversioniert vom fremden Server.** `index.html:406` lädt
+  `npm/chart.js` ohne Versionsnummer und ohne Prüfsumme. Leaflet zwei Zeilen
+  darüber ist vorbildlich festgenagelt und geprüft — der Unterschied ist
+  Versehen, nicht Absicht.
+- **Cache-Handhabung von Hand.** Jedes Skript trägt ein `?v=`-Anhängsel, dazu
+  kommt der eigene Zwischenspeicher des Service Workers. Wer beim Ändern ein
+  Anhängsel vergisst, liefert stillschweigend die alte Datei aus.
+- **Aussehen an vier Stellen.** `theme.css`, `styles.css`, `mobile.css` und
+  rund 370 Zeilen direkt in `index.html`, dazu rund 280 eingebaute Stile in den
+  Vorlagen von `pipeline_ui.js` und `main_ui.js`. *(10.09.2026 deutlich
+  entschärft: die zweite, überschreibende Stil-Ebene ist weg, die
+  handverteilten Weiß-Transparenzen laufen über Tokens, fünf sich selbst
+  überschreibende Regeln sind zusammengeführt. Die eingebauten Stile in den
+  Vorlagen bleiben — die gehören zum Aufteilen von `pipeline_ui.js`.)*
+- ~~**Die Tests hängen am Wortlaut des Quelltexts.**~~ *(10.09.2026 entschärft:
+  die Ausschnitte laufen über einen Helfer, der bei einer fehlenden Textmarke
+  laut scheitert statt still nichts zu prüfen. Am Quelltext hängen sie
+  weiterhin.)*
+- **Kein Weg, Daten aus der Anwendung herauszubekommen.** Einlesen gibt es,
+  Ausgeben nicht.
+- **`.gitignore` sagt `scratch/`, zehn Dateien daraus sind trotzdem
+  eingecheckt** — alte Einmal-Skripte, die niemand mehr braucht.
+
+### Chancen
+- **Zwei Handgriffe, große Wirkung.** Schlüssel tauschen (zehn Minuten) und
+  `googleapis` entfernen (ein Befehl, nirgends benutzt) — danach ist die
+  einzige Sicherheitsmeldung weg und das echte Loch zu.
+- **Dashboard als Datenbank-Auswertung.** Eine Ansicht mit `GROUP BY` hebt den
+  Deckel auf und macht das Dashboard nebenbei schnell, statt bei jedem Aufruf
+  den ganzen Bestand durch die Leitung zu ziehen.
+- **`pipeline_ui.js` aufteilen ist mechanisch, nicht riskant.** Die
+  Ladereihenfolge steht ohnehin ausgeschrieben in `index.html` — vier Zeilen
+  dort, vier Dateien statt einer, Reihenfolge bleibt.
+- **Ein Ausfuhr-Knopf ist fast geschenkt.** Papaparse ist schon geladen und
+  kann auch schreiben — eigene Sicherung ohne Fremdanbieter, in einer
+  Sitzung machbar.
+- **Der Testaufbau trägt weiter.** Er lässt sich ohne neues Werkzeug auf
+  `leadstore.js` und `core/db.js` ausweiten; die Fehlerbilder, die dort
+  lauern (Konflikt, Teil-Updates), sind bekannt.
+
+### Risiken
+- **Ein Anmelde-Bereich für mehrere Anwendungen.** Die Regel `auth_full_access`
+  auf `crm_leads` erlaubt jedem Angemeldeten alles — und angemeldet wird man in
+  jeder App dieses Supabase-Projekts. Solange nur ein Konto existiert,
+  ungefährlich; mit dem ersten fremden Konto nicht mehr.
+- **Alles hängt an einem Supabase-Projekt, ohne eigene Sicherung.** Kein
+  Export, keine zweite Kopie. Ein Fehlgriff in `admin_scripts/` oder ein
+  Ausfall trifft ungebremst.
+- **Das Wachstum arbeitet gegen das Dashboard.** ~300 Anrufe heute, ab 1000
+  zählt es still falsch. Dieser Termin kommt von allein.
+- **Fremder Code zur Laufzeit.** Chart.js (unversioniert), Leaflet und Google
+  Fonts werden bei jedem Aufruf von fremden Servern geholt. Ändert sich dort
+  etwas, ändert sich die App ohne Zutun.
+- **Das Wissen steckt in zwei großen Dateien und in diesem Dokument.** Geht das
+  Handover verloren, ist der Wiedereinstieg teuer.
+
+---
+
 ## Offene Entscheidungen
 
-- **`getAgentStats` lädt alle Anrufe in den Browser.** PostgREST-Limit 1000
-  Zeilen — Dashboard zählt darüber still falsch. ~300 Anrufe aktuell, also
-  Monate Puffer. Sollte SQL-View mit `GROUP BY` werden. Einziger Posten mit
-  Ablaufdatum.
+- **`getAgentStats` lädt alles Ungefilterte in den Browser** (`core/db.js:904`):
+  Leads, Anrufe **und** Aktivitäten, je eine Abfrage ohne Grenze — nicht nur
+  die Anrufe. PostgREST liefert höchstens 1000 Zeilen und meldet nicht, dass
+  gekürzt wurde; das Dashboard zählt darüber still falsch. ~300 Anrufe
+  aktuell, also Monate Puffer. Sollte eine Datenbank-Auswertung mit
+  `GROUP BY` werden. Einziger Posten mit Ablaufdatum.
 - **`crm_calls.by_user_id` ist `text` statt `uuid` + Foreign Key.** Bei ~300
   Zeilen harmlos, später nicht mehr.
-- **`pipeline_ui.js` hat ~2860 Zeilen.** Listen/Sidebar/Karte/Dashboard sind
-  vier Themen in einer Datei — aufteilen?
+- **`pipeline_ui.js` hat 2893 Zeilen** — und darin genau **eine**
+  Abschnittsüberschrift. Listen/Sidebar/Karte/Dashboard sind vier Themen in
+  einer Datei; zusammen mit `main_ui.js` (1695 Zeilen) halten die beiden 142
+  der 152 globalen Funktionen. Aufteilen?
 - **Echtes Schema versioniert ablegen**, `scratch/schema.sql` löschen. Zehn
-  Minuten, verhindert Falle 1 dauerhaft.
+  Minuten, verhindert Falle 1 dauerhaft. Die Datei ist **nicht** eingecheckt —
+  Löschen kostet nichts und trifft niemanden sonst.
+- **`googleapis` aus den Abhängigkeiten werfen?** Wird nirgends eingebunden
+  (geprüft) und ist die alleinige Ursache der einzigen Sicherheitsmeldung
+  (`qs`, mittel). Ein Befehl, kein Risiko.
+- **Soll das GitHub-Repository öffentlich bleiben?** Siehe Kasten ganz oben.
 - **Wann auf `multiUser: true` umschalten?** Siehe
   [docs/multi-user-aktivieren.md](docs/multi-user-aktivieren.md) — noch nicht
   terminiert.
@@ -274,8 +519,8 @@ heilt sich selbst, jede Navigation sichert vorher ab.
 
 ## Für nächsten Agent
 
-- **Lies zuerst** die „⚠️ Kritische Fallen" oben — jede hat schon einmal Zeit
-  gekostet.
+- **Lies zuerst** den Kasten „🔴 Sofort" und die „⚠️ Kritische Fallen"
+  oben — jede Falle hat schon einmal Zeit gekostet.
 - **Erst prüfen, dann behaupten.** Eine Warnung auf Basis einer veralteten
   Datei (`scratch/schema.sql`) hat schon einmal Vertrauen gekostet. Read-only-
   Abfragen sind billig.
@@ -300,6 +545,37 @@ heilt sich selbst, jede Navigation sichert vorher ab.
 ---
 
 ## Handover-Historie
+- 2026-09-11 — MCP-Server angelegt (`api/mcp.js`, `api/_lib/mcp_werkzeuge.js`,
+  `api/_lib/crm.js`): neun Werkzeuge auf dem CRM, lesend und schreibend, hinter
+  einem eigenen Zugangswort (`MCP_TOKEN`). Transportweg „Streamable HTTP" von
+  Hand umgesetzt statt über ein weiteres Paket — gebraucht werden fünf
+  Methoden. Dabei entsteht ein zweiter Schreibweg neben `leadStore`; siehe die
+  Warnung unter „Was funktioniert". Runbook in
+  `docs/mcp-server-einrichten.md`. 87 neue Prüfungen, `npm test` fährt jetzt
+  beide Testläufe. **Offen: `MCP_TOKEN` bei Vercel setzen und neu
+  veröffentlichen** (Claude Opus 5).
+- 2026-09-10 — Bildsprache vereinheitlicht: Rückfrage-Dialog in der Form des
+  Apple-Systemdialogs (dunkel, deutsch), Meldungen in derselben Sprache und mit
+  korrigierter Stapelung, Meldungstexte ohne Emoji und Ausrufezeichen,
+  Oberflächen-Tokens in `theme.css` statt acht handverteilter
+  Weiß-Transparenzen, die zweite Stil-Ebene („UX OVERHAUL", durchgehend
+  `!important`) aufgelöst, fünf sich selbst überschreibende Regeln
+  zusammengeführt. Tests von 170 auf 178 (Claude Opus 5).
+- 2026-09-10 — Grundlegende Bedien-Abläufe vereinheitlicht: eine Rückfrage für
+  die ganze Anwendung (`confirmAction`, acht Stellen umgestellt, kein
+  `confirm()`/`alert()` mehr), Mehrfachauswahl lädt die Liste nicht mehr neu,
+  `loadUi` überspringt inhaltsgleiche Durchgänge (`listenKennung`),
+  `resetSidebar()` statt acht Kopien mit drei verschiedenen Bezeichnern,
+  mobiler „Zurück"-Knopf sichert wieder ab, doppelter `.confirm-overlay`-Block
+  in `styles.css` aufgelöst. Tests von 146 auf 170 (Claude Opus 5).
+- 2026-09-10 — SWOT-Bestandsaufnahme der Codebase eingearbeitet (neuer
+  Abschnitt „SWOT"). Dabei gefunden und oben eingetragen: offener
+  Google-Schlüssel im öffentlichen GitHub-Repository (Kasten ganz oben),
+  ungenutzte Abhängigkeit `googleapis` als Ursache der einzigen
+  Sicherheitsmeldung, `getAgentStats` deckelt drei Abfragen statt einer,
+  veraltete Warnung in `public/core/config.js` (Punkt 5). Zahlen im Snapshot
+  nachgezogen: 146 statt 142 Prüfungen, `pipeline_ui.js` 2893 statt ~2860
+  Zeilen. Keine Codeänderung (Claude Opus 5).
 - 2026-09-09 — Doku-Struktur nach SSOT-Regel korrigiert: HANDOVER.md ist SSOT
   für den **Zustand**, nicht für alles. `README.md` (Menschen-Einstieg,
   Tech-Stack, Befehle, Verzeichnisse) und `AGENTS.md` (Verweis auf
