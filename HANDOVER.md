@@ -469,9 +469,10 @@ Stelle zum Nachsehen.
 - ~~**Das Wachstum arbeitet gegen das Dashboard.**~~ *(entschärft: die Sichten
   rechnen in der Datenbank, und wo noch gedeckelt geladen wird, sagt es das
   jetzt.)*
-- **Fremder Code zur Laufzeit.** Chart.js (unversioniert), Leaflet und Google
-  Fonts werden bei jedem Aufruf von fremden Servern geholt. Ändert sich dort
-  etwas, ändert sich die App ohne Zutun.
+- **Fremder Code zur Laufzeit.** Leaflet und Google Fonts werden bei jedem
+  Aufruf von fremden Servern geholt. Leaflet ist fest verdrahtet und mit
+  Prüfsumme abgesichert, die Schriften nicht. Deutlich kleiner geworden, seit
+  das unversionierte Chart.js raus ist. Restrisiko, kein akuter Posten.
 - **Das Wissen steckt in zwei großen Dateien und in diesem Dokument.** Geht das
   Handover verloren, ist der Wiedereinstieg teuer.
 
