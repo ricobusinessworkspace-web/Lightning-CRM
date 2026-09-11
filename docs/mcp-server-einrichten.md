@@ -48,7 +48,22 @@ In Claude unter „Connector hinzufügen":
 
 - **Name:** Lightning CRM
 - **Server-URL:** `https://calling-station.vercel.app/api/mcp`
-- **Authentifizierung:** Bearer Token → das Zugangswort aus Schritt 1
+- Sonst nichts eintragen.
+
+Beim Verbinden öffnet sich eine Seite „Zugriff auf Lightning CRM erlauben?".
+Dort das Zugangswort aus Schritt 1 eingeben und auf **Erlauben** klicken. Der
+Connector holt sich danach sein eigenes Zeichen und meldet sich damit selbst an.
+
+> **Warum kein Feld für das Zugangswort?** Die Connector-Maske von Claude kennt
+> keins. Sie verlangt den Weg, den die MCP-Spezifikation vorschreibt: der Server
+> sagt, wo man sich anmeldet, und der Connector holt sich dort ein eigenes
+> Zeichen (OAuth 2.1). Ein fest eingetragenes Wort ist dort nicht vorgesehen.
+> Der Server kann beides — über die Connector-Maske läuft es über die
+> Zustimmungsseite, per `curl` oder in Claude Code weiterhin direkt mit dem
+> Zugangswort in der Kopfzeile.
+
+Das Zeichen läuft nach acht Stunden ab und wird still erneuert; erst nach 30
+Tagen ohne Nutzung ist die Zustimmungsseite wieder dran.
 
 ## 4. Prüfen
 
@@ -61,6 +76,17 @@ curl -s -X POST https://calling-station.vercel.app/api/mcp \
 
 Erwartet: eine Liste mit neun Werkzeugen. Kommt `401`, stimmt das Zugangswort
 nicht oder es wurde nach dem Setzen nicht neu veröffentlicht.
+
+Der Anmelde-Weg lässt sich ebenfalls von aussen prüfen — beide müssen JSON
+liefern:
+
+```bash
+curl -s https://calling-station.vercel.app/.well-known/oauth-protected-resource
+```
+
+```bash
+curl -s https://calling-station.vercel.app/.well-known/oauth-authorization-server
+```
 
 ---
 
@@ -100,6 +126,8 @@ Zusatz **MCP** — man sieht also, was von Hand kam und was nicht.
 | Antwort | Ursache |
 |---|---|
 | `401` | Zugangswort falsch, oder `MCP_TOKEN` fehlt bzw. ist kürzer als 24 Zeichen |
+| Connector bleibt beim Verbinden stehen | Die zwei `/.well-known/`-Adressen prüfen. Kommt dort kein JSON, greifen die Rewrites aus `vercel.json` nicht |
+| „Nicht erlaubte Rücksprung-Adresse" | Der Connector kommt von einer Adresse ausserhalb von claude.ai / claude.com / anthropic.com. Liste steht in `api/_lib/oauth.js` |
 | `405` | Es wurde `GET` geschickt — der Server nimmt nur `POST` |
 | Werkzeug meldet „SUPABASE_SERVICE_ROLE_KEY fehlt" | Variable bei Vercel nicht gesetzt oder nicht neu veröffentlicht |
 | `409` im Werkzeug | Der Lead wurde in der Zwischenzeit geändert — noch einmal anzeigen lassen |
@@ -107,4 +135,7 @@ Zusatz **MCP** — man sieht also, was von Hand kam und was nicht.
 ## Zugang sperren
 
 `MCP_TOKEN` bei Vercel ändern oder löschen, dann neu veröffentlichen. Der alte
-Zugang ist sofort tot.
+Zugang ist sofort tot — **auch alle bereits ausgestellten Zeichen**. Der
+Schlüssel, mit dem sie unterschrieben sind, wird aus `MCP_TOKEN` abgeleitet;
+ändert sich das Wort, ist jede Unterschrift ungültig. Es gibt also keine
+Zeichen, die irgendwo weiterleben.

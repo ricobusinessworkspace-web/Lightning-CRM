@@ -1,6 +1,6 @@
 ---
 last_updated: 2026-09-10
-last_agent: Claude Opus 5 (Weaknesses und Threats abgearbeitet)
+last_agent: Claude Opus 5 (OAuth für den MCP-Connector)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -45,13 +45,15 @@ Web-CRM für Leadgenerierung, Kaltakquise und Vertriebs-Pipeline. Aktuell im
   laden.
 - **Stile:** ein Satz Tokens statt zweier konkurrierender Ebenen; die Fassung
   mit `!important`, die alles überschrieben hat, ist aufgelöst.
-- **MCP-Server:** `api/mcp.js` — neun Werkzeuge, lesend und schreibend, hinter
-  einem eigenen Zugangswort. **Noch nicht scharf**: `MCP_TOKEN` muss bei Vercel
-  gesetzt und neu veröffentlicht werden, siehe
-  [docs/mcp-server-einrichten.md](docs/mcp-server-einrichten.md).
-- **Tests:** 265 Prüfungen, alle grün — 178 für die Oberfläche
-  (`tests/ui.test.mjs`), 87 für den MCP-Server (`tests/mcp.test.mjs`).
-  `npm test` fährt beide.
+- **MCP-Server:** `api/mcp.js` — neun Werkzeuge, lesend und schreibend.
+  **Läuft live** unter `https://calling-station.vercel.app/api/mcp`.
+  Zwei Zugangswege: das feste `MCP_TOKEN` in der Kopfzeile (curl, Claude Code)
+  und OAuth 2.1 über den eigenen Anmelde-Server (`api/oauth/*`) — den verlangt
+  die Connector-Maske von Claude, sie kennt kein Feld für ein festes Wort.
+  Einrichtung: [docs/mcp-server-einrichten.md](docs/mcp-server-einrichten.md).
+- **Tests:** 311 Prüfungen, alle grün — 178 Oberfläche (`tests/ui.test.mjs`),
+  87 MCP-Server (`tests/mcp.test.mjs`), 46 Anmelde-Vorgang
+  (`tests/oauth.test.mjs`). `npm test` fährt alle drei.
 
 ---
 
@@ -557,6 +559,16 @@ heilt sich selbst, jede Navigation sichert vorher ab.
 ---
 
 ## Handover-Historie
+- 2026-09-11 — OAuth 2.1 für den MCP-Connector (`api/oauth/*`, `vercel.json`).
+  Grund: die Connector-Maske von Claude nimmt kein festes Zugangswort, sie
+  verlangt RFC 9728 + RFC 8414 + OAuth mit PKCE. Alles ohne Datenbank — Codes
+  und Zeichen tragen ihren Inhalt unterschrieben in sich, der Schlüssel wird
+  aus `MCP_TOKEN` abgeleitet. Damit macht ein Wechsel des Zugangsworts alle
+  ausgestellten Zeichen auf einen Schlag wertlos. `api/mcp.js` nimmt beide Wege
+  an und prüft bei Zeichen den Empfänger. 46 neue Prüfungen. Live
+  gegengeprüft: beide `/.well-known/`-Adressen liefern, der 401 trägt den
+  Wegweiser, Selbstanmeldung klappt, fremde Rücksprung-Adressen werden
+  abgelehnt, die Zustimmungsseite steht (Claude Opus 5).
 - 2026-09-11 — Schwachstellen und Risiken aus der SWOT abgearbeitet:
   Google-Schlüssel aus `backfill_places.js` (kommt jetzt aus der Umgebung;
   **Sperren in der Google Cloud Console bleibt offen**), `googleapis` entfernt
