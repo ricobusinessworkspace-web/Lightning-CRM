@@ -1034,6 +1034,46 @@ export const db = {
   // Abgeschlossene Leads, bei denen Wert oder Datum fehlt. Das ist die
   // Arbeitsliste im Dashboard — 55 Abschluesse ohne Wert sind keine Statistik,
   // sondern etwas zu tun.
+  // Haelt den heutigen Stand der Pipeline fest. Eine Sicht kann das nicht:
+  // sie sagt immer nur, wie es JETZT aussieht. "Wie hat sich die Pipeline ueber
+  // den Block entwickelt" braucht festgehaltene Staende — was heute nicht
+  // festgehalten wird, ist morgen weg.
+  //
+  // Geschrieben wird beim Oeffnen des Command Centers, ohne Zeitplandienst.
+  // An Tagen ohne Aufruf fehlt der Stand; das ist eine sichtbare Luecke und
+  // keine erfundene Fortschreibung des Vortags. Der Primaerschluessel auf tag
+  // sorgt dafuer, dass mehrfaches Oeffnen denselben Tag ueberschreibt.
+  savePipelineSnapshot: async (bestand) => {
+    const zahl = (k) => {
+      const t = (bestand || []).find(z => z.metric_key === k);
+      return t ? Number(t.wert || 0) : null;
+    };
+    const zeile = {
+      tag: new Date().toLocaleDateString('sv-SE'),   // YYYY-MM-DD, Ortszeit
+      pipeline_count:      zahl('sales.pipeline_count'),
+      pipeline_value_eur:  zahl('sales.pipeline_value_eur'),
+      leads_without_value: zahl('sales.leads_without_value'),
+      cold_stock:          zahl('sales.cold_stock'),
+      cold_never_called:   zahl('sales.cold_never_called'),
+      overdue_followups:   zahl('sales.overdue_followups'),
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase
+      .from('crm_pipeline_snapshots')
+      .upsert(zeile, { onConflict: 'tag' });
+    if (error) throw new Error(error.message);
+    return true;
+  },
+
+  getPipelineSnapshots: async (vonTag, bisTag) => {
+    let q = supabase.from('crm_pipeline_snapshots').select('*').order('tag');
+    if (vonTag) q = q.gte('tag', vonTag);
+    if (bisTag) q = q.lte('tag', bisTag);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
   getClosedNeedingInput: async (grenze = 50) => {
     const { data, error } = await supabase
       .from(TABLE)

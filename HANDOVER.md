@@ -19,6 +19,7 @@ status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz o
 | `docs/mcp-server-einrichten.md` | Adresse, Zugangswort, Connector eintragen | Wenn der MCP-Zugang klemmt |
 | `docs/ungeschuetzte-tabellen.md` | Neun Jarvis-Tabellen ohne Zugriffsregeln | Wenn jemand Jarvis anfasst |
 | `docs/wohin-das-geht.md` | Richtung und Reihenfolge der nächsten Schritte | Wenn unklar ist, was als Nächstes dran ist |
+| `docs/lesevertrag-jarvis.md` | Was Jarvis OS aus dem CRM liest: Sichten, `metric_key`-Katalog, Grenzen | Bevor jemand die Kennzahlen anfasst oder Jarvis anbindet |
 
 ---
 
@@ -583,6 +584,18 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Handover-Historie
+- 2026-09-12 — Datenschicht fertiggestellt: `crm_pipeline_snapshots` bekam die
+  fehlende Zugriffsregel (die Tabelle stand seit dem 10.09. ohne Regel da,
+  niemand kam heran) und wird jetzt beim Öffnen des Command Centers
+  fortgeschrieben — `savePipelineSnapshot`, nebenher und ohne das Zeichnen
+  aufzuhalten. Damit hat der Bestand erstmals einen Verlauf; ohne Aufruf
+  entsteht eine sichtbare Lücke statt einer erfundenen Fortschreibung des
+  Vortags. Dazu der **Lesevertrag für Jarvis OS**
+  (`docs/lesevertrag-jarvis.md`): alle `metric_key`-Werte mit Bedeutung, die
+  drei Einschränkungen (genäherte Alt-Anrufe, noch keine Conversion-Historie,
+  53 Abschlüsse ohne Datum) und drei Punkte, die auf Jarvis-Seite offen sind —
+  darunter die doppelte Wahrheit beim Anrufziel (`core_intentions` 30/60
+  gegen `crm_metric_targets` 30/100). Prüfungen 205 → 207 (Claude Opus 5).
 - 2026-09-12 — Richtung festgehalten (`docs/wohin-das-geht.md`): fünf Phasen
   von „was brennt" bis Team-Betrieb, mit Begründung der Reihenfolge. Die Vision
   im Handover nachgezogen — sie kannte den MCP-Server und das Kennzahl-System

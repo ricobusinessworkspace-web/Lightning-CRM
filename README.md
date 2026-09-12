@@ -54,3 +54,4 @@ tests/ui.test.mjs        Testsuite
 | Datei | Wofür |
 |---|---|
 | [docs/multi-user-aktivieren.md](docs/multi-user-aktivieren.md) | Vom Einzelplatz- zurück auf Team-Betrieb umschalten |
+| [docs/lesevertrag-jarvis.md](docs/lesevertrag-jarvis.md) | Was Jarvis OS aus dem CRM liest — die ganze Schnittstelle |

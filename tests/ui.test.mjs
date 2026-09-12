@@ -974,6 +974,10 @@ check('getAgentStats kommt nur noch im Team-Bereich vor',
 check('Dashboard liest aus den Sichten', dashTeil.includes('getDailyMetrics') && dashTeil.includes('getStockMetrics'));
 check('Ziele kommen nicht mehr aus localStorage',
   !pipeSrc.includes('dashboard_kpi_goals') && !pipeSrc.includes('dashboard_manual_kpis'));
+check('Pipeline-Stand wird beim Aufruf festgehalten',
+  dashTeil.includes('savePipelineSnapshot'));
+check('Ein fehlgeschlagener Schnappschuss haelt das Dashboard nicht auf',
+  /savePipelineSnapshot\(bestand\)[\s\S]{0,120}\.catch\(/.test(dashTeil));
 check('Team-Bereich ist ausgeblendet, nicht geloescht',
   dashTeil.includes('window.isMultiUser()') && dashTeil.includes('<h2>Team</h2>'));
 check('Team-Bereich haengt am Schalter, nicht am Zufall',

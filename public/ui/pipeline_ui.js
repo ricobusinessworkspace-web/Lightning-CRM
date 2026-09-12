@@ -2603,6 +2603,12 @@ if (typeof window.renderDashboard === 'function') {
       const b = {};
       bestand.forEach(z => { b[z.metric_key] = Number(z.wert || 0); });
 
+      // Den heutigen Stand festhalten — nebenher, nicht davor. Schlaegt es
+      // fehl, wird trotzdem gezeichnet: ein fehlender Schnappschuss ist eine
+      // Luecke im Verlauf, kein Grund, das Dashboard nicht anzuzeigen.
+      window.api.savePipelineSnapshot(bestand)
+        .catch(e => console.warn('Pipeline-Stand nicht festgehalten', e));
+
       const wochentage = Array.isArray(einst['rhythm.active_weekdays'])
         ? einst['rhythm.active_weekdays'] : [1, 2, 3, 4, 5, 6];
       const arbeitstage = ccArbeitstage(von, bis, wochentage);
