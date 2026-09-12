@@ -105,8 +105,28 @@ Stufenwechsel wurden vor dem Umbau nur als Fließtext und **ohne die alte Stufe*
 protokolliert. Diese acht Altzeilen sind ausgefiltert.
 
 Konsequenz: Die fünf `sales.stage_*`-Kennzahlen liefern zurzeit **überhaupt
-keine Zeilen**. Sie sind nicht kaputt — es gibt noch nichts zu zählen. Der
-Trichter füllt sich ab dem ersten Stufenwechsel nach dem Umbau.
+keine Zeilen**. Sie sind nicht kaputt — es gibt noch nichts zu zählen.
+
+**Bis zum 12.09.2026 ist kein einziger Wechsel strukturiert erfasst worden.**
+Der Trichter beginnt mit dem ersten, der tatsächlich ankommt. Hier steht
+bewusst kein Datum, ab dem es „eigentlich funktionieren müsste": Genau so eine
+Zusage stand hier schon einmal und hat nicht gehalten. Zwei Gründe dafür sind
+am 12.09.2026 gefunden und behoben worden:
+
+- **Ein Tab, der vor einem Deploy geöffnet wurde, lief auf altem Code weiter.**
+  Die Seite hat das nicht bemerkt. Sie zeigt jetzt einen Hinweis, sobald eine
+  neue Fassung bereitsteht.
+- **Protokolliert wurde vor dem Speichern.** Scheiterte der Schreibvorgang an
+  der Konfliktprüfung, blieb der Verlaufseintrag trotzdem stehen — er behauptete
+  einen Wechsel, den es am Lead nie gegeben hat. Real passiert bei einem Lead,
+  der danach als „Kunde" ohne Stufe und ohne Abschlussdatum dastand.
+
+Wer prüfen will, ob es inzwischen ankommt, zählt nach:
+
+```sql
+select count(*) from lead_activities
+where type = 'status_change' and from_stage is not null;
+```
 
 ### 3. 53 von 55 Abschlüssen haben kein Datum
 

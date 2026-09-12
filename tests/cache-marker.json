@@ -1,0 +1,58 @@
+{
+  "lib/phoneutil.js": {
+    "marker": "4.3",
+    "hash": "e0a38cf8b904c9fe"
+  },
+  "theme.css": {
+    "marker": "4.7",
+    "hash": "c001dc880c4e62fd"
+  },
+  "styles.css": {
+    "marker": "4.9",
+    "hash": "2344bbd08c86b336"
+  },
+  "mobile.css": {
+    "marker": "1.1",
+    "hash": "eccce79818dfed85"
+  },
+  "core/config.js": {
+    "marker": "4.3",
+    "hash": "d0438f9051c4b687"
+  },
+  "core/store.js": {
+    "marker": "4.2",
+    "hash": "97d883b2264371b5"
+  },
+  "core/leadstore.js": {
+    "marker": "4.6",
+    "hash": "8a3ca5e241ceff95"
+  },
+  "core/state.js": {
+    "marker": "4.2",
+    "hash": "310f18990b1fc87f"
+  },
+  "core/leads.js": {
+    "marker": "4.2",
+    "hash": "19e95f71cc1032d7"
+  },
+  "core/tasks.js": {
+    "marker": "4.2",
+    "hash": "263ed58f0761850d"
+  },
+  "core/pipeline.js": {
+    "marker": "4.2",
+    "hash": "b66d44f6907c15d9"
+  },
+  "ui/pipeline_ui.js": {
+    "marker": "4.9",
+    "hash": "f5a7c1732610cdda"
+  },
+  "ui/main_ui.js": {
+    "marker": "4.9",
+    "hash": "5b4ffbe507584ad3"
+  },
+  "modules/scraper.js": {
+    "marker": "4.3",
+    "hash": "51d70b45958481ef"
+  }
+}

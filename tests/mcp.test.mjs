@@ -209,6 +209,37 @@ await werkzeug('stufe_setzen', { lead_id: 42, stufe: 'offer' });
 await werkzeug('stufe_setzen', { lead_id: 42, stufe: 'closed' });
 check('Und behaelt sein Datum', bestand.closed_at_ms === erstesAbschlussdatum);
 
+// Beim Abschluss wird nach dem Wert gefragt — nicht erzwungen, aber gesagt.
+// Stand 12.09.2026 hatten 55 von 55 Abschluessen keinen Wert, weil niemand fragt.
+await werkzeug('stufe_setzen', { lead_id: 42, stufe: 'offer' });
+bestand.provi_umsatz = null;
+const ohneWert = await werkzeug('stufe_setzen', { lead_id: 42, stufe: 'closed' });
+check('Abschluss ohne Wert wird trotzdem gesetzt', ohneWert.jetzt === 'closed');
+check('Aber die Antwort weist darauf hin', /ohne Wert/i.test(ohneWert.hinweis || ''));
+
+await werkzeug('stufe_setzen', { lead_id: 42, stufe: 'offer' });
+const mitWert = await werkzeug('stufe_setzen',
+  { lead_id: 42, stufe: 'closed', wert: 847.5, datum: '2026-09-11' });
+check('Mitgegebener Wert wird geschrieben', bestand.provi_umsatz === 847.5);
+check('Mitgegebenes Datum wird uebernommen',
+      new Date(bestand.closed_at_ms).toLocaleDateString('sv-SE') === '2026-09-11');
+check('Mit Wert kein Hinweis mehr', !mitWert.hinweis);
+
+// 0 Euro ist eine Aussage, kein fehlender Wert.
+await werkzeug('stufe_setzen', { lead_id: 42, stufe: 'offer' });
+bestand.provi_umsatz = null;
+const nullEuro = await werkzeug('stufe_setzen', { lead_id: 42, stufe: 'closed', wert: 0 });
+check('0 Euro gilt als eingetragener Wert', bestand.provi_umsatz === 0 && !nullEuro.hinweis);
+
+// Wert und Datum nur beim Abschluss — bei anderen Stufen ergeben sie keinen Sinn.
+geschrieben.length = 0;
+await werkzeug('stufe_setzen', { lead_id: 42, stufe: 'pitch', wert: 99 });
+check('Wert wird ausserhalb des Abschlusses ignoriert',
+      !geschrieben.some(g => g.tabelle === 'crm_leads' && 'provi_umsatz' in (g.daten || {})));
+
+// Zustand fuer die naechste Pruefung wiederherstellen: sie erwartet 'closed'.
+await werkzeug('stufe_setzen', { lead_id: 42, stufe: 'closed' });
+
 // Gleiche Stufe noch einmal setzen schreibt nichts.
 geschrieben.length = 0;
 const nochmal = await werkzeug('stufe_setzen', { lead_id: 42, stufe: 'closed' });

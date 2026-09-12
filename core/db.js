@@ -399,35 +399,27 @@ export const db = {
         payload.created_at_ms = now;
       }
 
-      // Stufenwechsel protokollieren — mit BEIDEN Stufen.
+      // Stufenwechsel VORBEREITEN. Protokolliert wird erst nach dem
+      // erfolgreichen Schreibvorgang, weiter unten.
       //
-      // Vorher wurde nur die neue Stufe als Fliesstext festgehalten
-      // ("Status geaendert auf OFFER"). Damit war data -> offer (Fortschritt)
-      // nicht von closed -> offer (Rueckschritt) zu unterscheiden, und
-      // gezaehlt wurde per Textsuche. Beides zusammen macht jede
-      // Conversion-Rate wertlos.
-      try {
-        const oldStage = existing.stage || 'cold';
-        const newStage = lead.stage || oldStage;
-        if (newStage !== oldStage) {
-          await db.logStatusChange(lead.id, newStage, oldStage);
+      // Der Eintrag traegt BEIDE Stufen. Vorher stand nur die neue als
+      // Fliesstext da ("Status geaendert auf OFFER"); damit war data -> offer
+      // (Fortschritt) nicht von closed -> offer (Rueckschritt) zu
+      // unterscheiden, und gezaehlt wurde per Textsuche.
+      const oldStage = existing.stage || 'cold';
+      const newStage = lead.stage || oldStage;
+      const stufeGewechselt = newStage !== oldStage;
 
-          // Abschlusszeitpunkt einfrieren. Ohne ihn haengt "Abschluesse im
-          // September" am HEUTIGEN Zustand des Leads — ein Lead, der im
-          // Oktober zurueckgesetzt wird, wuerde den September rueckwirkend
-          // aendern.
-          //
-          // Nur beim ERSTEN Abschluss gesetzt und beim Zuruecksetzen nicht
-          // geloescht: ein bereits datierter Abschluss behaelt sein Datum.
-          // Die Auswertung zaehlt ohnehin nur Leads, die aktuell auf 'closed'
-          // stehen — ein zurueckgesetzter Lead faellt dort heraus, ohne dass
-          // sein Datum verloren geht.
-          if (newStage === 'closed' && !existing.closed_at_ms && !('closed_at_ms' in payload)) {
-            payload.closed_at_ms = now;
-          }
-        }
-      } catch(e) {
-        console.warn('Could not log status change', e);
+      // Abschlusszeitpunkt einfrieren. Ohne ihn haengt "Abschluesse im
+      // September" am HEUTIGEN Zustand des Leads — ein Lead, der im Oktober
+      // zurueckgesetzt wird, wuerde den September rueckwirkend aendern.
+      //
+      // Das gehoert in payload und muss deshalb VOR dem Schreibvorgang stehen.
+      // Nur beim ERSTEN Abschluss gesetzt und beim Zuruecksetzen nicht
+      // geloescht: ein bereits datierter Abschluss behaelt sein Datum.
+      if (stufeGewechselt && newStage === 'closed'
+          && !existing.closed_at_ms && !('closed_at_ms' in payload)) {
+        payload.closed_at_ms = now;
       }
 
       const registerLocalWrite = (id) => {
@@ -453,6 +445,26 @@ export const db = {
          throw new Error('Konflikt: Lead wurde exakt beim Speichern durch eine Fremdänderung überschrieben.');
       }
       
+      // ERST JETZT protokollieren — nach dem geglueckten Schreibvorgang.
+      //
+      // Vorher stand der Aufruf 36 Zeilen weiter oben, VOR dem Schreiben und
+      // vor der Konfliktpruefung auf last_edited_ms. Scheiterte das Speichern,
+      // blieb der Eintrag trotzdem stehen: der Verlauf behauptete dann einen
+      // Wechsel, den es am Lead nie gegeben hat.
+      //
+      // Real passiert am 12.09.2026 mit Lead 592 — "OFFER" und "CLOSED"
+      // protokolliert, Stufe bis heute 'cold', closed_at_ms leer.
+      //
+      // Ein fehlgeschlagenes Protokoll darf umgekehrt das Speichern nicht
+      // zurueckdrehen: der Lead ist dann korrekt, nur der Verlauf unvollstaendig.
+      if (stufeGewechselt) {
+        try {
+          await db.logStatusChange(lead.id, newStage, oldStage);
+        } catch (e) {
+          console.warn('Stufenwechsel nicht protokolliert', e);
+        }
+      }
+
       return { id: lead.id, updated: 1, last_edited_ms: payload.last_edited_ms || now };
       
     } else {

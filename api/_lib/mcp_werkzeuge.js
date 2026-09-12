@@ -222,21 +222,53 @@ export const WERKZEUGE = [
       'Setzt den Lead auf genau diese Stufe: cold (Kaltakquise), pitch (Erstgespräch), ' +
       'data (Daten erhalten), offer (Angebot draußen), closed (abgeschlossen). Der ' +
       'Wechsel wird im Verlauf mit alter und neuer Stufe festgehalten. Ein Abschluss ' +
-      'bekommt beim ersten Mal ein Datum, das später nicht mehr wandert.',
+      'bekommt beim ersten Mal ein Datum, das später nicht mehr wandert. ' +
+      'Beim Abschluss können "wert" (erwartete Provision in Euro) und "datum" ' +
+      'gleich mitgegeben werden. Fehlen sie, wird der Abschluss trotzdem gesetzt ' +
+      'und die Antwort weist darauf hin — erzwungen wird nichts.',
     inputSchema: {
       type: 'object',
       properties: {
         lead_id: { type: 'integer' },
-        stufe: { type: 'string', enum: STUFEN }
+        stufe: { type: 'string', enum: STUFEN },
+        wert: {
+          type: 'number', minimum: 0,
+          description: 'Erwartete Provision in Euro. Nur beim Abschluss sinnvoll. ' +
+                       'Weglassen heißt "noch nicht bekannt" — 0 heißt "tatsächlich null Euro".'
+        },
+        datum: {
+          type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+          description: 'Abschlussdatum als JJJJ-MM-TT. Ohne Angabe zählt der heutige Tag.'
+        }
       },
       required: ['lead_id', 'stufe'],
       additionalProperties: false
     },
-    async run({ lead_id, stufe }) {
+    async run({ lead_id, stufe, wert, datum }) {
       const l = await leadHolen(lead_id);
       if (l.stage === stufe) return { ok: true, hinweis: `Der Lead steht bereits auf ${stufe}.` };
-      await leadSchreiben(lead_id, { stage: stufe }, { erwarteterStand: l.last_edited_ms });
-      return { ok: true, vorher: l.stage, jetzt: stufe };
+
+      const felder = { stage: stufe };
+      if (stufe === 'closed') {
+        if (wert !== undefined) felder.provi_umsatz = wert;
+        // Mittags statt Mitternacht, damit der Tag beim Umrechnen nicht ueber
+        // eine Zeitzonengrenze auf den Vortag kippt.
+        if (datum) felder.closed_at_ms = new Date(`${datum}T12:00:00`).getTime();
+      }
+
+      await leadSchreiben(lead_id, felder, { erwarteterStand: l.last_edited_ms });
+
+      const antwort = { ok: true, vorher: l.stage, jetzt: stufe };
+      // Der eigentliche Zweck: beim Abschluss nach dem Wert fragen, statt ihn
+      // stillschweigend fehlen zu lassen. Stand 12.09.2026 hatten 55 von 55
+      // Abschluessen keinen Wert.
+      if (stufe === 'closed' && felder.provi_umsatz === undefined
+          && (l.provi_umsatz === null || l.provi_umsatz === undefined)) {
+        antwort.hinweis = 'Abschluss ohne Wert. Wenn die erwartete Provision bekannt ist, ' +
+                          'noch einmal mit "wert" aufrufen — sonst bleibt der Abschluss ' +
+                          'in der Liste "Abschlüsse ohne Wert" stehen.';
+      }
+      return antwort;
     }
   },
 

@@ -81,16 +81,38 @@ Siehe [ungeschuetzte-tabellen.md](ungeschuetzte-tabellen.md). Nicht CRM, aber
 dieselbe Datenbank und derselbe öffentliche Schlüssel. Eine Tabelle zur Probe,
 Jarvis gegenprüfen, dann die übrigen acht.
 
-### 0.4 Eine Sicherung, die nicht bei Supabase liegt
+### 0.4 Eine Sicherung, die nicht bei Supabase liegt — *teilweise erledigt*
 
-Heute gibt es keine. Kein Export aus der App, keine zweite Kopie. Ein Fehlgriff
-in `admin_scripts/` — die schreiben direkt auf die produktive Datenbank — und
-195 Leads und 277 Anrufe sind weg.
+**Am 12.09.2026 wurde eine geprüfte Kopie gezogen:**
+`~/Backups/lightning-crm/2026-09-12/` — 225 Leads (JSON und CSV), 277 Anrufe,
+Aktivitäten, Ziele, Einstellungen. Bewusst außerhalb des Repos, weil das
+GitHub-Repository öffentlich steht und dort Kundendaten drinstünden. Die Leads
+wurden gegen eine in der Datenbank gebildete Prüfsumme abgeglichen
+(`545b5d75d3119b2a1d77940f11e308b6`), Zeilenzahl und ID-Summe stimmen überein.
 
-Der schnellste ehrliche Weg: ein Werkzeug `export_alles` am MCP-Server, das den
-Bestand als JSON zurückgibt, plus ein kleines Skript, das das wöchentlich in
-einen Ordner schreibt. Papaparse liegt ohnehin schon für CSV bereit.
-**Aufwand: ein halber Tag. Der beste Gegenwert im ganzen Plan.**
+**Was noch fehlt:** Eine Sicherung ist eine Momentaufnahme. Die vom 12.09.
+schützt nicht, was danach eingetragen wird — und gerade stehen 53 Abschlussdaten
+und 55 Provisionswerte zum Nachtragen an.
+
+Der schnellste ehrliche Weg für die Wiederholung: ein Werkzeug `export_alles` am
+MCP-Server, das den Bestand als JSON zurückgibt, oder ein Export-Knopf in der
+App. Papaparse liegt ohnehin schon für CSV bereit.
+**Aufwand: ein halber Tag.**
+
+### 0.5 Versionshinweis für laufende Tabs ✓ *(12.09.2026 erledigt)*
+
+Ein Tab, der vor einem Deploy geöffnet wurde, führt den alten Code weiter aus —
+und niemand merkt es. Genau so landeten am 12.09. zwei Stufenwechsel ohne
+Struktur in der Datenbank, obwohl seit dem 11.09. der richtige Code ausgeliefert
+wurde.
+
+Die Seite horcht jetzt auf den Wechsel des Service Workers, fragt alle fünf
+Minuten selbst nach und zeigt eine ruhige Leiste „Neue Fassung verfügbar · Neu
+laden". Kein automatisches Neuladen — das würde angefangene Eingaben verwerfen;
+vor dem Neuladen läuft `flushLeadForm()`.
+
+**Warum das in Phase 0 steht und nicht bei den Bauschulden:** Es hat laufend
+Daten verloren, und zwar unbemerkt.
 
 ---
 
@@ -172,11 +194,31 @@ man einen Fehler erst im Betrieb.
 Rund 280 `style="..."` in den Vorlagen. Sinnvoll nur zusammen mit 3.1 — beides
 fasst dieselben Zeilen an.
 
-### 3.3 Cache-Marker automatisieren
+### 3.3 Cache-Marker automatisieren ✓ *(12.09.2026 erledigt)*
 
-Die `?v=`-Anhängsel werden von Hand gepflegt. Ich bin selbst hineingelaufen.
-Ein Prüfschritt, der beim Testlauf meckert, wenn eine geänderte Datei ihren
-Marker behalten hat, kostet eine Stunde.
+Die `?v=`-Anhängsel werden von Hand gepflegt. Prüfung 28 in `tests/ui.test.mjs`
+meckert jetzt, wenn eine geänderte Datei ihren Marker behalten hat. Sie merkt
+sich in `tests/cache-marker.json` Marker und Inhalts-Hash jeder betroffenen
+Datei; nach einer Änderung Marker hochzählen und
+`node tests/marker-aktualisieren.mjs` laufen lassen.
+
+Die Prüfung hat sofort einen echten Fall gefunden: `9c8e036` änderte
+`public/ui/pipeline_ui.js`, der Marker blieb auf 4.7 stehen.
+
+**Eine Einordnung hier war falsch und ist korrigiert.** Es lag nahe, die
+fehlenden Marker für den Datenverlust bei den Stufenwechseln am 12.09.
+verantwortlich zu machen. Sie waren es nicht:
+
+- Betroffen sind **nur** Dateien, die unverändert aus `public/` ausgeliefert
+  werden — `pipeline_ui.js`, `main_ui.js`, `leadstore.js`, `styles.css`.
+- Die Modulkette `ui/init.js → core/api.js → core/db.js` bündelt Vite mit
+  Inhalts-Hash im Dateinamen. Dort wäre ein Marker Arbeit ohne Wirkung. Am
+  12.09. wurde nachgesehen: das ausgelieferte Bündel enthielt den richtigen
+  Code, und alles kommt mit `cache-control: max-age=0, must-revalidate`.
+
+Die eigentliche Ursache war ein **Tab, der vor dem Deploy geöffnet wurde** und
+seitdem auf altem Code weiterlief, ohne dass die Seite es bemerkt hätte. Dagegen
+hilft kein Marker, sondern der Versionshinweis — siehe Phase 0.
 
 ---
 

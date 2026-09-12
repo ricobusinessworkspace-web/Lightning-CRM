@@ -984,6 +984,139 @@ check('Team-Bereich haengt am Schalter, nicht am Zufall',
   dashTeil.indexOf('window.isMultiUser()') < dashTeil.indexOf('<h2>Team</h2>'));
 check('Kein Chart.js mehr eingebunden', !fs.readFileSync('index.html', 'utf8').includes('chart.js'));
 
+// ── 27. Der Verlauf darf nichts behaupten, was nicht gespeichert wurde ──────
+// Am 12.09.2026 stand bei Lead 592 "OFFER" und "CLOSED" im Verlauf, waehrend
+// die Stufe bis heute auf 'cold' steht: protokolliert wurde VOR dem
+// Schreibvorgang und vor der Konfliktpruefung.
+const dbQuelle = fs.readFileSync('core/db.js', 'utf8');
+const posSchreiben = dbQuelle.indexOf("await updateQuery.select('id')");
+const posKonflikt  = dbQuelle.indexOf('Konflikt: Lead wurde exakt beim Speichern');
+const posProtokoll = dbQuelle.indexOf('await db.logStatusChange(');
+check('Testaufbau: alle drei Stellen gefunden',
+  posSchreiben > 0 && posKonflikt > 0 && posProtokoll > 0);
+check('Protokolliert wird NACH dem Schreibvorgang', posProtokoll > posSchreiben);
+check('Protokolliert wird NACH der Konfliktpruefung', posProtokoll > posKonflikt);
+check('closed_at_ms wird VOR dem Schreibvorgang gesetzt',
+  dbQuelle.indexOf('payload.closed_at_ms = now') < posSchreiben);
+check('Ein fehlgeschlagenes Protokoll dreht das Speichern nicht zurueck',
+  /if \(stufeGewechselt\)[\s\S]{0,200}try \{[\s\S]{0,120}logStatusChange[\s\S]{0,200}catch/.test(dbQuelle));
+
+// ── 27b. Versionshinweis fuer laufende Tabs ────────────────────────────────
+// Ein Tab, der vor dem Deploy geoeffnet wurde, laeuft auf altem Code weiter.
+// Genau so landeten am 12.09.2026 zwei Stufenwechsel ohne Struktur in der
+// Datenbank, obwohl richtig deployt war.
+const indexQuelle = fs.readFileSync('index.html', 'utf8');
+check('Seite horcht auf den Wechsel des Service Workers',
+  indexQuelle.includes("addEventListener('controllerchange'"));
+check('Erstanmeldung loest keinen Hinweis aus',
+  indexQuelle.includes('hatteVorher'));
+check('Ein lange offener Tab fragt selbst nach',
+  /setInterval\([\s\S]{0,200}\.update\(\)/.test(indexQuelle));
+
+w.document.body.innerHTML = '';
+w.zeigeVersionshinweis();
+const hinweis = w.document.getElementById('versionshinweis');
+check('Versionshinweis erscheint', !!hinweis);
+check('Versionshinweis nennt den Grund',
+  (hinweis?.textContent || '').includes('alten Stand'));
+w.zeigeVersionshinweis();
+check('Versionshinweis erscheint nicht doppelt',
+  w.document.querySelectorAll('#versionshinweis').length === 1);
+w.document.querySelector('.versionshinweis-zu').click();
+check('Versionshinweis laesst sich schliessen',
+  !w.document.getElementById('versionshinweis'));
+
+const mainQuelle = fs.readFileSync('public/ui/main_ui.js', 'utf8');
+const hinweisTeil = mainQuelle.slice(mainQuelle.indexOf('window.zeigeVersionshinweis'),
+                                    mainQuelle.indexOf('window.showToast = ('));
+check('Kein automatisches Neuladen ohne Zutun',
+  !/setTimeout[\s\S]{0,120}location\.reload/.test(hinweisTeil));
+check('Vor dem Neuladen wird gesichert',
+  hinweisTeil.indexOf('flushLeadForm') < hinweisTeil.indexOf('location.reload'));
+
+// ── 27c. Beim Abschluss wird nach dem Wert gefragt ─────────────────────────
+// 55 von 55 Abschluessen ohne Wert: das Feld war da, nur hat niemand gefragt.
+w.document.body.innerHTML = '';
+const abschlussSpeicher = [];
+w.leadStore = { ...(w.leadStore || {}),
+  get: () => ({ id: 7, provi_umsatz: null, closed_at_ms: null }),
+  save: async (id, felder) => { abschlussSpeicher.push({ id, felder }); return true; },
+  ruhe: async () => true };
+
+const dialog = w.frageAbschlusswert(7);
+check('Abschlussdialog erscheint', !!w.document.querySelector('.abschluss-overlay'));
+check('Datum ist auf heute vorbelegt',
+  w.document.getElementById('abschluss-datum').value === new Date().toLocaleDateString('sv-SE'));
+check('Wertfeld startet leer, nicht mit 0',
+  w.document.getElementById('abschluss-wert').value === '');
+
+w.document.getElementById('abschluss-wert').value = '847,50';
+w.document.querySelector('.abschluss-overlay .confirm-btn-primary').click();
+await dialog;
+await new Promise(r => setImmediate(r));
+check('Eingetragener Wert wird gespeichert',
+  abschlussSpeicher.length === 1 && abschlussSpeicher[0].felder.provi_umsatz === 847.5);
+check('Abschlussdatum wird mitabschlussSpeicher',
+  typeof abschlussSpeicher[0].felder.closed_at_ms === 'number');
+
+// "Spaeter" darf nichts schreiben — der Abschluss bleibt, der Wert fehlt.
+abschlussSpeicher.length = 0;
+const dialog2 = w.frageAbschlusswert(7);
+w.document.querySelector('.abschluss-overlay .confirm-btn-cancel').click();
+check('"Später" schreibt nichts', await dialog2 === false && abschlussSpeicher.length === 0);
+
+// Leeres Feld heisst NULL, nicht 0 — sonst waere der Abschluss "0 Euro wert".
+abschlussSpeicher.length = 0;
+const dialog3 = w.frageAbschlusswert(7);
+w.document.getElementById('abschluss-wert').value = '';
+w.document.querySelector('.abschluss-overlay .confirm-btn-primary').click();
+await dialog3;
+await new Promise(r => setImmediate(r));
+check('Leeres Wertfeld wird NULL, nicht 0', abschlussSpeicher[0].felder.provi_umsatz === null);
+
+const setPipeQuelle = fs.readFileSync('public/ui/main_ui.js', 'utf8');
+const setPipeTeil = setPipeQuelle.slice(setPipeQuelle.indexOf('window.setPipeline = async'),
+                                        setPipeQuelle.indexOf('window.selectCustomSnooze'));
+check('Gefragt wird nur beim Wechsel AUF closed',
+  setPipeTeil.includes("stage === 'closed' && vorherigeStufe !== 'closed'"));
+check('Gefragt wird erst nach dem Speichern',
+  setPipeTeil.indexOf('_triggerAutoSave') < setPipeTeil.indexOf('frageAbschlusswert'));
+
+// ── 28. Handverteilte Cache-Marker muessen mitwachsen ──────────────────────
+// Dateien aus public/ werden unveraendert ausgeliefert; ihr ?v=-Anhaengsel ist
+// das Einzige, was den Browser zum Nachladen bewegt. Wer eine davon aendert und
+// den Marker vergisst, liefert stillschweigend die alte Datei aus.
+//
+// Real passiert: 9c8e036 aenderte public/ui/pipeline_ui.js, der Marker blieb
+// auf 4.7 stehen.
+//
+// NICHT betroffen ist die Modulkette (type="module"): die buendelt Vite mit
+// Inhalts-Hash im Dateinamen.
+//
+// Nach einer Aenderung: Marker in index.html hochzaehlen, dann
+//   node tests/marker-aktualisieren.mjs
+const { marker: markerStand, hashVon: markerHash } = await import('./marker-lib.mjs');
+const markerSoll = JSON.parse(fs.readFileSync('tests/cache-marker.json', 'utf8'));
+const markerIst = markerStand();
+
+check('Testaufbau: Marker in index.html gefunden', Object.keys(markerIst).length >= 10);
+
+for (const [pfad, { marker: m, quelle }] of Object.entries(markerIst)) {
+  const hinterlegt = markerSoll[pfad];
+  if (!hinterlegt) {
+    check(`Marker fuer ${pfad} ist hinterlegt`, false);
+    continue;
+  }
+  const jetzt = markerHash(quelle);
+  const geaendert = jetzt !== hinterlegt.hash;
+  const markerNeu = m !== hinterlegt.marker;
+  // Geaendert ohne neuen Marker -> der Browser bekommt die alte Datei.
+  check(`${pfad}: Marker passt zum Inhalt`, !geaendert || markerNeu);
+}
+
+const verwaist = Object.keys(markerSoll).filter(p => !markerIst[p]);
+check('Keine verwaisten Eintraege in cache-marker.json', verwaist.length === 0);
+
 console.log('\n✅ BESTANDEN (' + ok.length + ')');
 ok.forEach(t => console.log('   ' + t));
 if (fail.length) {

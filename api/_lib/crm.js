@@ -30,7 +30,10 @@ export const ZUSTAENDE = ['Lead', 'Kunde', 'Uninteressant'];
  *  `claimed_by` oder `created_at_ms`), steht hier nicht drin. */
 const SCHREIBBAR = new Set([
   'name', 'phone', 'email', 'website_url', 'notes', 'task_text',
-  'stage', 'status', 'size', 'snooze_until_ms', 'starred', 'maps_city'
+  'stage', 'status', 'size', 'snooze_until_ms', 'starred', 'maps_city',
+  // Abschlusswert und -zeitpunkt. NULL heisst "noch nicht eingetragen",
+  // 0 heisst "tatsaechlich null Euro" — die beiden werden nie vermischt.
+  'provi_umsatz', 'closed_at_ms'
 ]);
 
 let client = null;

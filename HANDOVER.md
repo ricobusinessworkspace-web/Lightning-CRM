@@ -584,6 +584,32 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Handover-Historie
+- 2026-09-12 — Nacharbeit an der Kennzahlen-Datenschicht. **Der Verlauf durfte
+  behaupten, was nie gespeichert wurde:** `core/db.js` protokollierte den
+  Stufenwechsel 36 Zeilen VOR dem Schreibvorgang und vor der Konfliktprüfung.
+  Scheiterte das Speichern, blieb der Eintrag stehen. Real passiert mit Lead 592
+  („Kunde" ohne Stufe, ohne Abschlussdatum). Protokoll läuft jetzt nach dem
+  geglückten Schreibvorgang, `closed_at_ms` weiterhin davor (gehört in den
+  payload). Prüfung 27 hält die Reihenfolge fest.
+  **Versionshinweis für laufende Tabs:** Ein vor dem Deploy geöffneter Tab lief
+  auf altem Code weiter — so kamen am 12.09. zwei Stufenwechsel ohne Struktur in
+  die Datenbank, obwohl seit dem 11.09. richtig deployt war. Nachgewiesen durch
+  Lesen des Live-Bündels. Die Seite horcht jetzt auf `controllerchange`, fragt
+  alle fünf Minuten nach und zeigt „Neue Fassung verfügbar · Neu laden"; vor dem
+  Neuladen läuft `flushLeadForm()`.
+  **Cache-Marker werden geprüft** (Prüfung 28 + `tests/cache-marker.json` +
+  `tests/marker-aktualisieren.mjs`). Hat sofort einen echten Fall gefunden:
+  `9c8e036` änderte `pipeline_ui.js` ohne Markerwechsel. Ausdrücklich NICHT
+  betroffen ist die Modulkette — die bündelt Vite mit Inhalts-Hash.
+  **Beim Abschluss wird nach dem Wert gefragt** — Dialog in der Form von
+  `confirmAction`, „Später" ist erlaubt; am MCP-Server nimmt `stufe_setzen` jetzt
+  `wert` und `datum` entgegen und weist sonst darauf hin. Die Geldfelder sind
+  `type="text"` mit `inputmode="decimal"`: ein Zahlenfeld verwirft „847,50" je
+  nach Spracheinstellung stillschweigend.
+  **Testdaten bereinigt:** Leads 592/593 (Scout-Import 09.09., null Anrufe,
+  Durchklicken) auf `cold/Lead` zurückgesetzt, fünf strukturlose Protokollzeilen
+  gelöscht. Danach: 0 Zeilen ohne Struktur, 0 zerrissene Datensätze.
+  Prüfungen 237 → 355 in drei Suiten (Claude Opus 5).
 - 2026-09-12 — Datenschicht fertiggestellt: `crm_pipeline_snapshots` bekam die
   fehlende Zugriffsregel (die Tabelle stand seit dem 10.09. ohne Regel da,
   niemand kam heran) und wird jetzt beim Öffnen des Command Centers

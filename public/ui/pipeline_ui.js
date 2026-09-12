@@ -1678,7 +1678,7 @@ if (typeof window.renderDashboard === 'function') {
                 <div class="wert-zeile">
                   <label for="sys-provi">Erwartete Provision</label>
                   <div class="wert-eingabe">
-                    <input type="number" step="0.01" min="0" id="sys-provi" value="${wert}" placeholder="—">
+                    <input type="text" inputmode="decimal" id="sys-provi" value="${wert}" placeholder="—" autocomplete="off">
                     <span>€</span>
                   </div>
                 </div>

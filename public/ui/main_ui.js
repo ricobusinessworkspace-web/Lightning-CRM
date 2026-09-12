@@ -17,6 +17,7 @@ window.setPipeline = async (type) => {
     // kein Umschalten. Vorher warf ein Klick auf die bereits aktive Stufe
     // den Lead eine Stufe zurück — das war nicht vorhersehbar.
     const VALID = ['cold', 'pitch', 'data', 'offer', 'closed'];
+    const vorherigeStufe = stageNode.value || 'cold';
     let stage = VALID.includes(type) ? type : (stageNode.value || 'cold');
     let k = (stage === 'closed') ? 1 : 0;
 
@@ -55,6 +56,20 @@ window.setPipeline = async (type) => {
 
     // Trigger Auto-Save instantly when pipeline status changes
     if (window._triggerAutoSave) window._triggerAutoSave();
+
+    // Beim Abschluss nach Wert und Datum fragen — erst wenn der Wechsel
+    // wirklich gespeichert ist. Sonst stuende die Frage im Raum, waehrend der
+    // Lead noch gar nicht auf 'closed' steht.
+    if (stage === 'closed' && vorherigeStufe !== 'closed') {
+      const leadId = typeof window.getFormLeadId === 'function'
+        ? window.getFormLeadId() : window.store?.state?.currentSelectedLeadId;
+      if (leadId) {
+        Promise.resolve()
+          .then(() => window.leadStore && window.leadStore.ruhe ? window.leadStore.ruhe() : null)
+          .then(() => window.frageAbschlusswert(leadId))
+          .catch(e => console.warn('Abschlussfrage übersprungen', e));
+      }
+    }
   };
 
   window.selectCustomSnooze = () => {
@@ -225,6 +240,145 @@ window.setPipeline = async (type) => {
       el.style.bottom = unten + 'px';
       unten += el.offsetHeight + TOAST_LUECKE;
     }
+  };
+
+  // ── Abschlusswert erfragen ────────────────────────────────────────────────
+  // Ein Abschluss, bei dem niemand nach dem Wert fragt, bekommt auch keinen:
+  // Stand 12.09.2026 hatten 55 von 55 Abschluessen keinen Wert, 53 kein Datum.
+  // Das Feld gab es die ganze Zeit — es stand nur weiter unten in der
+  // Seitenleiste und wurde uebersehen.
+  //
+  // Deshalb wird beim Wechsel auf 'closed' danach gefragt. NICHT erzwungen:
+  // "Spaeter" schliesst den Dialog, der Abschluss bleibt bestehen und taucht
+  // als "Abschluss ohne Wert" in der Arbeitsliste des Command Centers auf.
+  // Ein Pflichtfeld wuerde nur dazu fuehren, dass jemand eine 1 eintippt.
+  // Die Geldfelder sind bewusst type="text" mit inputmode="decimal", nicht
+  // type="number": ein Zahlenfeld verwirft "847,50" je nach Spracheinstellung
+  // des Browsers stillschweigend. Das Komma wird hier selbst umgesetzt.
+  window.frageAbschlusswert = (leadId) => new Promise((resolve) => {
+    if (document.querySelector('.abschluss-overlay')) { resolve(false); return; }
+
+    const kamVon = document.activeElement;
+    const lead = (window.leadStore && typeof window.leadStore.get === 'function'
+                  ? window.leadStore.get(leadId) : null)
+              || (window.store?.state?.leads || []).find(l => String(l.id) === String(leadId))
+              || {};
+
+    const alsTag = (ms) => new Date(Number(ms)).toLocaleDateString('sv-SE');
+    const datumVor = lead.closed_at_ms ? alsTag(lead.closed_at_ms) : alsTag(Date.now());
+    const wertVor = (lead.provi_umsatz === null || lead.provi_umsatz === undefined)
+                    ? '' : lead.provi_umsatz;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay abschluss-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.innerHTML = `
+      <div class="confirm-dialog">
+        <div class="confirm-dialog-body">
+          <h3 class="confirm-dialog-title">Abschluss festhalten</h3>
+          <p class="confirm-dialog-message">Was ist dieser Abschluss wert? Ohne Angabe zählt er als „Abschluss ohne Wert".</p>
+          <div class="abschluss-feld">
+            <label for="abschluss-wert">Erwartete Provision</label>
+            <div class="abschluss-eingabe">
+              <input type="text" inputmode="decimal" id="abschluss-wert" value="${wertVor}" placeholder="—" autocomplete="off">
+              <span>€</span>
+            </div>
+          </div>
+          <div class="abschluss-feld">
+            <label for="abschluss-datum">Abschlussdatum</label>
+            <div class="abschluss-eingabe">
+              <input type="date" id="abschluss-datum" value="${escapeHtml(datumVor)}">
+            </div>
+          </div>
+        </div>
+        <div class="confirm-dialog-actions">
+          <button type="button" class="confirm-btn-cancel">Später</button>
+          <button type="button" class="confirm-btn-primary">Eintragen</button>
+        </div>
+      </div>`;
+
+    let erledigt = false;
+    const schliesse = (antwort) => {
+      if (erledigt) return;
+      erledigt = true;
+      document.removeEventListener('keydown', taste, true);
+      overlay.classList.add('confirm-overlay-exit');
+      setTimeout(() => overlay.remove(), 150);
+      if (kamVon && typeof kamVon.focus === 'function') { try { kamVon.focus(); } catch (e) {} }
+      resolve(antwort);
+    };
+
+    const uebernehmen = async () => {
+      const rohWert = String(document.getElementById('abschluss-wert')?.value ?? '').trim().replace(',', '.');
+      const zahl = Number(rohWert);
+      const datum = document.getElementById('abschluss-datum')?.value || '';
+
+      const felder = {
+        // Leer heisst NULL ("noch nicht eingetragen"), nicht 0.
+        provi_umsatz: (rohWert === '' || Number.isNaN(zahl)) ? null : zahl,
+        // Mittags statt Mitternacht, damit der Tag beim Umrechnen nicht ueber
+        // eine Zeitzonengrenze auf den Vortag kippt.
+        closed_at_ms: datum ? new Date(`${datum}T12:00:00`).getTime() : null
+      };
+      schliesse(true);
+      try {
+        await window.leadStore.save(leadId, felder, { label: 'Abschlusswert' });
+        if (typeof window.refreshLeadCard === 'function') window.refreshLeadCard(leadId);
+      } catch (e) {
+        console.error('Abschlusswert nicht gespeichert', e);
+        window.showToast('Abschlusswert konnte nicht gespeichert werden', 'error');
+      }
+    };
+
+    const taste = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); schliesse(false); }
+      else if (e.key === 'Enter') { e.preventDefault(); uebernehmen(); }
+    };
+
+    overlay.querySelector('.confirm-btn-cancel').onclick = () => schliesse(false);
+    overlay.querySelector('.confirm-btn-primary').onclick = uebernehmen;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) schliesse(false); });
+    document.addEventListener('keydown', taste, true);
+
+    document.body.appendChild(overlay);
+    setTimeout(() => document.getElementById('abschluss-wert')?.focus(), 60);
+  });
+
+  // ── Versionshinweis ────────────────────────────────────────────────────────
+  // Wird von der Service-Worker-Anmeldung in index.html gerufen, sobald eine
+  // neue Fassung bereitsteht. Dieser Tab fuehrt dann noch den alten Code aus.
+  //
+  // Bewusst KEIN automatisches Neuladen: das wuerde angefangene Eingaben
+  // verwerfen. Stattdessen ein ruhiger Hinweis, der stehen bleibt, bis er
+  // beachtet wird — ein Toast waere nach vier Sekunden weg und der Tab liefe
+  // weiter auf dem alten Stand.
+  window.zeigeVersionshinweis = () => {
+    if (document.getElementById('versionshinweis')) return;
+
+    const leiste = document.createElement('div');
+    leiste.id = 'versionshinweis';
+    leiste.className = 'versionshinweis';
+    leiste.setAttribute('role', 'status');
+    leiste.innerHTML = `
+      <span>Neue Fassung verfügbar. Dieser Tab läuft noch auf dem alten Stand.</span>
+      <button type="button" class="versionshinweis-laden">Neu laden</button>
+      <button type="button" class="versionshinweis-zu" aria-label="Hinweis schließen">&times;</button>`;
+
+    leiste.querySelector('.versionshinweis-laden').addEventListener('click', async () => {
+      // Angefangene Eingaben zuerst sichern — flushLeadForm ist der
+      // Fluchtpunkt vor jeder Navigation, und Neuladen ist eine.
+      try {
+        if (typeof window.flushLeadForm === 'function') await window.flushLeadForm();
+        if (window.leadStore && typeof window.leadStore.ruhe === 'function') await window.leadStore.ruhe();
+      } catch (e) {
+        console.warn('Vor dem Neuladen konnte nicht alles gesichert werden', e);
+      }
+      location.reload();
+    });
+    leiste.querySelector('.versionshinweis-zu').addEventListener('click', () => leiste.remove());
+
+    document.body.appendChild(leiste);
   };
 
   window.showToast = (msg, type = 'success', duration = 4500) => {
