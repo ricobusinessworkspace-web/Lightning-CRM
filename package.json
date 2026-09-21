@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node tests/ui.test.mjs && node tests/mcp.test.mjs && node tests/oauth.test.mjs && node tests/kontaktdaten.test.mjs && node tests/oeffnungszeiten.test.mjs && node tests/karte.test.mjs"
+    "test": "node tests/ui.test.mjs && node tests/mcp.test.mjs && node tests/oauth.test.mjs && node tests/kontaktdaten.test.mjs && node tests/oeffnungszeiten.test.mjs && node tests/karte.test.mjs && node tests/datenpflege.test.mjs"
   },
   "keywords": [],
   "author": "",

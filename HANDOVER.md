@@ -1,6 +1,6 @@
 ---
 last_updated: 2026-09-21
-last_agent: Claude Opus 5 (Nachbesserungen: Standort, Öffnungszeiten, echte Routen)
+last_agent: Claude Opus 5 (NULL statt Leerstring, company_domain, beide Nummern)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -72,7 +72,15 @@ Web-CRM für Leadgenerierung, Kaltakquise und Vertriebs-Pipeline. Aktuell im
   (siehe „Bewusste Entscheidungen").
 - **Öffnungszeiten:** `public/modules/oeffnungszeiten.js` versteht die
   englischen Google-Zeiten. Liste, Karteikarte und Karte fragen dieselbe Stelle.
-- **Tests:** 469 Prüfungen, alle grün — 267 Oberfläche (`tests/ui.test.mjs`),
+- **Datenpflege:** leere Textfelder sind **NULL**, nicht `''`. Gilt für
+  `email`, `impressum_phone`, `legal_company_name`, `director_name`,
+  `phone_source`, `website_url`. Durchgesetzt in `core/db.js` (Anlegen *und*
+  Ändern), geprüft in `tests/datenpflege.test.mjs`.
+- **`company_domain`:** normalisierter Host aus `website_url`, wird bei jedem
+  Schreibvorgang mitgeführt. **`is_multi_site`:** true, wenn dieselbe Domain
+  mehrfach vorkommt — Plattformen ausgenommen. Neu berechnet von der
+  SQL-Funktion `crm_multi_site_neu()`, aufgerufen am Ende jedes Imports.
+- **Tests:** 513 Prüfungen, alle grün — 267 Oberfläche (`tests/ui.test.mjs`),
   63 MCP-Server (`tests/mcp.test.mjs`), 46 Anmelde-Vorgang
   (`tests/oauth.test.mjs`), 42 Kontaktdaten (`tests/kontaktdaten.test.mjs`),
   27 Öffnungszeiten, 24 Landkarte. `npm test` fährt alle sechs.
@@ -642,6 +650,30 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Handover-Historie
+- 2026-09-21 (5) — Datenpflege und Mehrfach-Standorte.
+  **Der Bestand war zu 100 % mit Leerstrings gefüllt** — 243 von 243 Leads
+  hatten `''` statt NULL in `email`, `impressum_phone`, `legal_company_name`,
+  `director_name` und `phone_source`; jedes „is not null" lieferte alle
+  Zeilen. Zwei Ursachen: der Insert-Pfad in `core/db.js` erzwang `?? ''` für
+  jede Textspalte, und die Impressum-Anreicherung im Scout lief nur für
+  Treffer **ohne** Telefonnummer — Google Places liefert fast immer eine,
+  also lief sie praktisch nie. Beides behoben; die Anreicherung nutzt jetzt
+  `modules/kontaktdaten.js` (eine Implementierung statt zwei) und kann
+  zusätzlich Firmenname und Geschäftsführung lesen.
+  **Neu:** `company_domain` (normalisierter Host) und `is_multi_site`.
+  Plattformen sind bei der Ketten-Erkennung ausgenommen — ohne diese Ausnahme
+  wären zehn Leads als Kette markiert worden, davon **acht falsch** (sechs
+  fremde Betriebe teilen sich instagram.com). Echt ist genau eine Kette.
+  **Beide Telefonnummern** stehen untereinander auf der Karteikarte,
+  „Maps" und „Impressum", beide als `tel:`-Link; fehlt eine, fällt die Zeile
+  weg. `phone` wird nie überschrieben.
+  **Beim Prüfen aufgefallen:** während der Arbeit kamen 20 neue Leads dazu —
+  mit Leerstrings, weil die live laufende Fassung noch den alten Code hatte.
+  Die Migration heilt den Bestand, nicht die Quelle: **erst ausrollen, dann
+  aufräumen.**
+  Rückweg: `update crm_leads set <spalte> = '' where <spalte> is null;` pro
+  Spalte. Stand der 19 Zeilen mit echtem Inhalt liegt in
+  `scratch/sicherung/crm_leads_impressumfelder_2026-09-21.json`.
 - 2026-09-21 (4) — Nachbesserungen nach Durchsicht.
   Die Adresse im Standort-Kasten zeigt wieder auf die **Karte in der
   Anwendung** und ist kein blauer Link mehr; die Wege nach draußen sind die

@@ -77,6 +77,38 @@ function normalizeRow(row) {
   };
 }
 
+/**
+ * Leerer Text ist kein Wert.
+ *
+ * Betrifft nur die Felder, die "nicht vorhanden" kennen muessen (Webseite,
+ * Impressum-Angaben). name, phone, notes und task_text bleiben bewusst bei '' —
+ * dort haengt Anzeige- und Speicherlogik daran.
+ */
+function leerZuNull(wert) {
+  if (wert === null || wert === undefined) return null;
+  const t = String(wert).trim();
+  return t === '' ? null : t;
+}
+
+/**
+ * Normalisierter Host einer Webadresse: klein, ohne Protokoll, ohne "www.",
+ * ohne Pfad, ohne Port. "https://www.Muster-GmbH.de/kontakt" -> "muster-gmbh.de"
+ *
+ * Steht hier, weil jeder Schreibweg durch saveLead laeuft — so bekommt jeder
+ * neue Lead die Domain mit, egal ob aus dem Scout, aus der Maske oder vom
+ * MCP-Server.
+ */
+function domainAus(webadresse) {
+  const roh = leerZuNull(webadresse);
+  if (!roh) return null;
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(roh) ? roh : 'https://' + roh);
+    return url.hostname.toLowerCase().replace(/^www\./, '') || null;
+  } catch (e) {
+    return null;                       // unlesbare Eingabe: lieber nichts
+  }
+}
+
 // ─── Internal: JS Post-Processing & Sorting ───────────────────────────
 function postProcessAndSort(rows, filters = {}) {
   const now = Date.now();
@@ -140,6 +172,12 @@ export function vergleicheLeads(filters = {}, jetzt = Date.now()) {
     const starA = a.starred ? 1 : 0;
     const starB = b.starred ? 1 : 0;
     if (starA !== starB) return starB - starA;
+
+    // Mehrere Standorte = mehr Zaehlpunkte am selben Abschluss. Steht bewusst
+    // NACH dem Stern: eine Handmarkierung schlaegt die Rechnung.
+    const ketteA = a.is_multi_site ? 1 : 0;
+    const ketteB = b.is_multi_site ? 1 : 0;
+    if (ketteA !== ketteB) return ketteB - ketteA;
 
     const getScore = l => {
       if (l.status === 'Kunde') return 4;
@@ -303,7 +341,7 @@ export const db = {
       'closed_gas', 'zaehlernummern', 'abschlussdatum', 'provi_umsatz', 'last_edited_ms',
       'locations', 'email', 'impressum_phone', 'legal_company_name', 'director_name',
       'phone_source', 'estimated_kwh', 'opening_hours', 'linked_leads', 'last_contact_ms',
-      'claimed_by', 'created_at_ms', 'closed_at_ms'
+      'claimed_by', 'created_at_ms', 'closed_at_ms', 'company_domain', 'is_multi_site'
     ];
 
     let payload = {};
@@ -316,6 +354,15 @@ export const db = {
         }
       }
       payload.last_edited_ms = now;
+
+      // Dieselbe Regel wie beim Anlegen: leerer Text heisst NULL. Wer die
+      // Webadresse im Formular loescht, soll NULL bekommen, nicht ''.
+      for (const feld of ['website_url', 'email', 'impressum_phone',
+                          'legal_company_name', 'director_name', 'phone_source']) {
+        if (feld in payload) payload[feld] = leerZuNull(payload[feld]);
+      }
+      // Die Domain haengt an der Webadresse und wird nie von Hand gepflegt.
+      if ('website_url' in payload) payload.company_domain = domainAus(payload.website_url);
 
       if ('locations' in payload) payload.locations = safeParse(payload.locations, []);
       if ('linked_leads' in payload) payload.linked_leads = safeParse(payload.linked_leads, []);
@@ -339,7 +386,10 @@ export const db = {
         maps_city:          lead.maps_city           ?? '',
         lat:                lead.lat                 ?? null,
         lng:                lead.lng                 ?? null,
-        website_url:        lead.website_url         ?? '',
+        // NULL statt Leerstring — sonst liefert jedes "is not null" falsche
+        // Ergebnisse. Vor dem 21.09.2026 stand hier ueberall '' und damit in
+        // der Datenbank bei 243 von 243 Leads ein leerer Text statt NULL.
+        website_url:        leerZuNull(lead.website_url),
         google_maps_url:    lead.google_maps_url     ?? '',
         google_place_id:    lead.google_place_id     ?? '',
         umsatz:             lead.umsatz              ?? 0,
@@ -355,11 +405,12 @@ export const db = {
         provi_umsatz:       lead.provi_umsatz        ?? null,
         last_edited_ms:     now,
         locations,
-        email:              lead.email               ?? '',
-        impressum_phone:    lead.impressum_phone     ?? '',
-        legal_company_name: lead.legal_company_name  ?? '',
-        director_name:      lead.director_name       ?? '',
-        phone_source:       lead.phone_source        ?? '',
+        email:              leerZuNull(lead.email),
+        impressum_phone:    leerZuNull(lead.impressum_phone),
+        legal_company_name: leerZuNull(lead.legal_company_name),
+        director_name:      leerZuNull(lead.director_name),
+        phone_source:       leerZuNull(lead.phone_source),
+        company_domain:     domainAus(lead.website_url),
         estimated_kwh:      lead.estimated_kwh       ?? 0,
         opening_hours,
         linked_leads,
@@ -823,6 +874,22 @@ export const db = {
   },
 
   // ── Utils ───────────────────────────────────────────────────────────
+  /**
+   * Mehrfach-Standorte neu bestimmen.
+   *
+   * Setzt is_multi_site fuer alle Leads neu (SQL-Funktion crm_multi_site_neu).
+   * Am Ende jedes Imports aufrufen — ein Zeitplan ist nicht noetig, der Wert
+   * aendert sich nur, wenn Leads dazukommen oder verschwinden.
+   */
+  aktualisiereMehrfachStandorte: async () => {
+    const { data, error } = await supabase.rpc('crm_multi_site_neu');
+    if (error) {
+      console.warn('Mehrfach-Standorte konnten nicht neu bestimmt werden:', error.message || error);
+      return null;
+    }
+    return data;
+  },
+
   // Dieselbe Reihenfolge wie beim Laden — fuer die Oberflaeche nach einer
   // Wiedervorlage.
   sortLeads: (liste, filters = {}) =>

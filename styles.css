@@ -1899,6 +1899,22 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 .kontakt-liste { display: flex; flex-direction: column; gap: var(--space-2); }
 .kontakt-zeile { display: flex; align-items: center; gap: var(--space-2); }
 
+/* Woher die Zeile stammt: Maps, Impressum, E-Mail. Feste Breite, damit die
+   Felder darunter auf einer Linie stehen. */
+.kontakt-marke {
+  width: 62px; flex-shrink: 0;
+  font-size: var(--text-xs); font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase; letter-spacing: 0.6px;
+}
+/* Die Impressum-Nummer wird angezeigt, nicht bearbeitet — sie kommt von der
+   Webseite und wird beim naechsten Auslesen neu gesetzt. */
+.kontakt-fest {
+  display: flex; align-items: center;
+  background: transparent; border-color: transparent;
+  color: var(--color-text-primary);
+}
+
 .kontakt-feld {
   flex: 1; min-width: 0;
   font-family: var(--font-mono);
@@ -1931,6 +1947,7 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
   transition: background var(--transition-base);
 }
 .kontakt-btn:hover { background: rgba(10, 132, 255, 0.20); }
+a.kontakt-btn { text-decoration: none; display: inline-flex; align-items: center; }
 /* Kopiert-Rueckmeldung am Knopf */
 .kontakt-btn.knopf-erledigt {
   background: var(--color-intent-success-bg);

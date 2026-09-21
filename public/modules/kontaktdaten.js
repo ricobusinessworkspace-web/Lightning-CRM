@@ -379,6 +379,68 @@
     return brauchbar.slice().sort((a, b) => punkte(b) - punkte(a))[0];
   }
 
+  // ── Firmenangaben aus dem Impressum ───────────────────────────────────────
+  //
+  // Ein Impressum ist zeilenweise aufgebaut: eine Zeile Firmenname, eine Zeile
+  // Strasse, eine Zeile "Geschaeftsfuehrer: ...". Deshalb wird hier NICHT im
+  // Fliesstext gesucht — sonst zieht der Firmenname den halben Satz davor mit
+  // ("Impressum FMK ... GmbH") und der Name der Geschaeftsfuehrung laeuft in
+  // die naechste Zeile weiter.
+
+  const RECHTSFORM = /(?:GmbH\s*&\s*Co\.?\s*KG|gGmbH|GmbH|UG\s*\(haftungsbeschränkt\)|UG|AG|OHG|GbR|KG|mbH|e\.\s?K\.?|e\.\s?V\.?)/;
+
+  const NAME_TEIL = "[A-ZÄÖÜ][a-zäöüß]+(?:-[A-ZÄÖÜ][a-zäöüß]+)?";
+  const TITEL = "(?:(?:Dipl|Dr|Prof|Ing|med|rer|nat|B|M|MBA|LL)\\.?\\s*[A-Za-z]{0,4}\\.\\s*)*";
+  const PERSON = new RegExp("^" + TITEL + "(" + NAME_TEIL + "\\s+" + NAME_TEIL + "(?:\\s+" + NAME_TEIL + ")?)");
+  // Titelreste, die wie ein Vorname aussehen.
+  const KEIN_NAME = /^(Dipl|Ing|Dr|Prof|Herr|Frau|Med|Rer|Nat|Der|Die|Das|Und|Herrn)\b/i;
+
+  const CHEF_LABEL = /^(?:Geschäftsführer(?:in)?|Geschäftsführung|Vertreten durch|Vertretungsberechtigt(?:e[rn]?)?|Inhaber(?:in)?|Eigentümer(?:in)?|Betriebsleiter(?:in)?|Vorstand(?:svorsitzende[rn]?)?|Vorsitzende[rn]?)\s*[:\-–]?\s*/i;
+
+  const KEIN_FIRMENNAME = /\b(Impressum|Datenschutz|Telefon|Fax|E-?Mail|Registergericht|Amtsgericht|Umsatzsteuer|USt|Steuer-?Nr|Steuernummer|Verantwortlich|Haftung|Haftungsausschluss|Quelle|Urheber|Alle Rechte|Copyright)\b/i;
+
+  // Blockgrenzen bleiben erhalten: <br>, </p>, </div> und Verwandte werden zu
+  // Zeilenumbruechen, bevor die Auszeichnungen fallen.
+  function zeilen(html) {
+    return nurInhalt(html)
+      .replace(/<(br|hr)\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li|tr|td|h[1-6]|address|section|article)\s*>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .split('\n')
+      .map(z => entitaeten(z).replace(/[ \t ]+/g, ' ').trim())
+      .filter(z => z.length > 0 && z.length < 200);
+  }
+
+  /**
+   * Firmenname und verantwortliche Person aus einer Impressumsseite.
+   * Was nicht sicher erkannt wird, bleibt null — lieber leer als falsch.
+   */
+  function firmenAngaben(html) {
+    const ergebnis = { legal_company_name: null, director_name: null };
+    const alle = zeilen(html);
+
+    for (const zeile of alle) {
+      if (!ergebnis.director_name && CHEF_LABEL.test(zeile)) {
+        const rest = zeile.replace(CHEF_LABEL, '').trim();
+        const treffer = PERSON.exec(rest);
+        if (treffer && treffer[1] && treffer[1].length <= 60 && !KEIN_NAME.test(treffer[1])) {
+          ergebnis.director_name = treffer[1];
+        }
+      }
+      if (!ergebnis.legal_company_name) {
+        // Die Zeile MUSS mit der Rechtsform enden — so bleibt "Muster GmbH"
+        // uebrig und "Die Muster GmbH haftet nicht für ..." faellt raus.
+        if (/^\s*(©|\(c\)|copyright)/i.test(zeile)) continue;
+        const firma = new RegExp("^(.{2,70}?\\s" + RECHTSFORM.source + ")\\.?$").exec(zeile);
+        if (firma && firma[1] && !KEIN_FIRMENNAME.test(firma[1])) {
+          ergebnis.legal_company_name = firma[1].replace(/^(Firma|Name|Anbieter)\s*:?\s*/i, '').trim();
+        }
+      }
+      if (ergebnis.director_name && ergebnis.legal_company_name) break;
+    }
+    return ergebnis;
+  }
+
   // ── Unterseiten ───────────────────────────────────────────────────────────
 
   const UNTERSEITEN_WORT = /(impressum|imprint|kontakt|contact|ueber-uns|über-uns|about|legal)/i;
@@ -426,6 +488,7 @@
     const ergebnis = {
       email: null, emailQuelle: null, emailSeite: null,
       telefon: null, telefonQuelle: null, telefonSeite: null,
+      legal_company_name: null, director_name: null,
       seiten: [], grund: null
     };
     if (!webseite) { ergebnis.grund = 'keine-webseite'; return ergebnis; }
@@ -498,6 +561,16 @@
       ergebnis.telefonQuelle = wahl.telefon.quelle;
       ergebnis.telefonSeite = wahl.telefon.seite;
     }
+
+    // Firmenname und Geschaeftsfuehrung stehen im Impressum, nicht auf der
+    // Startseite — deshalb die Unterseiten zuerst durchsehen.
+    for (const seite of seiten.slice().sort((a, b) =>
+           (/impressum|imprint|legal/i.test(b.url) ? 1 : 0) - (/impressum|imprint|legal/i.test(a.url) ? 1 : 0))) {
+      const angaben = firmenAngaben(seite.html);
+      if (!ergebnis.legal_company_name && angaben.legal_company_name) ergebnis.legal_company_name = angaben.legal_company_name;
+      if (!ergebnis.director_name && angaben.director_name) ergebnis.director_name = angaben.director_name;
+      if (ergebnis.legal_company_name && ergebnis.director_name) break;
+    }
     if (!ergebnis.email && !ergebnis.telefon) {
       // Ehrlich bleiben: "nichts gefunden" heisst etwas anderes als "die Seite
       // hat uns nicht hereingelassen".
@@ -510,7 +583,7 @@
     hostVon, hauptDomain, istPlattform, istFreemail,
     emailKandidaten, besteEmail,
     telefonKandidaten, besteTelefonnummer, nummerNormalisieren,
-    impressumLinks, holeKontaktdaten,
+    impressumLinks, holeKontaktdaten, firmenAngaben,
     PLATTFORMEN, FREEMAIL, ALLGEMEIN, VERWALTUNG
   };
 

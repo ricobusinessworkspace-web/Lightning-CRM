@@ -76,6 +76,7 @@ window.api = {
   getLeadHistory: (id) => db.getLeadHistory(id),
   getStage: (lead) => db.getStage(lead),
   sortLeads: (liste, filters) => db.sortLeads(liste, filters),
+  aktualisiereMehrfachStandorte: () => db.aktualisiereMehrfachStandorte(),
 
   // Call Tracking
   logCall: (id) => db.logCall(id),

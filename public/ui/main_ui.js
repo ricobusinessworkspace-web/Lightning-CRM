@@ -1449,10 +1449,18 @@ window.setPipeline = async (type) => {
     return ziel && ziel.closest ? ziel.closest('button') : ziel;
   };
 
-  window.copyPhone = async (e, id, phone) => {
+  /**
+   * Nummer kopieren und den Anruf festhalten.
+   *
+   * `feldId` sagt, woher die Nummer kommt: normalerweise aus dem Formularfeld
+   * (dort kann eine gerade getippte, noch nicht gespeicherte Nummer stehen).
+   * Mit `null` gilt die uebergebene Nummer — so kopiert die Impressum-Zeile
+   * ihre eigene und nicht die aus dem Maps-Feld.
+   */
+  window.copyPhone = async (e, id, phone, feldId = 'sys-phone') => {
     const knopf = knopfAus(e);
-    const feld = document.getElementById('sys-phone');
-    const nummer = feld ? feld.value.trim() : phone;
+    const feld = feldId ? document.getElementById(feldId) : null;
+    const nummer = (feld ? feld.value : phone || '').trim();
     if (!nummer) return;
 
     // Erst kopieren und zurueckmelden, dann protokollieren. Das Protokoll

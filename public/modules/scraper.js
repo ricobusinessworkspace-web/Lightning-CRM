@@ -27,118 +27,44 @@
          .replace(/'/g, "&#039;");
   };
 
-  // Extract phone numbers from website HTML content using regular expressions
-  function extractPhoneFromHtml(html) {
-    if (!html) return null;
-    
-    // Step 1: Prioritize explicit tel: links
-    const telMatch = html.match(/href=["']tel:([^"'\s>]+)["']/i);
-    if (telMatch && telMatch[1]) {
-      return decodeURIComponent(telMatch[1]).replace(/%20/g, ' ').trim();
-    }
-    
-    // Step 2: Regex-based pattern matching for text phone numbers
-    // Captures +49..., 0049..., or standard 0... numbers with spaces, slashes, or dashes
-    const phoneRegex = /(?:\+49|0049|[0\+])[1-9][0-9]{1,4}[/\-\s\d]{5,15}/g;
-    const matches = html.match(phoneRegex);
-    if (matches && matches.length > 0) {
-      for (let match of matches) {
-        const clean = match.replace(/[^0-9]/g, '');
-        // Verify length corresponds to a valid German/intl number (typically 7-15 digits)
-        if (clean.length >= 7 && clean.length <= 15) {
-          return match.trim();
-        }
-      }
-    }
-    return null;
-  }
-
-  // Find legal/contact links within main page HTML
-  function findSubpageLink(html, baseUrl) {
-    const linkRegex = /href=["']([^"']*(?:impressum|contact|kontakt|about|ueber-uns|legal)[^"']*)["']/i;
-    const match = html.match(linkRegex);
-    if (match && match[1]) {
-      let sub = match[1].trim();
-      if (/^https?:\/\//i.test(sub)) {
-        return sub;
-      }
-      try {
-        const parsedBase = new URL(baseUrl);
-        if (sub.startsWith('/')) {
-          return parsedBase.origin + sub;
-        } else {
-          const pathname = parsedBase.pathname;
-          const lastSlash = pathname.lastIndexOf('/');
-          const basePath = lastSlash !== -1 ? pathname.substring(0, lastSlash + 1) : '/';
-          return parsedBase.origin + basePath + sub;
-        }
-      } catch (err) {
-        return null;
-      }
-    }
-    return null;
-  }
-
-  // Formatting extracted raw number
-  function cleanPhoneNumber(num) {
-    let clean = num.trim().replace(/[\r\n\t]/g, '');
-    clean = clean.replace(/^(?:tel:)/i, '');
-    return clean;
-  }
-
-  function extractEmailFromHtml(html) {
-    if (!html) return null;
-    const match = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-    return match ? match[0] : null;
-  }
-
-  function extractImpressumData(html) {
-    if (!html) return { legal_company_name: '', director_name: '' };
-    const data = { legal_company_name: '', director_name: '' };
-    const directorMatch = html.match(/(?:Geschäftsführer|Inhaber|Vertretungsberechtigt)[\s:]*([A-Za-zäöüÄÖÜß\s]+?)(?:<|\n|,)/i);
-    if (directorMatch && directorMatch[1]) {
-      data.director_name = directorMatch[1].trim();
-    }
-    const nameMatch = html.match(/(?:Firma|Name)[\s:]*([A-Za-zäöüÄÖÜß0-9\s&.-]+?(?:GmbH|UG|AG|GbR|e\.K\.|KG))/i);
-    if (nameMatch && nameMatch[1]) {
-      data.legal_company_name = nameMatch[1].trim();
-    }
-    return data;
-  }
-
-  // Core background crawler
+  /**
+   * Impressum-Anreicherung.
+   *
+   * Hier standen frueher eigene Regeln zum Auslesen von Telefon, E-Mail und
+   * Impressum — sie nahmen die erste E-Mail der Seite (also oft die der
+   * Werbeagentur aus der Fusszeile) und kannten weder verschleierte Adressen
+   * noch Plattformseiten. Die Arbeit macht jetzt public/modules/kontaktdaten.js
+   * mit eigener Pruefdatei; hier bleibt nur die Uebersetzung in die Form, die
+   * der Scout erwartet.
+   *
+   * Nicht Gefundenes ist **null**, niemals ''. Ein leerer Text in der Datenbank
+   * laesst jedes "is not null" ins Leere laufen.
+   */
   window.enrichLeadData = async (websiteUrl) => {
-    const resData = { phone: null, email: null, impressum_phone: null, legal_company_name: '', director_name: '' };
-    if (!websiteUrl) return resData;
-    let url = websiteUrl.trim();
-    if (!/^https?:\/\//i.test(url)) url = 'http://' + url;
-    
-    try {
-      const res = await window.api.fetchApi(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-      if (!res || !res.ok || !res.data) return resData;
+    const leer = { phone: null, email: null, impressum_phone: null,
+                   legal_company_name: null, director_name: null, grund: 'keine-webseite' };
+    if (!websiteUrl || !window.Kontaktdaten) return leer;
 
-      const html = res.data;
-      resData.email = extractEmailFromHtml(html);
-      let phone = extractPhoneFromHtml(html);
-      if (phone) resData.phone = cleanPhoneNumber(phone);
-
-      const subpageUrl = findSubpageLink(html, url);
-      if (subpageUrl) {
-        const subRes = await window.api.fetchApi(subpageUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        if (subRes && subRes.ok && subRes.data) {
-          const subHtml = subRes.data;
-          const impPhone = extractPhoneFromHtml(subHtml);
-          if (impPhone) resData.impressum_phone = cleanPhoneNumber(impPhone);
-          if (!resData.email) resData.email = extractEmailFromHtml(subHtml);
-          const impData = extractImpressumData(subHtml);
-          resData.legal_company_name = impData.legal_company_name;
-          resData.director_name = impData.director_name;
-        }
+    const hole = async (url) => {
+      try {
+        const antwort = await window.api.fetchApi(url);
+        const text = typeof antwort.data === 'string' ? antwort.data
+                   : (antwort.data ? JSON.stringify(antwort.data) : '');
+        return { ok: !!antwort.ok, status: antwort.status || 0, text };
+      } catch (e) {
+        return { ok: false, status: 0, text: '' };
       }
-    } catch (e) {
-      console.error(`Enrichment crawl failed for ${websiteUrl}:`, e);
-    }
-    return resData;
+    };
+
+    const r = await window.Kontaktdaten.holeKontaktdaten(websiteUrl, hole, {});
+    return {
+      phone: null,                       // die Maps-Nummer wird nie ueberschrieben
+      email: r.email,
+      impressum_phone: r.telefon,        // die Nummer von der Webseite gehoert hierhin
+      legal_company_name: r.legal_company_name,
+      director_name: r.director_name,
+      grund: r.grund
+    };
   };
 
   // Triggers background search for a single lead's missing phone number
@@ -152,16 +78,10 @@
     container.innerHTML = `<span>📞</span> <span style="font-style:italic; font-size:11px; color:var(--text-muted);">Suche läuft... ⏳</span>`;
 
     const data = await window.enrichLeadData(r.website);
-    if (data.phone || data.impressum_phone) {
-      r.phone = data.phone || data.impressum_phone;
-      r.email = data.email || '';
-      r.legal_company_name = data.legal_company_name || '';
-      r.director_name = data.director_name || '';
-      r.impressum_phone = data.impressum_phone || '';
-      showToast(`Telefonnummer gefunden: ${r.phone}`);
-    } else {
-      showToast('Keine Telefonnummer auf der Website gefunden', true);
-    }
+    uebernehmen(r, data);
+    if (data.impressum_phone) showToast(`Nummer im Impressum gefunden: ${data.impressum_phone}`);
+    else if (data.email)      showToast(`Keine Nummer, aber eine E-Mail: ${data.email}`);
+    else                      showToast('Auf der Webseite war nichts zu finden', true);
     const existingLeads = await window.api.getLeads({ all: true });
     renderScoutedCards(scoutedResults, existingLeads);
   };
@@ -320,28 +240,40 @@
     }).join('');
   }
 
+  /**
+   * Gefundene Angaben in den Scout-Treffer uebernehmen.
+   * Nur, was wirklich gefunden wurde — nichts wird mit '' ueberschrieben.
+   * Die Maps-Nummer (r.phone) bleibt unangetastet.
+   */
+  function uebernehmen(r, data) {
+    let etwas = false;
+    ['email', 'impressum_phone', 'legal_company_name', 'director_name'].forEach(feld => {
+      if (data[feld]) { r[feld] = data[feld]; etwas = true; }
+    });
+    return etwas;
+  }
+
   // Automatic background phone enrichment process
   async function autoEnrichMissingPhones() {
     const autoEnrichCheckbox = document.getElementById('scout-auto-enrich');
     if (!autoEnrichCheckbox || !autoEnrichCheckbox.checked) return;
 
-    const toEnrich = scoutedResults.filter(r => r.website && !r.phone);
+    // Frueher: nur Treffer OHNE Telefonnummer. Google Places liefert fast
+    // immer eine — deshalb lief die Impressum-Anreicherung praktisch nie, und
+    // E-Mail, Firmenname und Geschaeftsfuehrung blieben bei allen 243 Leads
+    // leer. Jetzt wird jede Seite gelesen, auf der etwas stehen kann.
+    const toEnrich = scoutedResults.filter(r => r.website && !(r.email && r.impressum_phone));
     if (toEnrich.length === 0) return;
 
     const statusText = document.getElementById('scout-status-text');
     let count = 0;
     for (let r of toEnrich) {
       if (statusText) {
-        statusText.innerText = `Recherche läuft... Anreicherung von Lead ${count + 1} von ${toEnrich.length} ⚡`;
+        statusText.innerText = `Impressum wird gelesen — Lead ${count + 1} von ${toEnrich.length} ⚡`;
       }
       
       const data = await window.enrichLeadData(r.website);
-      if (data.phone || data.impressum_phone) {
-        r.phone = data.phone || data.impressum_phone;
-        r.email = data.email || '';
-        r.legal_company_name = data.legal_company_name || '';
-        r.director_name = data.director_name || '';
-        r.impressum_phone = data.impressum_phone || '';
+      if (uebernehmen(r, data)) {
         const existingLeads = await window.api.getLeads({ all: true });
         renderScoutedCards(scoutedResults, existingLeads);
       }
@@ -658,7 +590,10 @@
       });
 
       showToast(`„${r.name}" in die Kaltakquise übernommen`);
-      
+
+      // Kam ein Standort einer Kette dazu, gilt das fuer alle Standorte.
+      if (window.api.aktualisiereMehrfachStandorte) await window.api.aktualisiereMehrfachStandorte();
+
       const refreshedLeads = await window.api.getLeads({ all: true });
       renderScoutedCards(scoutedResults, refreshedLeads);
 
@@ -718,6 +653,10 @@
         });
         importedCount++;
       }
+
+      // Erst die Ketten neu bestimmen, dann melden — sonst steht die Zahl
+      // in der Liste, bevor die Standorte zusammengefunden haben.
+      if (window.api.aktualisiereMehrfachStandorte) await window.api.aktualisiereMehrfachStandorte();
 
       alert(`${importedCount} frische Leads importiert! 🚀 (${scoutedResults.length - importedCount} übersprungen/Duplikate)`);
       

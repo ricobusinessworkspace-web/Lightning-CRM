@@ -1353,15 +1353,32 @@ if (typeof window.renderDashboard === 'function') {
           <div class="apple-section">
             <h4 class="apple-section-title">Kontakt</h4>
             <div class="kontakt-liste">
+               <!-- Zwei Nummern, zwei Herkuenfte. Keine Auswahl, keine
+                    Zusammenfuehrung: "Maps" ist die Nummer aus dem
+                    Google-Eintrag, "Impressum" die von der eigenen Webseite.
+                    Wo nichts steht, faellt die Zeile weg. -->
                <div class="kontakt-zeile">
+                 <span class="kontakt-marke">Maps</span>
                  <input type="text" id="sys-phone" class="kontakt-feld" inputmode="tel" autocomplete="off" value="${escapeHtml(l.phone || '')}" placeholder="Keine Nummer">
                  <div class="kontakt-aktionen">
+                   ${l.phone ? `<a class="kontakt-btn" href="tel:${escapeHtml(String(l.phone).replace(/[^0-9+]/g, ''))}" title="Anrufen">Anrufen</a>` : ''}
                    ${(l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone, l.id).replace('class="wa-icon"', 'class="wa-icon kontakt-wa"') : ''}
                    <button class="kontakt-btn" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')" title="Nummer kopieren">Copy</button>
                  </div>
                </div>
 
+               ${!l.impressum_phone ? '' : `
                <div class="kontakt-zeile">
+                 <span class="kontakt-marke">Impressum</span>
+                 <span class="kontakt-feld kontakt-fest" title="Von der Webseite des Betriebs gelesen">${escapeHtml(l.impressum_phone)}</span>
+                 <div class="kontakt-aktionen">
+                   <a class="kontakt-btn" href="tel:${escapeHtml(String(l.impressum_phone).replace(/[^0-9+]/g, ''))}" title="Anrufen">Anrufen</a>
+                   <button class="kontakt-btn" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.impressum_phone)}', null)" title="Nummer kopieren">Copy</button>
+                 </div>
+               </div>`}
+
+               <div class="kontakt-zeile">
+                 <span class="kontakt-marke">E-Mail</span>
                  <input type="text" id="sys-email" class="kontakt-feld" inputmode="email" autocomplete="off" spellcheck="false" value="${escapeHtml(l.email || '')}" placeholder="Keine E-Mail">
                  <div class="kontakt-aktionen">
                    <button class="kontakt-btn" onclick="copyEmail(event, ${l.id}, '${escapeHtml(l.email || '')}')" title="Adresse kopieren und schriftlichen Kontakt festhalten">Schreiben</button>

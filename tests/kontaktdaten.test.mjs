@@ -160,6 +160,40 @@ const zweiterVersuch = await K.holeKontaktdaten('https://herzogs-lohsa.de/', nur
 check('Zweiter Versuch mit www., wenn der erste scheitert',
   zweiterVersuch.email === 'info@herzogs-lohsa.de' && versuche.some(u => u.indexOf('://www.') !== -1));
 
+// ── 7b. Firmenname und Geschäftsführung aus dem Impressum ──────────────────
+// Ein Impressum ist zeilenweise aufgebaut. Wer im Fließtext sucht, zieht den
+// halben Satz davor mit — genau das ist beim ersten Versuch passiert
+// ("Impressum FMK … GmbH", Geschäftsführer "Dipl").
+const fa = (html) => K.firmenAngaben(html);
+
+check('Firmenname und Geschäftsführung aus einem echten Impressum',
+  JSON.stringify(fa('<h1>Impressum</h1><p>FMK Feinblech- und Metall-Sonderkonstruktion GmbH<br>Sachsenwerkstraße 83</p><p>Geschäftsführer: B.Eng. Knut Lange</p>'))
+  === JSON.stringify({ legal_company_name: 'FMK Feinblech- und Metall-Sonderkonstruktion GmbH', director_name: 'Knut Lange' }));
+check('Inhaber mit Doppelnamen', fa('<p>Bäckerei Schmidt e.K.</p><p>Inhaber: Maria Schmidt-Berger</p>').director_name === 'Maria Schmidt-Berger');
+check('UG (haftungsbeschränkt) ist ein Firmenname, kein Haftungssatz',
+  fa('<div>Muster Handels UG (haftungsbeschränkt)</div>').legal_company_name === 'Muster Handels UG (haftungsbeschränkt)');
+check('Vorstand zählt wie Geschäftsführung',
+  fa('<p>SC Borea Dresden e. V.</p><p>Vorstand: Thomas Neumann</p>').director_name === 'Thomas Neumann');
+check('Ein Satz mit GmbH ist kein Firmenname',
+  fa('<p>Die Muster GmbH haftet nicht für Inhalte externer Seiten.</p>').legal_company_name === null);
+check('Fußzeile mit © ist kein Firmenname',
+  fa('<p>© 2024 IMD Dresden GmbH</p>').legal_company_name === null);
+check('Titel allein ist kein Name',
+  fa('<p>Geschäftsführer: Dipl.-Ing.</p>').director_name === null);
+check('Steuernummer ist kein Firmenname',
+  fa('<p>Gesellschaft: Steuer-Nr : 202/106/00000 GbR</p>').legal_company_name === null);
+check('Nicht Gefundenes ist null, nicht leerer Text',
+  fa('<p>Nur Text</p>').legal_company_name === null && fa('<p>Nur Text</p>').director_name === null);
+
+// Der ganze Vorgang liefert die Angaben mit.
+const impressumSeiten = {
+  'https://www.fmk.de/': { ok: true, text: '<a href="/impressum">Impressum</a>' + 'Willkommen '.repeat(40) },
+  'https://www.fmk.de/impressum': { ok: true, text: '<p>FMK Feinblech GmbH</p><p>Geschäftsführer: Knut Lange</p><p><a href="mailto:info@fmk.de">info@fmk.de</a></p>' + ' '.repeat(300) }
+};
+const mitAngaben = await K.holeKontaktdaten('https://www.fmk.de/', async (u) => impressumSeiten[u] || { ok: false, status: 404, text: '' }, {});
+check('Ganzer Vorgang: Firmenname kommt mit', mitAngaben.legal_company_name === 'FMK Feinblech GmbH');
+check('Ganzer Vorgang: Geschäftsführung kommt mit', mitAngaben.director_name === 'Knut Lange');
+
 // ── 8. Nachtragen schreibt nur in leere Felder ─────────────────────────────
 // Die wichtigste Zusage des Werkzeugs: was im CRM steht, hat jemand dort
 // hingeschrieben — ein Fund aus dem Netz ueberschreibt das nie.
