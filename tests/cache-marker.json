@@ -8,8 +8,8 @@
     "hash": "c001dc880c4e62fd"
   },
   "styles.css": {
-    "marker": "4.9",
-    "hash": "2344bbd08c86b336"
+    "marker": "5.0",
+    "hash": "e1bd7fb32168fafe"
   },
   "mobile.css": {
     "marker": "1.1",
@@ -43,13 +43,29 @@
     "marker": "4.2",
     "hash": "b66d44f6907c15d9"
   },
+  "modules/oeffnungszeiten.js": {
+    "marker": "1.0",
+    "hash": "56d5abad937d5818"
+  },
+  "modules/karte.js": {
+    "marker": "1.0",
+    "hash": "f70097afefb74784"
+  },
+  "modules/kontaktdaten.js": {
+    "marker": "1.0",
+    "hash": "d89786cba3ab4cf8"
+  },
+  "modules/backfill.js": {
+    "marker": "1.0",
+    "hash": "d536377258990fb0"
+  },
   "ui/pipeline_ui.js": {
-    "marker": "4.9",
-    "hash": "f5a7c1732610cdda"
+    "marker": "5.0",
+    "hash": "a70ba2e3fdd7c51e"
   },
   "ui/main_ui.js": {
-    "marker": "4.9",
-    "hash": "5b4ffbe507584ad3"
+    "marker": "5.0",
+    "hash": "13d66ce9a5cda067"
   },
   "modules/scraper.js": {
     "marker": "4.3",

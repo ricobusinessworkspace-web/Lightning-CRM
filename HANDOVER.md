@@ -1,6 +1,6 @@
 ---
-last_updated: 2026-09-10
-last_agent: Claude Opus 5 (OAuth für den MCP-Connector)
+last_updated: 2026-09-21
+last_agent: Claude Opus 5 (Fixes + Landkarte in GTA-Optik)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -20,6 +20,11 @@ status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz o
 | `docs/ungeschuetzte-tabellen.md` | Neun Jarvis-Tabellen ohne Zugriffsregeln | Wenn jemand Jarvis anfasst |
 | `docs/wohin-das-geht.md` | Richtung und Reihenfolge der nächsten Schritte | Wenn unklar ist, was als Nächstes dran ist |
 | `docs/lesevertrag-jarvis.md` | Was Jarvis OS aus dem CRM liest: Sichten, `metric_key`-Katalog, Grenzen | Bevor jemand die Kennzahlen anfasst oder Jarvis anbindet |
+
+**Module unter `public/modules/`** — jedes für eine Sache, jedes mit eigener
+Prüfdatei: `oeffnungszeiten.js` (versteht Google-Zeiten), `kontaktdaten.js`
+(liest Telefon/E-Mail aus Webseiten), `backfill.js` (trägt sie nach),
+`karte.js` (Landkarte), `scraper.js` (Radar Scout, Altbestand).
 
 ---
 
@@ -53,9 +58,24 @@ Web-CRM für Leadgenerierung, Kaltakquise und Vertriebs-Pipeline. Aktuell im
   und OAuth 2.1 über den eigenen Anmelde-Server (`api/oauth/*`) — den verlangt
   die Connector-Maske von Claude, sie kennt kein Feld für ein festes Wort.
   Einrichtung: [docs/mcp-server-einrichten.md](docs/mcp-server-einrichten.md).
-- **Tests:** 311 Prüfungen, alle grün — 178 Oberfläche (`tests/ui.test.mjs`),
-  87 MCP-Server (`tests/mcp.test.mjs`), 46 Anmelde-Vorgang
-  (`tests/oauth.test.mjs`). `npm test` fährt alle drei.
+- **Lead-Karteikarte:** Telefon, E-Mail und **Webseite** stehen als drei
+  gleiche Zeilen im Kontakt-Kasten; die Webseite war vorher nur über die
+  Landkarte erreichbar. Reihenfolge der Kästen nach Arbeitsablauf sortiert
+  (siehe „Bewusste Entscheidungen").
+- **Kontaktdaten aus dem Impressum:** `public/modules/kontaktdaten.js` liest
+  Telefon und E-Mail von einer Firmenseite — Startseite, Impressum, Kontakt,
+  höchstens drei Seiten. Reine Textarbeit, kein DOM, dieselbe Datei läuft im
+  Browser und im Test. Nachtragen für den ganzen Bestand über
+  Einstellungen → Datenbank-Tools (`public/modules/backfill.js`).
+- **Landkarte:** `public/modules/karte.js` — eigene Ansicht für Aufnahmen.
+  GTA-Optik, gelbe Route, Spieler-Pfeil, HUD. **Dort steht kein Kundenname**
+  (siehe „Bewusste Entscheidungen").
+- **Öffnungszeiten:** `public/modules/oeffnungszeiten.js` versteht die
+  englischen Google-Zeiten. Liste, Karteikarte und Karte fragen dieselbe Stelle.
+- **Tests:** 469 Prüfungen, alle grün — 267 Oberfläche (`tests/ui.test.mjs`),
+  63 MCP-Server (`tests/mcp.test.mjs`), 46 Anmelde-Vorgang
+  (`tests/oauth.test.mjs`), 42 Kontaktdaten (`tests/kontaktdaten.test.mjs`),
+  27 Öffnungszeiten, 24 Landkarte. `npm test` fährt alle sechs.
 
 ---
 
@@ -298,6 +318,36 @@ Antworten auf konkrete Beschwerden, keine Zufälle.
   ersten.
 - **Sortierung bleibt nach dem Speichern stehen**, bis komplett neu geladen
   wird.
+- **Reihenfolge der Karteikarte folgt dem Gespräch**, nicht der Datenbank:
+  Kontakt → Standort → Notizen → Aufgaben → Historie → Wiedervorlage → Wert →
+  Eigenschaften → Verknüpfte Leads → Zuweisung. Erst handeln, dann einordnen,
+  dann verwalten. Prüfung 27d hält die Reihenfolge fest.
+- **Webseite und Karte sind von der Karteikarte aus erreichbar**, nicht nur
+  über die Sprechblase an der Landkarte. Gelesen wird aus dem Formular, damit
+  auch eine gerade eingetippte, noch nicht gespeicherte Adresse zählt. Die
+  Adresse im Standort-Kasten **ist** der Link nach Google Maps; die eigene
+  Karte im Programm steht als zweiter, leiser Weg darunter.
+- **Nachtragen schreibt nur in leere Felder** und **erst nach Bestätigung**.
+  Aus diesen Adressen sollen Serienmails werden — eine falsch zugeordnete
+  Adresse schreibt dann an die falsche Firma. Die Regel steht als eigene
+  Funktion (`window.nachtragFelder`) und ist geprüft.
+- **Auf der Landkarte steht kein Kundenname.** Die Ansicht wird abgefilmt.
+  Blips zeigen Stufe und geschätzte Fahrzeit, sonst nichts; wer den Lead
+  braucht, klickt ihn an und liest ihn in der Seitenleiste. Der Schalter
+  „Namen zeigen" hebt das für die eigene Arbeit auf und steht standardmäßig
+  aus. Prüfblock in `tests/karte.test.mjs` hält das fest.
+- **Die Route auf der Karte ist gezeichnet, nicht berechnet.** Rechtwinkliger
+  Weg im GTA-Gelb, Zeit aus Luftlinie × 1,35 ÷ Richtgeschwindigkeit, überall
+  mit „ca." beschriftet. Ein echter Routendienst würde den eigenen Standort
+  und die Lead-Koordinaten an einen Dritten schicken — deshalb bewusst nicht.
+- **Sortierung springt nur bei der Wiedervorlage.** Sonst bleibt sie nach dem
+  Speichern stehen (siehe oben); ein gesnoozter Lead gehört aber sofort nach
+  unten. `window.sortiereListenNeu()` ist die einzige Ausnahme.
+- **Fremde Adressen zählen nicht.** Eine E-Mail auf einer Plattformseite
+  (Lieferando, Linktree, speisekarte.de …) gehört der Plattform, eine auf
+  einer fremden Firmendomain meist der Werbeagentur aus der Fußzeile. Beides
+  wird verworfen. Freemail (`@t-online.de`, `@gmail.com`) dagegen zählt —
+  deutsche Kleinbetriebe nutzen fast nichts anderes.
 
 ---
 
@@ -584,6 +634,71 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Handover-Historie
+- 2026-09-21 (3) — Vier Fehler behoben, Landkarte neu.
+  **Öffnungszeiten:** Google liefert englische Zwölf-Stunden-Zeiten
+  (`"Monday: 6:30 AM – 4:00 PM"`), und sie stehen bei 198 von 243 Leads am
+  *Standort*, nicht am Lead. Der Parser der Listenansicht warf AM/PM weg und
+  kannte „Closed" nicht — deshalb stand fast überall „Closed". Jetzt versteht
+  `modules/oeffnungszeiten.js` beide Sprachen, halbe Angaben
+  (`"4:00 – 9:00 PM"`), Mittagspausen und Nächte über Mitternacht; angezeigt
+  wird „Offen bis 16:00" statt eines Rohtexts.
+  **Aktivitäten löschen:** drei Ursachen auf einmal — die Lead-Nummer kam als
+  Text aus dem `onclick` und wurde mit `===` gegen eine Zahl verglichen (der
+  Lead wurde nie gefunden, also kein Neuzeichnen), der Eintrag blieb in
+  `crm_calls`/`lead_activities` stehen, und `db.deleteActivity` meldete auch
+  dann Erfolg, wenn nichts gelöscht wurde. Alle drei behoben; gelöscht wird
+  jetzt mit `.select()` geprüft.
+  **Wiedervorlage:** `persistSnooze` hat gespeichert, aber nie neu sortiert —
+  die Karte blieb stehen, wo sie war. Neu: `window.sortiereListenNeu()`, und
+  die Kanban-Spalten trennen gesnoozte Leads unter einer Linie ab.
+  **Copy-Knopf:** Rückmeldung stand hinter zwei Netzaufrufen, `currentTarget`
+  ist nach `await` null, und der „ursprüngliche" Text wurde bei jedem Klick neu
+  gemerkt — beim zweiten Klick blieb „Kopiert!" für immer stehen. Rückmeldung
+  läuft jetzt vor dem Netz, `copyText` hat einen Rückfallweg ohne
+  Zwischenablage-Schnittstelle.
+  **Landkarte:** aus `pipeline_ui.js` heraus in `modules/karte.js` (−9.400
+  Zeichen dort). Dunkle, blau eingefärbte Karte, Blips mit Leuchten, gelbe
+  Route mit rechten Winkeln, Spieler-Pfeil, HUD mit Stufenfilter, Legende und
+  Routenkasten. Kacheln von **Esri statt CARTO** — CARTO verlangt seit 2025
+  einen Schlüssel und schreibt sonst „API KEY REQUIRED" über jede Kachel.
+  Der Filterknopf verschwand hinter der Karte, weil Leaflets Ebenen
+  (z-index 400–800) ohne eigenen Stapelkontext in den Wurzelkontext
+  durchschlagen; `#map-container` bekommt jetzt `z-index: 0; isolation:
+  isolate`. Mitgegangen ist das tote `autoGeocode` (init.js prüfte
+  `typeof autoGeocode` auf eine Funktion, die nie auf `window` lag).
+- 2026-09-21 (2) — Kontaktdaten. **225 von 243 Leads hatten keine E-Mail**,
+  159 davon eine eigene Webseite. Das alte Auslesen nahm die erste Adresse der
+  Seite — das war je nach Seite die Agentur aus der Fußzeile, ein Platzhalter
+  aus einer Formularvorlage oder `info@` eines Portals. Neu:
+  `public/modules/kontaktdaten.js` mit klaren Regeln (eigene Domain oder
+  Freemail, Geschäftsführung vor `info@`, Verwaltungsadressen zuletzt,
+  Plattformseiten gar nicht erst lesen), dazu Entschlüsseln von
+  Cloudflare-Adressen, `info(at)`-Schreibweisen und `&#64;`. Telefon kommt
+  bevorzugt aus `tel:`-Verweisen, Fax wird erkannt und verworfen, jede Nummer
+  wird auf die deutsche Form gebracht (`00 49 (0)3 51 / 21 52 00 40` →
+  `035121520040`). **An 54 echten Leads gemessen: 32 E-Mails gefunden (≈60 %),
+  zwei davon falsch** — beide waren Portalseiten, die jetzt auf der
+  Plattformliste stehen. Nachtragen für den ganzen Bestand über
+  Einstellungen → Datenbank-Tools: erst suchen (schreibt nichts), Funde
+  durchsehen, dann übernehmen. Drei Leads gleichzeitig, Anhalten jederzeit.
+  Die Suche läuft über `/api/proxy` — **im lokalen `npm run dev` gibt es diese
+  Serverfunktion nicht, das Werkzeug funktioniert nur auf der veröffentlichten
+  Fassung.**
+- 2026-09-21 — Lead-Karteikarte aufgeräumt. **Der Link zur Webseite war nur
+  über die Landkarte zu erreichen** (Lead anklicken, Karte öffnen, Stecknadel
+  treffen); im Formular stand `sys-web` als verstecktes Feld. Steht jetzt
+  sichtbar und bearbeitbar im Kontakt-Kasten, daneben „Öffnen" — ohne Eintrag
+  „Suchen" (Websuche nach dem Firmennamen). Der Standort-Kasten führt mit
+  einem Link direkt zu Google Maps, gleiche Reihenfolge wie die Sprechblase an
+  der Karte (Maps-Adresse → Place-ID → Namenssuche). Reihenfolge der Kästen
+  nach Arbeitsablauf sortiert, Standort von Platz sieben auf zwei.
+  **Zwei Altlasten dabei entfernt:** der Wiedervorlage-Kasten baute sich über
+  eine Kette von `.replace()` selbst doppelt zusammen — Rahmen und Überschrift
+  standen zweimal da; und `locationMatchingHtml` war ein toter Zwilling des
+  Standort-Kastens mit denselben Element-IDs (`loc-search-*`), nie eingesetzt.
+  Überschrift heißt jetzt „Wiedervorlage" statt „Follow-Up (Snooze)", passend
+  zu den Meldungen. Kontaktzeilen haben eigene Klassen (`.kontakt-*`) statt
+  eingebauter Stile — ein Stück Phase 3.2. Neu: Prüfblock 27d (15 Prüfungen).
 - 2026-09-12 — Nacharbeit an der Kennzahlen-Datenschicht. **Der Verlauf durfte
   behaupten, was nie gespeichert wurde:** `core/db.js` protokollierte den
   Stufenwechsel 36 Zeilen VOR dem Schreibvorgang und vor der Konfliktprüfung.

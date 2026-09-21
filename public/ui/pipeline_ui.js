@@ -16,6 +16,66 @@ window.handleLeadAssignmentChange = (val) => {
   // Assignment wird beim Speichern des Leads gelesen (aus dem select#sys-claimed-by)
 };
 
+// ── Webseite und Karte direkt von der Karteikarte aus ──────────────────────
+// Beides war vorher nur ueber die Landkarte zu erreichen: Lead anklicken,
+// zur Karte wechseln, Stecknadel treffen, dann erst der Link. Mitten im
+// Gespraech ist das ein Umweg ueber zwei Ansichten.
+//
+// Gelesen wird aus dem Formular, nicht aus dem Datensatz: wer die Adresse
+// gerade eingetippt und noch nicht gespeichert hat, landet trotzdem richtig.
+
+// Der Firmenname steht in einem contenteditable — je nach Umgebung liefert
+// innerText oder textContent etwas. Gleiche Kette wie beim Speichern.
+const namensfeld = () => {
+  const n = document.getElementById('sys-name');
+  return String((n && (n.innerText ?? n.textContent)) ?? '').trim();
+};
+
+window.oeffneLeadWebseite = () => {
+  const feld = document.getElementById('sys-web');
+  const url  = (feld ? feld.value : '').trim();
+  const name = namensfeld();
+  if (!url) {
+    // Ohne Eintrag ist die ehrlichste Hilfe eine Suche nach dem Firmennamen.
+    window.api.openExternal('https://www.google.com/search?q=' + encodeURIComponent(name));
+    return;
+  }
+  window.api.openExternal(/^https?:\/\//i.test(url) ? url : 'https://' + url);
+};
+
+// Beschriftung sagt, was der Knopf tut — sonst steht "Suchen" auf einem Knopf,
+// der laengst eine eingetippte Adresse oeffnen wuerde.
+window.aktualisiereWebKnopf = () => {
+  const feld  = document.getElementById('sys-web');
+  const knopf = document.getElementById('web-oeffnen');
+  if (!feld || !knopf) return;
+  const hat = !!feld.value.trim();
+  knopf.textContent = hat ? 'Öffnen' : 'Suchen';
+  knopf.title = hat ? 'Webseite in neuem Fenster öffnen' : 'Im Web nach dem Firmennamen suchen';
+};
+
+// Gleiche Reihenfolge wie in der Karte am Kartenrand: hinterlegte Maps-Adresse,
+// sonst die Place-ID, sonst eine Suche nach dem Namen.
+window.oeffneLeadKarte = (leadId, standortNr) => {
+  const l = ((window.store && window.store.state && window.store.state.leads) || [])
+              .find(x => x.id === leadId);
+  // Hat der Lead mehrere Standorte, zaehlt der angeklickte — sonst der Lead.
+  const ort = (l && Array.isArray(l.locations) && standortNr != null) ? l.locations[standortNr] : null;
+  const wert = (ort && ort.place_id)
+            || (l && l.google_maps_url)
+            || (document.getElementById('sys-placeid')?.value || '')
+            || (l && l.google_place_id)
+            || '';
+  const name = (ort && (ort.address || ort.name)) || namensfeld() || ((l && l.name) || '').trim();
+  if (/^https?:\/\//i.test(wert)) {
+    window.api.openExternal(wert);
+  } else if (wert) {
+    window.api.openExternal('https://www.google.com/maps/place/?q=place_id:' + wert);
+  } else {
+    window.api.openExternal('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(name || 'Unbekannt'));
+  }
+};
+
 
   // Mehrfachauswahl ein- und ausschalten. Hier muessen die Karten wirklich neu
   // gebaut werden — die Kaestchen kommen dazu oder fallen weg. Aber aus dem
@@ -170,218 +230,16 @@ window.handleLeadAssignmentChange = (val) => {
     return res;
   };
 
-  let map = null;
-  let mapMarkers = [];
-
-  function initMap() {
-    if (map) return;
-    map = L.map('map-container').setView([51.0504, 13.7372], 11);
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-      attribution: '&copy; CartoDB',
-      subdomains: 'abcd',
-      maxZoom: 20
-    }).addTo(map);
-  }
-
-  // ── Map Hover Card (F1) ─────────────────────────────────────────────────────
-  let _mapHoverCard = null;
-  let _mapHoverTimeout = null;
-
-  function showMapHoverCard(l, containerPoint) {
-    hideMapHoverCard();
-    const sMap = getLeadStatusMap(l);
-    const callBadge = (l.call_status || 'never') === 'never'
-      ? '<span class="call-status-badge call-status-never">Nie angerufen</span>'
-      : '<span class="call-status-badge call-status-answered">Angerufen</span>';
-
-    const card = document.createElement('div');
-    card.className = 'map-hover-card';
-    card.id = 'map-hover-card';
-
-    const loc = Array.isArray(l.locations) && l.locations.length > 0 ? l.locations[0] : null;
-    const address = loc ? (loc.address || loc.name || l.maps_city || '') : (l.maps_city || '');
-
-    card.innerHTML = `
-      <div class="map-hover-card-inner" style="overflow: hidden; border-radius: 12px; background: #1c1c1e; box-shadow: 0 16px 32px rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1);">
-        <div style="height: 80px; width: 100%; background: linear-gradient(135deg, rgba(10,132,255,0.4) 0%, rgba(48,209,88,0.2) 100%); display: flex; align-items: flex-end; padding: 12px; box-sizing: border-box; border-bottom: 1px solid rgba(255,255,255,0.05);">
-           <div style="font-weight: 700; font-size: 16px; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(l.name)}</div>
-        </div>
-        <div style="padding: 16px;">
-          ${address ? `<div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px; display: flex; align-items: flex-start; gap: 6px;"><span>📍</span><span style="line-height: 1.4;">${escapeHtml(address)}</span></div>` : ''}
-          ${l.phone ? `<div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;"><span>📞</span><span>${escapeHtml(l.phone)}</span></div>` : ''}
-          <div style="display: flex; gap: 8px; align-items: center; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05);">
-            <span class="map-hover-status ${sMap.color}" style="font-size: 11px; padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.1);">${sMap.label}</span>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Position directly over the marker
-    const wrapper = document.getElementById('map-container');
-    if (!wrapper) return;
-    wrapper.appendChild(card);
-
-    const markerPoint = map.latLngToContainerPoint(L.latLng(l.lat, l.lng));
-    const cardW = 260, cardH = 200; // estimated dimensions
-    const wrapperRect = wrapper.getBoundingClientRect();
-    
-    // Center above marker
-    let left = markerPoint.x - (cardW / 2);
-    let top  = markerPoint.y - cardH - 10;
-    
-    // Bounds checking
-    if (left < 10) left = 10;
-    if (left + cardW > wrapperRect.width - 10) left = wrapperRect.width - cardW - 10;
-    if (top < 10) top = markerPoint.y + 20; // Show below if no space above
-
-    card.style.left = left + 'px';
-    card.style.top  = top + 'px';
-
-    _mapHoverCard = card;
-  }
-
-  function hideMapHoverCard() {
-    if (_mapHoverCard) { _mapHoverCard.remove(); _mapHoverCard = null; }
-    if (_mapHoverTimeout) { clearTimeout(_mapHoverTimeout); _mapHoverTimeout = null; }
-  }
-
-  function addLeadToMap(l) {
-    if (!l.lat || !l.lng) return null;
-    const pinClass = getLeadStatusMap(l).mapPin;
-    const icon = L.divIcon({ className: 'scout-marker', iconSize: [14, 14], iconAnchor: [7, 7], html: `<div class="map-pin ${pinClass}"></div>` });
-    const popupHtml = `
-      <div style="margin-bottom:12px;">
-        <div style="font-weight:600; font-size:15px; margin-bottom:4px; color:var(--text-main);">${escapeHtml(l.name)}</div>
-        <div style="font-size:12px; color:var(--text-muted);">📍 ${escapeHtml(l.maps_city || 'Unbekannt')}</div>
-      </div>
-      <div style="display:flex; gap:6px; flex-direction:column;">
-        <button onclick="handleLinkClick(event, 'web', '${escapeHtml(l.website_url||'')}', ${l.id}, '${escapeHtml(l.name.replace(/'/g, "\\'"))}')" class="action-btn-small outline" style="width:100%; border-color:var(--border); color:var(--text-main); padding:6px; font-size:11px;">🌐 Zur Website</button>
-        <button onclick="handleLinkClick(event, 'maps', '${escapeHtml(l.google_maps_url||l.google_place_id||'')}', ${l.id}, '${escapeHtml(l.name.replace(/'/g, "\\'"))}')" class="action-btn-small outline" style="width:100%; border-color:var(--border); color:var(--text-main); padding:6px; font-size:11px;">🗺️ In Google Maps öffnen</button>
-      </div>
-    `;
-    const m = L.marker([l.lat, l.lng], {icon}).addTo(map).bindPopup(popupHtml);
-    m.on('click', () => {
-      hideMapHoverCard();
-      map.setView([l.lat, l.lng], 16, { animate: true });
-      const mapSide = document.getElementById('map-sidebar');
-      if (mapSide) mapSide.style.display = 'none';
-      document.getElementById('main-sidebar').style.display = 'flex';
-      openLead(l.id);
-    });
-    m.on('mouseover', (e) => {
-      _mapHoverTimeout = setTimeout(() => showMapHoverCard(l, e.containerPoint), 80);
-    });
-    m.on('mouseout', () => hideMapHoverCard());
-    m.leadId = l.id;
-    mapMarkers.push(m);
-    return m;
-  }
-
-  window.store.state.currentMapStatusFilter = 'all';
-  window.store.state.currentMapUserFilter = 'all';
-
-  window.setMapStatusFilter = (val, btnElem) => {
-    window.store.state.currentMapStatusFilter = val;
-    if (btnElem && btnElem.parentElement) {
-      btnElem.parentElement.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
-      btnElem.classList.add('active');
-    }
-    if (window.loadMapData) window.loadMapData();
-  };
-
-  window.setMapUserFilter = (val, btnElem) => {
-    window.store.state.currentMapUserFilter = val;
-    if (btnElem && btnElem.parentElement) {
-      btnElem.parentElement.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
-      btnElem.classList.add('active');
-    }
-    if (window.loadMapData) window.loadMapData();
-  };
-
-  window.loadMapData = async function(filters = { all: true }) {
-    if (!map) initMap();
-    const leads = (await window.api.getLeads(filters)).filter(l => l.status === 'Lead' || l.status === 'Kunde');
-    mapMarkers.forEach(m => map.removeLayer(m));
-    mapMarkers = [];
-    let count = 0;
-    
-    const mapStatusFilter = window.store.state.currentMapStatusFilter;
-    const mapUserFilter = window.store.state.currentMapUserFilter;
-
-    leads.forEach(l => {
-      const sMap = getLeadStatusMap(l);
-      
-      // Apply Status Filter
-      if (mapStatusFilter !== 'all' && sMap.label !== mapStatusFilter) return;
-      
-      // Apply User Filter
-      if (mapUserFilter !== 'all' && l.claimed_by !== mapUserFilter) return;
-
-      const m = addLeadToMap(l);
-      if (m) count++;
-    });
-    console.log("Loaded map markers:", count);
-  };
-  // Keeping the local alias for backwards compatibility internally if used
-  const loadMapData = window.loadMapData;
-
-  let isFlyingToLead = false;
-
-  // NOTE: bewusst NICHT auf window exportiert — würde beim Login eine
-  // Massen-Geocoding-Schleife mit Full-Record-Saves pro Lead starten.
-  async function autoGeocode() {
-    const leads = await window.api.getLeads({ all: true });
-    const toGeocode = leads.filter(l => l.maps_city && (!l.lat || !l.lng));
-    
-    if (toGeocode.length === 0) return;
-    console.log(`Auto-geocoding ${toGeocode.length} leads...`);
-
-    for (const l of toGeocode) {
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(l.maps_city)}`, {
-          headers: { 'Accept-Language': 'de-DE' }
-        });
-        const data = await res.json();
-        if (data && data.length > 0) {
-          await window.leadStore.save(l.id, {
-            lat: parseFloat(data[0].lat),
-            lng: parseFloat(data[0].lon)
-          }, { silent: true, noRefresh: true });
-          console.log(`Geocoded: ${l.name} -> ${l.lat}, ${l.lng}`);
-          await loadMapData();
-        }
-        // Respect rate limits (1 request per second for Nominatim)
-        await new Promise(r => setTimeout(r, 1100));
-      } catch (e) {
-        console.error(`Geocoding failed for ${l.name}`, e);
-      }
-    }
-  }
-
-  window.flyToMap = async (id) => {
-    isFlyingToLead = true;
-    await switchTab('map');
-    await openLead(id);
-    
-    setTimeout(async () => {
-      if(map) {
-         let m = mapMarkers.find(x => x.leadId === id);
-         if (!m) {
-           const leads = await window.api.getLeads({all:true});
-           const l = leads.find(x => x.id === id);
-           if (l) {
-             m = addLeadToMap(l);
-           }
-         }
-         if (m) {
-           const pos = m.getLatLng();
-           map.flyTo(pos, 14, { duration: 1.5 });
-           setTimeout(() => m.openPopup(), 1500);
-         }
-      }
-      setTimeout(() => { isFlyingToLead = false; }, 2000);
-    }, 100);
-  };
+  // ── Landkarte ─────────────────────────────────────────────────────────────
+  // Liegt seit dem 21.09.2026 in public/modules/karte.js: eigene Optik, Route,
+  // Spieler-Pfeil, und vor allem eigene Regeln zum Datenschutz (auf der Karte
+  // steht kein Kundenname). Dort stehen window.loadMapData, window.flyToMap
+  // und window.Karte.
+  //
+  // Das automatische Geocoding stand frueher hier. Es lief nie: init.js prueft
+  // `typeof autoGeocode`, und die Funktion war absichtlich nicht auf window
+  // exportiert. Mit der Karte ist es mitgegangen — nicht ersatzlos gestrichen,
+  // sondern als toter Zweig erkannt und entfernt.
 
   window.switchTab = async (tab) => {
     // ZUERST das offene Formular sichern. Danach wird die Auswahl geleert und
@@ -394,7 +252,6 @@ window.handleLeadAssignmentChange = (val) => {
     if (contentArea) contentArea.classList.add('content-fade-out');
 
     window.store.state.currentTab = tab;
-    hideMapHoverCard();
 
     // Fix Lead Selection State Bug: clear selection globally
     window.store.state.currentSelectedLeadId = null;
@@ -506,6 +363,27 @@ if (typeof window.renderDashboard === 'function') {
     }
   };
 
+  // ── Reihenfolge nach einer Wiedervorlage wiederherstellen ───────────────
+  //
+  // Sonst bleibt die Sortierung nach dem Speichern absichtlich stehen (sonst
+  // springen Karten unter dem Zeiger weg). Bei einer Wiedervorlage ist genau
+  // das Gegenteil erwartet: der Lead ist fuer heute erledigt und gehoert nach
+  // unten. Deshalb hier die einzige Ausnahme.
+  window.sortiereListenNeu = () => {
+    if (!window.api || typeof window.api.sortLeads !== 'function') return;
+    const filters = { tab: window.store.state.currentTab };
+    const st = window.store.state;
+    if (Array.isArray(st.leads)) st.leads = window.api.sortLeads(st.leads, filters);
+    const cache = st.tabCache || {};
+    Object.keys(cache).forEach(k => {
+      if (!Array.isArray(cache[k])) return;
+      // Der Reiter steckt vorne im Schluessel (siehe cacheKey in loadUi).
+      cache[k] = window.api.sortLeads(cache[k], { tab: String(k).split('_')[0] });
+    });
+    window._listenKennung = null;      // sonst haelt die Kennung das Neuzeichnen auf
+    if (typeof loadUi === 'function') loadUi(true);
+  };
+
   // ── Kennung der gezeichneten Liste ──────────────────────────────────────
   // Zweimal dasselbe zeichnen ist nur Flackern.
   //
@@ -549,7 +427,7 @@ if (typeof window.renderDashboard === 'function') {
     };
 
     if (window.store.state.currentTab === 'map') {
-      await loadMapData(filters);
+      if (typeof window.loadMapData === 'function') await window.loadMapData(filters);
 
     } else {
       let leads = [];
@@ -682,7 +560,7 @@ if (typeof window.renderDashboard === 'function') {
         Filter
       </button>
       
-      <div id="adv-filter-dropdown" style="display:none; position:absolute; top:40px; right:0; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; width:260px; z-index: var(--z-dropdown, 1000); box-shadow: var(--shadow-md, 0 10px 30px rgba(0,0,0,0.5));">
+      <div id="adv-filter-dropdown" style="display:none; position:absolute; top:40px; right:0; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; width:260px; z-index: 1100; box-shadow: var(--shadow-md, 0 10px 30px rgba(0,0,0,0.5));">
         
         <div style="margin-bottom:12px; ${showAssignFilter ? '' : 'display:none;'}">
           <label style="display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase;">Zuweisung</label>
@@ -780,9 +658,16 @@ if (typeof window.renderDashboard === 'function') {
         const isSnoozed = (l.snooze_until_ms || 0) > Date.now();
         let snoozeBadge = '';
         if (isSnoozed) {
-          const snoozeDate = new Date(l.snooze_until_ms);
-          const dateStr = snoozeDate.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-          snoozeBadge = `<div style="font-size: 11px; margin-top: 6px; color: var(--success); display: flex; align-items: center; gap: 4px; font-weight: 500;">🕒 Snoozed bis: ${dateStr}</div>`;
+          // "noch 3 Tage" sagt mehr als ein Datum, wenn man entscheiden will,
+          // ob der Lead heute noch eine Rolle spielt.
+          const restMs = l.snooze_until_ms - Date.now();
+          const stunden = Math.round(restMs / 3600000);
+          const rest = stunden < 1 ? 'unter einer Stunde'
+                     : stunden < 24 ? `noch ${stunden} Std.`
+                     : `noch ${Math.round(stunden / 24)} Tage`;
+          const datum = new Date(l.snooze_until_ms)
+            .toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+          snoozeBadge = `<div style="font-size: 11px; margin-top: 6px; color: var(--color-text-secondary, #8e8e93); display: flex; align-items: center; gap: 4px; font-weight: 500;" title="Wiedervorlage am ${datum}">🕒 Wiedervorlage · ${rest}</div>`;
         }
 
         // F6 removed: no call_status badge on lead cards
@@ -813,65 +698,24 @@ if (typeof window.renderDashboard === 'function') {
            recentActivitiesHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">📞 Keine Aktivitäten</div>`;
          }
 
-         // 3. Opening Hours Data
-         let ohHtml = '';
-         let ohRaw = '';
-         if (l.opening_hours) {
-           try {
-             const parsed = (typeof l.opening_hours === 'string') ? JSON.parse(l.opening_hours) : l.opening_hours;
-             let ohArray = parsed.weekdayDescriptions || (Array.isArray(parsed) ? parsed : null);
-             if (ohArray && ohArray.length === 7) {
-               const todayIdx = (new Date().getDay() + 6) % 7;
-               ohRaw = ohArray[todayIdx];
-             } else if (ohArray && ohArray.length > 0) {
-               ohRaw = ohArray[0];
-             }
-           } catch(e) {}
-         } 
-         if (!ohRaw && l.locations && l.locations.length > 0 && l.locations[0].opening_hours) {
-           const ohArray = l.locations[0].opening_hours;
-           if (Array.isArray(ohArray) && ohArray.length === 7) {
-               const todayIdx = (new Date().getDay() + 6) % 7;
-               ohRaw = ohArray[todayIdx];
-           } else if (Array.isArray(ohArray)) {
-               ohRaw = ohArray[0];
-           }
-         }
-         
-         if (ohRaw) {
-           let isOpenText = '🕒 Unbekannt';
-           let color = 'var(--text-muted)';
-           const s = ohRaw.toLowerCase();
-           if (s.includes('geschlossen')) {
-             isOpenText = '🕒 Closed';
-             color = 'var(--color-crm-excluded, #ff453a)';
-           } else if (s.includes('rund um die uhr') || s.includes('24 hours')) {
-             isOpenText = '🕒 Open';
-             color = 'var(--color-crm-customer, #34c759)';
-           } else {
-             const match = ohRaw.match(/(\d{1,2}:\d{2})\s*[–-]\s*(\d{1,2}:\d{2})/);
-             if (match) {
-               const now = new Date();
-               const currMins = now.getHours() * 60 + now.getMinutes();
-               const [startH, startM] = match[1].split(':').map(Number);
-               let [endH, endM] = match[2].split(':').map(Number);
-               if (endH === 0 && endM === 0) endH = 24;
-               const startMins = startH * 60 + startM;
-               const endMins = endH * 60 + endM;
-               if (currMins >= startMins && currMins <= endMins) {
-                 isOpenText = '🕒 Open';
-                 color = 'var(--color-crm-customer, #34c759)';
-               } else {
-                 isOpenText = '🕒 Closed';
-                 color = 'var(--color-crm-excluded, #ff453a)';
-               }
-             }
-           }
-           ohHtml = `<div style="font-size: 11px; color: ${color}; display: flex; align-items: center; gap: 4px; font-weight: 600; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${isOpenText}</div>`;
+         // 3. Öffnungszeiten — eine Stelle versteht sie: modules/oeffnungszeiten.js.
+         //
+         // Hier stand vorher ein eigener kleiner Parser, der AM/PM weggeworfen
+         // hat. Aus "6:30 AM – 4:00 PM" wurde 6:30 bis 4:00, also nie offen;
+         // "Closed" kannte er auch nicht. Deshalb stand auf fast jeder Karte
+         // "Closed", obwohl die Zeiten sauber hinterlegt waren.
+         const oz = window.Oeffnungszeiten
+                  ? window.Oeffnungszeiten.zustand(l)
+                  : { offen: null, text: null };
+         let ohHtml;
+         const ohStil = 'font-size: 11px; display: flex; align-items: center; gap: 4px; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+         if (oz.offen === null) {
+           ohHtml = `<div style="${ohStil} color: var(--text-muted); font-weight: 500; opacity: 0.5;">🕒 Keine Öffnungszeiten</div>`;
          } else {
-           ohHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 600; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">🕒 Keine Öffnungszeiten</div>`;
+           const ohFarbe = oz.offen ? 'var(--color-intent-success, #30d158)' : 'var(--color-text-secondary, #8e8e93)';
+           ohHtml = `<div style="${ohStil} color: ${ohFarbe}; font-weight: 600;" title="${escapeHtml(window.Oeffnungszeiten.heuteText(l) || '')}">🕒 ${escapeHtml(oz.text)}</div>`;
          }
-         
+
          activityLog = `<div style="margin-top: 2px; display: flex; flex-direction: column; gap: 3px;">${cityHtml}${recentActivitiesHtml}${ohHtml}</div>`;
         let avatarHtml = '';
         if (l.claimed_by && window.globalUsersList && window.isMultiUser && window.isMultiUser()) {
@@ -976,17 +820,27 @@ if (typeof window.renderDashboard === 'function') {
       const dataList = sortKanban(crmLeads.filter(l => window.api.getStage(l) === 'DATA'));
       const offerList = sortKanban(crmLeads.filter(l => window.api.getStage(l) === 'OFFER'));
 
-      const colHtml = (title, list) => `
+      // Gesnoozte stehen unten unter einer eigenen Trennlinie — sortiert
+      // steht das schon fest (sortKanban), sichtbar getrennt war es nicht.
+      const colHtml = (title, list) => {
+        const jetzt = Date.now();
+        const aktiv = list.filter(l => (l.snooze_until_ms || 0) <= jetzt);
+        const geparkt = list.filter(l => (l.snooze_until_ms || 0) > jetzt);
+        return `
         <div class="kanban-column">
           <div class="kanban-header">
             <div class="kanban-title">${title}</div>
-            <div class="kanban-count">${list.length}</div>
+            <div class="kanban-count">${aktiv.length}${geparkt.length ? ` <span style="opacity:.5">+${geparkt.length}</span>` : ''}</div>
           </div>
           <div class="kanban-cards">
-            ${list.length === 0 ? '<div class="empty-state" style="height:40px; font-size:12px;">Keine Leads</div>' : renderLeadList(list)}
+            ${aktiv.length === 0 && geparkt.length === 0 ? '<div class="empty-state" style="height:40px; font-size:12px;">Keine Leads</div>' : renderLeadList(aktiv)}
+            ${geparkt.length === 0 ? '' : `
+              <div class="kanban-trenner">Wiedervorlage (${geparkt.length})</div>
+              <div class="kanban-geparkt">${renderLeadList(geparkt)}</div>
+            `}
           </div>
         </div>
-      `;
+      `;};
 
       qList.innerHTML = `
         <div class="list-header" style="display:flex; align-items:center; justify-content:space-between; width:100%;">
@@ -1376,7 +1230,7 @@ if (typeof window.renderDashboard === 'function') {
 
     let snoozeHtml = `
       <div class="apple-section">
-        <h4 class="apple-section-title">Follow-Up (Snooze)</h4>
+        <h4 class="apple-section-title">Wiedervorlage</h4>
         <div class="snooze-grid" id="snooze-group" style="display: flex; gap: 8px; flex-wrap: wrap;">
           <div style="flex: 1; min-width: 120px; display: flex; align-items: stretch;">
             <input type="number" id="snooze-hours-input" value="${(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) ? window.store.state.currentSnoozeOffset : 24}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;">
@@ -1387,7 +1241,7 @@ if (typeof window.renderDashboard === 'function') {
             <button class="action-btn snooze-opt ${window.store.state.currentSnoozeOffset > 24 ? 'outline' : ''}" id="snz-custom" onclick="selectCustomSnooze()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Tage</button>
           </div>
         </div>
-        <div id="cancel-snooze-container" style="margin-top: 12px; text-align: center; display: ${isSnoozed ? 'block' : 'none'};"><button type="button" class="action-btn-small" style="border:1px dashed #ff453a; color:#ff453a; background:transparent; width:100%; padding: 8px;" onclick="cancelSnooze()">Snooze aufheben</button></div>
+        <div id="cancel-snooze-container" style="margin-top: 12px; text-align: center; display: ${isSnoozed ? 'block' : 'none'};"><button type="button" class="action-btn-small" style="border:1px dashed #ff453a; color:#ff453a; background:transparent; width:100%; padding: 8px;" onclick="cancelSnooze()">Wiedervorlage aufheben</button></div>
       </div>
     `;
 
@@ -1411,12 +1265,11 @@ if (typeof window.renderDashboard === 'function') {
     }
 
     if (locations.length > 0) {
+      // Die Adresse ist selbst der Link — ein Klick fuehrt nach Google Maps.
       locListHtml = locations.map((loc, idx) => `
-        <div style="display:flex; justify-content:space-between; align-items:center; padding: 4px 0;">
-          <div style="font-size:12px; cursor:pointer; color:var(--text-main);" onclick="window.flyToMap(${l.id})">
-            ${escapeHtml(loc.address || loc.name || 'Unbekannte Adresse')}
-          </div>
-          <button style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:12px; padding:4px;" onclick="removeLocation(${l.id}, ${idx})" title="Entfernen">✕</button>
+        <div class="standort-zeile">
+          <button class="standort-adresse" onclick="window.oeffneLeadKarte(${l.id}, ${idx})" title="In Google Maps öffnen">${escapeHtml(loc.address || loc.name || 'Unbekannte Adresse')}</button>
+          <button class="standort-entfernen" onclick="removeLocation(${l.id}, ${idx})" title="Standort entfernen">✕</button>
         </div>
       `).join('');
     } else {
@@ -1427,53 +1280,23 @@ if (typeof window.renderDashboard === 'function') {
       `;
     }
 
+    // Öffnungszeiten auf der Karteikarte: Zustand zuerst ("Offen bis 16:00"),
+    // darunter die Zeile fuer heute. Die ganze Woche steht im Tooltip — sie
+    // wird selten gebraucht und macht den Kasten sonst lang.
     let openingHoursHtml = '';
-    let ohArray = null;
-    if (l.opening_hours) {
-      try { 
-        const parsed = JSON.parse(l.opening_hours);
-        if (parsed.weekdayDescriptions) ohArray = parsed.weekdayDescriptions;
-        else if (Array.isArray(parsed)) ohArray = parsed;
-      } catch(e) {}
+    if (window.Oeffnungszeiten) {
+      const oz = window.Oeffnungszeiten.zustand(l);
+      if (oz.offen !== null) {
+        const woche = (window.Oeffnungszeiten.wocheText(l) || [])
+          .map(z => `${z.tag}: ${z.zeit}`).join('\n');
+        const farbe = oz.offen ? 'var(--color-intent-success, #30d158)' : 'var(--color-text-secondary, #8e8e93)';
+        openingHoursHtml = `
+          <div style="margin-top: 12px; display: flex; align-items: baseline; gap: 8px;" title="${escapeHtml(woche)}">
+            <span style="font-size: 13px; color: ${farbe}; font-weight: 600;">🕒 ${escapeHtml(oz.text)}</span>
+            <span style="font-size: 12px; color: var(--color-text-secondary, #8e8e93);">${escapeHtml(window.Oeffnungszeiten.heuteText(l) || '')}</span>
+          </div>`;
+      }
     }
-    if (!ohArray && locations.length > 0 && locations[0].opening_hours && Array.isArray(locations[0].opening_hours)) {
-      ohArray = locations[0].opening_hours;
-    }
-
-    if (ohArray && Array.isArray(ohArray) && ohArray.length === 7) {
-      const todayIdx = (new Date().getDay() + 6) % 7;
-      let todayStr = ohArray[todayIdx] || '';
-      openingHoursHtml = `
-        <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 14px;">🕒</span>
-          <div style="font-size: 12px; color: var(--color-text-primary, #f2f2f7); font-weight: 500;">
-            ${escapeHtml(todayStr)}
-          </div>
-        </div>
-      `;
-    } else if (ohArray && Array.isArray(ohArray)) {
-      let ohStr = ohArray.map(day => escapeHtml(day)).join('<br>');
-      openingHoursHtml = `
-        <div style="margin-top: 12px;">
-          <label style="font-size: 11px; font-weight: 600; color: var(--color-text-secondary, #8e8e93); margin-bottom: 4px; display:block;">Öffnungszeiten</label>
-          <div style="font-size: 11px; color: var(--color-text-primary, #f2f2f7); line-height: 1.5;">${ohStr}</div>
-        </div>
-      `;
-    }
-
-    let locationMatchingHtml = `
-      <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-        <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display:block;">Standort</label>
-        ${locListHtml}
-        <div id="loc-search-container" style="display:${window._forceLocationSearch ? 'block' : 'none'}; margin-top:8px;">
-          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-            <input type="text" id="loc-search-input" class="modern-input-small" style="font-size: 11px; padding: 6px 8px; flex:1;" value="${escapeHtml(l.name)}" placeholder="Firma, Ort..." />
-            <button class="action-btn-small" style="background: var(--accent); color: white; border-color: var(--accent); font-weight: 600; font-size: 11px; padding: 6px 12px;" onclick="searchLeadLocation(${l.id})">Suchen</button>
-          </div>
-          <div id="loc-search-results" style="max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
-        </div>
-      </div>
-    `;
 
     const e = l.entscheider || 0;
     const t = l.termin || 0;
@@ -1491,6 +1314,10 @@ if (typeof window.renderDashboard === 'function') {
       const lastCallText = lastCallTs ? `Letzter Anruf: ${new Date(lastCallTs).toLocaleDateString()}` : 'Noch nie angerufen';
       pitchCounterHtml = '';
     }
+
+    // Ohne hinterlegte Webseite sucht der Knopf im Web nach dem Firmennamen,
+    // statt ins Leere zu greifen. Die Beschriftung sagt, was passiert.
+    const hatWebseite = !!String(l.website_url || '').trim();
 
     const timeline = window.getTimeline(l);
     let activitiesHtml = '';
@@ -1535,42 +1362,53 @@ if (typeof window.renderDashboard === 'function') {
         <!-- SCROLLABLE BODY -->
         <div class="sidebar-body" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 24px; gap: 20px;">
           
-          <!-- Kontakt-Informationen -->
+          <!-- Kontakt — Telefon, E-Mail, Webseite. Drei gleiche Zeilen:
+               links das Feld, das man direkt bearbeitet, rechts die Handlung. -->
           <div class="apple-section">
             <h4 class="apple-section-title">Kontakt</h4>
-            <div style="display:flex; flex-direction:column; gap:12px;">
-               <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 8px;">
-                 <input type="text" id="sys-phone" style="font-family:ui-monospace, monospace; font-size:14px; padding:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; min-width: 150px;" value="${escapeHtml(l.phone || '')}" placeholder="Keine Nummer" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
-                 <div style="display:flex; gap: 8px; align-items: center;">
-                   ${(l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone, l.id).replace('<a', '<a style=\"background: rgba(37, 211, 102, 0.1); color: #25D366 !important; padding: 8px 12px; border-radius: 8px;\"') : ''}
-                   <button style="background:transparent; border:none; padding:8px 12px; font-size:12px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 8px;" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')">Copy</button>
+            <div class="kontakt-liste">
+               <div class="kontakt-zeile">
+                 <input type="text" id="sys-phone" class="kontakt-feld" inputmode="tel" autocomplete="off" value="${escapeHtml(l.phone || '')}" placeholder="Keine Nummer">
+                 <div class="kontakt-aktionen">
+                   ${(l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone, l.id).replace('class="wa-icon"', 'class="wa-icon kontakt-wa"') : ''}
+                   <button class="kontakt-btn" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')" title="Nummer kopieren">Copy</button>
                  </div>
                </div>
-               
-               <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 8px;">
-                 <input type="text" id="sys-email" style="font-family:ui-monospace, monospace; font-size:14px; padding:8px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; outline:none; transition:0.2s; color:var(--color-text-primary, #f2f2f7); flex: 1; min-width: 150px;" value="${escapeHtml(l.email || '')}" placeholder="Keine E-Mail" onfocus="this.style.borderBottom='1px solid var(--color-brand-accent, #0a84ff)';" onblur="this.style.borderBottom='1px solid transparent';">
-                 <button style="background:transparent; border:none; padding:8px 12px; font-size:12px; color:var(--color-brand-accent, #0a84ff); font-weight:600; cursor:pointer; background: rgba(10, 132, 255, 0.1); border-radius: 8px;" onclick="copyEmail(event, ${l.id}, '${escapeHtml(l.email || '')}')" title="Adresse kopieren und schriftlichen Kontakt festhalten">Schreiben</button>
+
+               <div class="kontakt-zeile">
+                 <input type="text" id="sys-email" class="kontakt-feld" inputmode="email" autocomplete="off" spellcheck="false" value="${escapeHtml(l.email || '')}" placeholder="Keine E-Mail">
+                 <div class="kontakt-aktionen">
+                   <button class="kontakt-btn" onclick="copyEmail(event, ${l.id}, '${escapeHtml(l.email || '')}')" title="Adresse kopieren und schriftlichen Kontakt festhalten">Schreiben</button>
+                 </div>
+               </div>
+
+               <!-- Webseite: stand frueher nur versteckt im Formular. Der Link
+                    war allein ueber die Landkarte zu erreichen — Umweg ueber
+                    zwei Ansichten mitten im Gespraech. -->
+               <div class="kontakt-zeile">
+                 <input type="text" id="sys-web" class="kontakt-feld" inputmode="url" autocomplete="off" spellcheck="false" value="${escapeHtml(l.website_url || '')}" placeholder="Keine Webseite" oninput="window.aktualisiereWebKnopf()">
+                 <div class="kontakt-aktionen">
+                   <button id="web-oeffnen" class="kontakt-btn" onclick="window.oeffneLeadWebseite()" title="${hatWebseite ? 'Webseite in neuem Fenster öffnen' : 'Im Web nach dem Firmennamen suchen'}">${hatWebseite ? 'Öffnen' : 'Suchen'}</button>
+                 </div>
                </div>
             </div>
           </div>
 
-          <!-- Eigenschaften (Groß/Tarif) -->
+          <!-- Standort — Adresse, Öffnungszeiten, Weg zur Karte -->
           <div class="apple-section">
-            <h4 class="apple-section-title">Eigenschaften</h4>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-size: 13px; color: var(--color-text-primary, #f2f2f7);">Unternehmensgröße</span>
-              <div style="display:flex; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 2px;">
-                <button class="size-btn" data-size="Tarifkunde" style="padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; ${l.size === 'Tarifkunde' || !l.size ? 'background: var(--color-brand-accent, #0a84ff); color: white;' : 'background: transparent; color: var(--text-muted);'}" onclick="updateLeadSize(${l.id}, 'Tarifkunde')">Tarif</button>
-                <button class="size-btn" data-size="Großkunde" style="padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; ${l.size === 'Großkunde' ? 'background: var(--color-brand-accent, #0a84ff); color: white;' : 'background: transparent; color: var(--text-muted);'}" onclick="updateLeadSize(${l.id}, 'Großkunde')">Groß</button>
+            <h4 class="apple-section-title">Standort</h4>
+            ${locListHtml}
+            ${openingHoursHtml}
+            <div id="loc-search-container" style="display:${window._forceLocationSearch ? 'block' : 'none'}; margin-top:12px;">
+              <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input type="text" id="loc-search-input" class="modern-input-small" style="font-size: 12px; padding: 8px; flex:1; background: rgba(0,0,0,0.2); color:white; border:none; border-radius:6px;" value="${escapeHtml(l.name)}" placeholder="Firma, Ort..." />
+                <button class="action-btn-small" style="background: var(--color-brand-accent, #0a84ff); color: white; border-color: var(--color-brand-accent, #0a84ff); font-weight: 600; padding: 0 12px; border-radius:6px;" onclick="searchLeadLocation(${l.id})">Suchen</button>
               </div>
+              <div id="loc-search-results" style="max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
             </div>
-          </div>
-
-          <!-- Aktivitäten Historie -->
-          <div class="apple-section">
-            <h4 class="apple-section-title">Aktivitäten Historie</h4>
-            <div id="sidebar-activities-container-${l.id}" style="display: flex; flex-direction: column;">
-              ${window.renderSidebarActivities(l)}
+            <div class="standort-links">
+              <button class="standort-link" onclick="window.oeffneLeadWebseite()">Webseite</button>
+              <button class="standort-link" onclick="window.oeffneLeadKarte(${l.id}${locations.length ? ', 0' : ''})">Google Maps</button>
             </div>
           </div>
 
@@ -1587,6 +1425,64 @@ if (typeof window.renderDashboard === 'function') {
             <form onsubmit="window.handleNewTaskSubmit(event)" style="margin:0; padding:0; width:100%;">
               <input type="text" id="new-task-input-rem" style="width:100%; box-sizing:border-box; border:none; background:transparent; font-size:14px; color:var(--color-text-primary, #f2f2f7); padding:8px 0; outline:none;" placeholder="+ Neue Aufgabe..." enterkeyhint="done" onkeypress="handleNewTaskKeyPress(event)" />
             </form>
+          </div>
+
+          <!-- Aktivitäten Historie -->
+          <div class="apple-section">
+            <h4 class="apple-section-title">Aktivitäten Historie</h4>
+            <div id="sidebar-activities-container-${l.id}" style="display: flex; flex-direction: column;">
+              ${window.renderSidebarActivities(l)}
+            </div>
+          </div>
+
+          <!-- Wiedervorlage — wann wird wieder angefasst -->
+          ${snoozeHtml}
+
+          <!-- Wert — erwartete Provision und Abschlusszeitpunkt -->
+          ${(function(){
+            const stufe = window.api.getStage(l).toLowerCase();
+            const istAbschluss = stufe === 'closed';
+            // NULL heisst "noch nicht eingetragen", 0 heisst "tatsaechlich null
+            // Euro". Deshalb steht im leeren Feld nichts, keine 0.
+            const wert = (l.provi_umsatz === null || l.provi_umsatz === undefined) ? '' : l.provi_umsatz;
+            const datum = l.closed_at_ms
+              ? new Date(Number(l.closed_at_ms)).toLocaleDateString('sv-SE')   // YYYY-MM-DD, Ortszeit
+              : '';
+            const fehlt = [];
+            if (istAbschluss && wert === '') fehlt.push('Wert');
+            if (istAbschluss && !datum) fehlt.push('Datum');
+            return `
+              <div class="apple-section">
+                <h4 class="apple-section-title">Wert</h4>
+                <div class="wert-zeile">
+                  <label for="sys-provi">Erwartete Provision</label>
+                  <div class="wert-eingabe">
+                    <input type="text" inputmode="decimal" id="sys-provi" value="${wert}" placeholder="—" autocomplete="off">
+                    <span>€</span>
+                  </div>
+                </div>
+                ${!istAbschluss ? '' : `
+                <div class="wert-zeile">
+                  <label for="sys-closed-at">Abschlussdatum</label>
+                  <div class="wert-eingabe">
+                    <input type="date" id="sys-closed-at" value="${datum}">
+                  </div>
+                </div>`}
+                ${fehlt.length === 0 ? '' :
+                  `<div class="wert-hinweis">Abschluss ohne ${fehlt.join(' und ')} — z\u00e4hlt nicht als bewerteter Abschluss.</div>`}
+              </div>`;
+          })()}
+
+          <!-- Eigenschaften (Groß/Tarif) -->
+          <div class="apple-section">
+            <h4 class="apple-section-title">Eigenschaften</h4>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size: 13px; color: var(--color-text-primary, #f2f2f7);">Unternehmensgröße</span>
+              <div style="display:flex; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 2px;">
+                <button class="size-btn" data-size="Tarifkunde" style="padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; ${l.size === 'Tarifkunde' || !l.size ? 'background: var(--color-brand-accent, #0a84ff); color: white;' : 'background: transparent; color: var(--text-muted);'}" onclick="updateLeadSize(${l.id}, 'Tarifkunde')">Tarif</button>
+                <button class="size-btn" data-size="Großkunde" style="padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; transition: 0.2s; ${l.size === 'Großkunde' ? 'background: var(--color-brand-accent, #0a84ff); color: white;' : 'background: transparent; color: var(--text-muted);'}" onclick="updateLeadSize(${l.id}, 'Großkunde')">Groß</button>
+              </div>
+            </div>
           </div>
 
           <!-- Verknüpfte Leads -->
@@ -1645,55 +1541,6 @@ if (typeof window.renderDashboard === 'function') {
             </div>
           </div>
 
-          <!-- Location & Opening Hours -->
-          <div class="apple-section">
-            <h4 class="apple-section-title">Standort</h4>
-            ${locListHtml}
-            ${openingHoursHtml}
-            <div id="loc-search-container" style="display:${window._forceLocationSearch ? 'block' : 'none'}; margin-top:12px;">
-              <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                <input type="text" id="loc-search-input" class="modern-input-small" style="font-size: 12px; padding: 8px; flex:1; background: rgba(0,0,0,0.2); color:white; border:none; border-radius:6px;" value="${escapeHtml(l.name)}" placeholder="Firma, Ort..." />
-                <button class="action-btn-small" style="background: var(--color-brand-accent, #0a84ff); color: white; border-color: var(--color-brand-accent, #0a84ff); font-weight: 600; padding: 0 12px; border-radius:6px;" onclick="searchLeadLocation(${l.id})">Suchen</button>
-              </div>
-              <div id="loc-search-results" style="max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
-            </div>
-          </div>
-
-          <!-- Wert — erwartete Provision und Abschlusszeitpunkt -->
-          ${(function(){
-            const stufe = window.api.getStage(l).toLowerCase();
-            const istAbschluss = stufe === 'closed';
-            // NULL heisst "noch nicht eingetragen", 0 heisst "tatsaechlich null
-            // Euro". Deshalb steht im leeren Feld nichts, keine 0.
-            const wert = (l.provi_umsatz === null || l.provi_umsatz === undefined) ? '' : l.provi_umsatz;
-            const datum = l.closed_at_ms
-              ? new Date(Number(l.closed_at_ms)).toLocaleDateString('sv-SE')   // YYYY-MM-DD, Ortszeit
-              : '';
-            const fehlt = [];
-            if (istAbschluss && wert === '') fehlt.push('Wert');
-            if (istAbschluss && !datum) fehlt.push('Datum');
-            return `
-              <div class="apple-section">
-                <h4 class="apple-section-title">Wert</h4>
-                <div class="wert-zeile">
-                  <label for="sys-provi">Erwartete Provision</label>
-                  <div class="wert-eingabe">
-                    <input type="text" inputmode="decimal" id="sys-provi" value="${wert}" placeholder="—" autocomplete="off">
-                    <span>€</span>
-                  </div>
-                </div>
-                ${!istAbschluss ? '' : `
-                <div class="wert-zeile">
-                  <label for="sys-closed-at">Abschlussdatum</label>
-                  <div class="wert-eingabe">
-                    <input type="date" id="sys-closed-at" value="${datum}">
-                  </div>
-                </div>`}
-                ${fehlt.length === 0 ? '' :
-                  `<div class="wert-hinweis">Abschluss ohne ${fehlt.join(' und ')} — z\u00e4hlt nicht als bewerteter Abschluss.</div>`}
-              </div>`;
-          })()}
-
           <!-- Zuweisung -->
           ${(function(){
             let assignmentHtml = '';
@@ -1716,9 +1563,6 @@ if (typeof window.renderDashboard === 'function') {
             return assignmentHtml;
           })()}
 
-          <!-- Snooze and Advanced settings -->
-          ${snoozeHtml.replace('margin-top: 16px;', '').replace('label', 'h4 class="apple-section-title"').replace('<div class="snooze-grid"', '<div class="apple-section"><h4 class="apple-section-title">Follow-Up (Snooze)</h4><div class="snooze-grid"')}</div>
-
           <div style="display: flex; justify-content: center; gap: 24px; margin-top: 8px; margin-bottom: 24px;">
             <button class="action-btn-small" style="border:none; color:var(--color-text-secondary, #8e8e93); background:transparent; font-size: 12px; padding: 4px; cursor:pointer; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" onclick="markLeadUninteresting('${l.id}')">Uninteressant</button>
             <button class="action-btn-small" style="border:none; color:var(--color-text-secondary, #8e8e93); background:transparent; font-size: 12px; padding: 4px; cursor:pointer; transition: color 0.2s;" onmouseover="this.style.color='#ff453a'" onmouseout="this.style.color='var(--color-text-secondary, #8e8e93)'" onclick="deleteLead('${l.id}')">Löschen</button>
@@ -1727,7 +1571,6 @@ if (typeof window.renderDashboard === 'function') {
           <!-- Hidden System Fields -->
           <input type="hidden" id="sys-stage" value="${window.api.getStage(l).toLowerCase()}">
           <input type="hidden" id="sys-k" value="${isKunde ? 1 : 0}">
-          <input type="hidden" id="sys-web" value="${escapeHtml(l.website_url||'')}">
           <input type="hidden" id="sys-placeid" value="${l.google_place_id||''}">
           <input type="hidden" id="sys-lat" value="${l.lat||''}">
           <input type="hidden" id="sys-lng" value="${l.lng||''}">
@@ -2203,14 +2046,9 @@ if (typeof window.renderDashboard === 'function') {
       }
 
       setTimeout(() => {
-        if(window.map) {
-           const mapMarkers = window.mapMarkers || [];
-           const m = mapMarkers.find(x => x.leadId === leadId);
-           if (m) {
-             const pos = m.getLatLng();
-             window.map.flyTo(pos, 16, { duration: 1.5 });
-             setTimeout(() => m.openPopup(), 1500);
-           }
+        if (window.map) {
+           const m = (window.mapMarkers || []).find(x => x.leadId === leadId);
+           if (m) window.map.flyTo(m.getLatLng(), 15, { duration: 1.2 });
         }
       }, 300);
 
@@ -3025,6 +2863,11 @@ window.renderActivity = function(act) {
     
     const actIdStr = act.id ? `'${act.id}'` : 'null';
     const actTypeStr = `'${act.activity_type}'`;
+    // Die Zeitleiste aus der Sicht lead_timeline fuehrt lead_id mit, die
+    // nachgereichten Eintraege (pushLeadActivity) nicht. Dann gilt der
+    // gerade geoeffnete Lead.
+    const actLeadId = act.lead_id != null ? act.lead_id
+                    : (window.store && window.store.state && window.store.state.currentSelectedLeadId) || '';
     
     return `
       <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
@@ -3032,36 +2875,65 @@ window.renderActivity = function(act) {
           <div style="font-size: 13px; color: var(--color-text-primary, #f2f2f7); font-weight: 500;">${escapeHtml(text)}</div>
           <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${dateStr}</div>
         </div>
-        ${act.id ? `<button onclick="window.deleteActivity(${actIdStr}, ${actTypeStr}, '${act.lead_id}')" style="background:none; border:none; color:var(--text-muted); font-size:12px; cursor:pointer; padding:4px 8px; opacity:0.6;" onmouseover="this.style.opacity=1; this.style.color='#ff453a';" onmouseout="this.style.opacity=0.6; this.style.color='var(--text-muted)';">✕</button>` : ''}
+        ${act.id ? `<button onclick="window.deleteActivity(${actIdStr}, ${actTypeStr}, ${Number(actLeadId) || 0})" style="background:none; border:none; color:var(--text-muted); font-size:12px; cursor:pointer; padding:4px 8px; opacity:0.6;" onmouseover="this.style.opacity=1; this.style.color='#ff453a';" onmouseout="this.style.opacity=0.6; this.style.color='var(--text-muted)';">✕</button>` : ''}
       </div>
     `;
 };
 
+// Eintrag aus dem Verlauf loeschen.
+//
+// Hier gingen drei Dinge schief, die zusammen das gemeldete "manchmal geht es
+// nicht" ergaben:
+//   1. Die Lead-Nummer kam als Text aus dem onclick ('609'), verglichen wurde
+//      mit === gegen eine Zahl. Der Lead wurde nie gefunden, also weder aus
+//      dem Speicher entfernt noch neu gezeichnet — erst ein Neuladen half.
+//   2. Der Eintrag blieb in `crm_calls` / `lead_activities` stehen. Wurde die
+//      Liste aus diesen Feldern neu aufgebaut, war er wieder da.
+//   3. Die Datenbankebene meldete immer Erfolg (siehe core/db.js).
 window.deleteActivity = async function(id, type, leadId) {
-    if (!id || !type) return;
-    const ja = await window.confirmAction({
-      title: 'Aktivität löschen?',
-      message: 'Der Eintrag verschwindet aus dem Verlauf des Leads.',
-      confirmLabel: 'Löschen'
-    });
-    if (!ja) return;
-    const success = await window.api.deleteActivity(id, type);
-    if (success) {
-      // Remove from store
-      const leads = window.store?.state?.leads || [];
-      const lead = leads.find(x => x.id === leadId);
-      if (lead && lead.timeline) {
-        lead.timeline = lead.timeline.filter(x => x.id !== id);
-      }
-      if (typeof window.showToast === 'function') window.showToast('Gelöscht');
-      // Re-render
-      const container = document.getElementById(`sidebar-activities-container-${leadId}`);
-      if (container && lead) {
-        container.innerHTML = window.renderSidebarActivities(lead);
-      }
-    } else {
-      if (typeof window.showToast === 'function') window.showToast('Fehler beim Löschen', true);
-    }
+  if (!id || !type) return;
+  const ja = await window.confirmAction({
+    title: 'Aktivität löschen?',
+    message: 'Der Eintrag verschwindet aus dem Verlauf des Leads.',
+    confirmLabel: 'Löschen'
+  });
+  if (!ja) return;
+
+  const geloescht = await window.api.deleteActivity(id, type);
+  if (!geloescht) {
+    if (typeof window.showToast === 'function') window.showToast('Eintrag konnte nicht gelöscht werden', true);
+    return;
+  }
+
+  // Ueberall entfernen, wo der Eintrag liegen kann: Zeitleiste, Anrufe,
+  // Aktivitaeten — im Lead selbst und in jeder Kopie im Zwischenspeicher.
+  const nummer = Number(leadId);
+  const gleich = (x) => String(x) === String(id);
+  const saeubern = (lead) => {
+    if (!lead) return;
+    if (Array.isArray(lead.timeline))        lead.timeline = lead.timeline.filter(x => !gleich(x.id));
+    if (Array.isArray(lead.crm_calls))       lead.crm_calls = lead.crm_calls.filter(x => !gleich(x.id));
+    if (Array.isArray(lead.call_history))    lead.call_history = lead.call_history.filter(x => !gleich(x.id));
+    if (Array.isArray(lead.lead_activities)) lead.lead_activities = lead.lead_activities.filter(x => !gleich(x.id));
+  };
+
+  const listen = [ (window.store?.state?.leads) || [] ];
+  const cache = window.store?.state?.tabCache || {};
+  Object.keys(cache).forEach(k => { if (Array.isArray(cache[k])) listen.push(cache[k]); });
+
+  let lead = null;
+  listen.forEach(liste => {
+    const treffer = liste.find(x => Number(x.id) === nummer);
+    if (treffer) { saeubern(treffer); if (!lead) lead = treffer; }
+  });
+
+  if (typeof window.showToast === 'function') window.showToast('Gelöscht');
+
+  // Verlauf in der Seitenleiste neu zeichnen …
+  const container = document.getElementById(`sidebar-activities-container-${nummer}`);
+  if (container && lead) container.innerHTML = window.renderSidebarActivities(lead);
+  // … und die Karte in der Liste, auf der der letzte Anruf steht.
+  if (typeof window.refreshLeadCard === 'function') window.refreshLeadCard(nummer);
 };
 
 window.renderSidebarActivities = function(l) {

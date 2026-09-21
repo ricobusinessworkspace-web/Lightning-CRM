@@ -1082,6 +1082,103 @@ check('Gefragt wird nur beim Wechsel AUF closed',
 check('Gefragt wird erst nach dem Speichern',
   setPipeTeil.indexOf('_triggerAutoSave') < setPipeTeil.indexOf('frageAbschlusswert'));
 
+// ── 27d. Webseite steht auf der Karteikarte ────────────────────────────────
+// Der Link war nur ueber die Landkarte zu erreichen: Lead anklicken, zur Karte
+// wechseln, Stecknadel treffen. Im Formular stand das Feld versteckt — mitten
+// im Gespraech ein Umweg ueber zwei Ansichten.
+dom.window.eval(ausschnitt('const namensfeld = () => {',
+                           "encodeURIComponent(name || 'Unbekannt'));\n  }\n};"));
+
+w.document.body.innerHTML = '';
+const geoeffnet = [];
+w.api.openExternal = (url) => geoeffnet.push(url);
+
+const webFeld = feld('sys-web', '');
+const nameFeld = feld('sys-name', "Müller's Metzgerei", 'div');
+const webKnopf = w.document.createElement('button');
+webKnopf.id = 'web-oeffnen';
+w.document.body.appendChild(webKnopf);
+
+webFeld.value = 'https://www.metzgerei-mueller.de';
+w.oeffneLeadWebseite();
+check('Webseite oeffnet die eingetragene Adresse',
+  geoeffnet.at(-1) === 'https://www.metzgerei-mueller.de');
+
+webFeld.value = 'www.metzgerei-mueller.de';
+w.oeffneLeadWebseite();
+check('Adresse ohne Vorsatz bekommt https',
+  geoeffnet.at(-1) === 'https://www.metzgerei-mueller.de');
+
+// Gelesen wird aus dem Formular: wer gerade getippt und noch nicht gespeichert
+// hat, landet trotzdem richtig.
+webFeld.value = '  https://frisch-getippt.de  ';
+w.oeffneLeadWebseite();
+check('Noch nicht gespeicherte Eingabe zaehlt',
+  geoeffnet.at(-1) === 'https://frisch-getippt.de');
+
+webFeld.value = '';
+w.oeffneLeadWebseite();
+check('Ohne Webseite wird nach dem Firmennamen gesucht',
+  geoeffnet.at(-1) === 'https://www.google.com/search?q=' + encodeURIComponent("Müller's Metzgerei"));
+
+w.aktualisiereWebKnopf();
+check('Leeres Feld: der Knopf heisst Suchen', webKnopf.textContent === 'Suchen');
+webFeld.value = 'metzgerei-mueller.de';
+w.aktualisiereWebKnopf();
+check('Gefuelltes Feld: der Knopf heisst Öffnen', webKnopf.textContent === 'Öffnen');
+
+// Karte: dieselbe Reihenfolge wie in der Sprechblase am Kartenrand.
+w.store.state.leads = [{ id: 9, name: 'Metzgerei', google_maps_url: 'https://maps.google.com/?cid=1' }];
+w.oeffneLeadKarte(9);
+check('Karte nimmt die hinterlegte Maps-Adresse', geoeffnet.at(-1) === 'https://maps.google.com/?cid=1');
+
+w.store.state.leads = [{ id: 9, name: 'Metzgerei', google_place_id: 'ChIJ123' }];
+w.oeffneLeadKarte(9);
+check('Ohne Maps-Adresse zaehlt die Place-ID', geoeffnet.at(-1).endsWith('place_id:ChIJ123'));
+
+w.store.state.leads = [{ id: 9, name: 'Metzgerei' }];
+w.oeffneLeadKarte(9);
+check('Ohne beides wird der Name gesucht', geoeffnet.at(-1).includes('/maps/search/'));
+
+// ── Reihenfolge der Abschnitte: erst handeln, dann einordnen, dann verwalten ─
+const karteQuelle = pipeSrc.slice(pipeSrc.indexOf('<!-- SCROLLABLE BODY -->'),
+                            pipeSrc.indexOf('<!-- Hidden System Fields -->'));
+const stelle = (t) => karteQuelle.indexOf(t);
+const h4 = (t) => stelle('<h4 class="apple-section-title">' + t + '</h4>');
+const folge = [
+  ['Kontakt',            h4('Kontakt')],
+  ['Standort',           h4('Standort')],
+  ['Notizen',            h4('Notizen')],
+  ['Aufgaben',           h4('Aufgaben')],
+  ['Aktivitäten',        h4('Aktivitäten Historie')],
+  ['Wiedervorlage',      stelle('${snoozeHtml}')],
+  ['Wert',               h4('Wert')],
+  ['Eigenschaften',      h4('Eigenschaften')],
+  ['Verknüpfte Leads',   h4('Verknüpfte Leads')]
+];
+check('Testaufbau: alle Abschnitte der Karteikarte gefunden', folge.every(([, i]) => i > 0));
+check('Reihenfolge der Karteikarte steht fest',
+  folge.every(([, i], k) => k === 0 || i > folge[k - 1][1]));
+
+const kontaktBlock = karteQuelle.slice(h4('Kontakt'), h4('Standort'));
+check('Telefon, E-Mail und Webseite stehen beieinander',
+  ['sys-phone', 'sys-email', 'sys-web'].every(id => kontaktBlock.includes('id="' + id + '"')));
+check('Kein verstecktes Webseitenfeld mehr', !pipeSrc.includes('type="hidden" id="sys-web"'));
+
+const standortBlock = karteQuelle.slice(h4('Standort'), h4('Notizen'));
+// Die Adresse ist selbst der Link — sie wird in locListHtml gebaut.
+check('Standort zeigt die Adressliste', standortBlock.includes('${locListHtml}'));
+check('Adresse führt direkt zu Google Maps',
+  pipeSrc.includes('class="standort-adresse" onclick="window.oeffneLeadKarte('));
+// Unter der Adresse stehen zwei Wege nach draussen — mehr nicht.
+check('Webseite und Google Maps stehen als zwei Links unter dem Standort',
+  standortBlock.includes('oeffneLeadWebseite()') && standortBlock.includes('oeffneLeadKarte(')
+  && (standortBlock.match(/class="standort-link"/g) || []).length === 2);
+
+// Der Kasten hat sich selbst verdoppelt: die Ueberschrift stand zweimal da.
+check('Wiedervorlage steht genau einmal in ihrem Kasten',
+  (pipeSrc.match(/apple-section-title">Wiedervorlage</g) || []).length === 1);
+
 // ── 28. Handverteilte Cache-Marker muessen mitwachsen ──────────────────────
 // Dateien aus public/ werden unveraendert ausgeliefert; ihr ?v=-Anhaengsel ist
 // das Einzige, was den Browser zum Nachladen bewegt. Wer eine davon aendert und

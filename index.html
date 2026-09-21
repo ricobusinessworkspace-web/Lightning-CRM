@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <link rel="stylesheet" href="theme.css?v=4.7">
-  <link rel="stylesheet" href="styles.css?v=4.9">
+  <link rel="stylesheet" href="styles.css?v=5.0">
   <link rel="stylesheet" href="mobile.css?v=1.1">
 </head>
 <body>
@@ -185,10 +185,13 @@
           <h3 style="margin: 0 0 10px 0; font-size: 13px; font-weight: 700; color: var(--text-main); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;">
             Datenbank Tools
           </h3>
-          <p style="margin: 0 0 16px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">Pflege-Tools für das CRM: Vervollständigt alle Leads im Hintergrund (Telefonnummer, E-Mail, Öffnungszeiten, GPS) ohne bestehende Daten zu überschreiben.</p>
+          <p style="margin: 0 0 16px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">Pflege-Tools für das CRM. Es wird nur in leere Felder geschrieben — vorhandene Daten bleiben unangetastet.</p>
           <div style="display: flex; gap: 8px; flex-direction: column;">
+            <button id="btn-nachtragen" class="action-btn-small outline" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; font-weight: 600; font-size: 12px; border-color: var(--color-brand-accent); color: var(--color-brand-accent);" onclick="oeffneNachtragen()">
+              Telefon &amp; E-Mail nachtragen
+            </button>
             <button id="btn-run-enrich" class="action-btn-small outline" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; font-weight: 600; font-size: 12px; border-color: var(--border); color: var(--text-main);" onclick="executeUniversalEnrichment()">
-              Data Enrichment (Alle fehlenden Daten laden)
+              Öffnungszeiten &amp; Standorte laden (Google)
             </button>
           </div>
         </div>
@@ -223,6 +226,35 @@
     </div>
   </div>
 
+
+  <!-- Kontaktdaten nachtragen: erst suchen, dann ansehen, dann uebernehmen -->
+  <div id="nachtragen-modal" class="modal-overlay hidden" style="z-index: 310;">
+    <div class="modal-content" style="max-width: 720px; max-height: 88vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <h2 class="modal-title">Telefon &amp; E-Mail nachtragen</h2>
+        <button class="modal-close-btn" onclick="schliesseNachtragen()">✕</button>
+      </div>
+
+      <p style="margin: 0 0 12px 0; font-size: 12px; color: var(--color-text-secondary); line-height: 1.5;">
+        Gelesen werden Startseite, Impressum und Kontaktseite jedes Leads. Bevorzugt wird die
+        Adresse der Geschäftsführung, sonst die allgemeine <b>info@</b>-Adresse. Fremde Adressen
+        von Portalen und Werbeagenturen werden verworfen. <b>Gespeichert wird erst, wenn du es
+        unten bestätigst</b> — und nur in leere Felder.
+      </p>
+
+      <div id="nachtragen-stand" style="font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; margin-bottom: 8px;">—</div>
+      <div class="nachtrag-balken-huelle"><div id="nachtragen-balken" class="nachtrag-balken"></div></div>
+
+      <div id="nachtragen-liste" class="nachtrag-liste"></div>
+
+      <div style="display: flex; gap: 8px; margin-top: 16px;">
+        <button id="nachtragen-start" class="action-btn-small outline" style="flex: 1; padding: 10px; font-weight: 600; font-size: 12px; border-color: var(--color-brand-accent); color: var(--color-brand-accent); display: inline-flex; align-items: center; justify-content: center;" onclick="starteNachtragen()">Suche starten</button>
+        <button id="nachtragen-stopp" class="action-btn-small outline" style="flex: 1; padding: 10px; font-weight: 600; font-size: 12px; border-color: var(--border); color: var(--text-muted); display: none; align-items: center; justify-content: center;" onclick="stoppeNachtragen()">Anhalten</button>
+        <button id="nachtragen-uebernehmen" class="action-btn-small" style="flex: 1; padding: 10px; font-weight: 700; font-size: 12px; background: var(--color-brand-accent); border-color: var(--color-brand-accent); color: #fff; display: none; align-items: center; justify-content: center;" onclick="uebernimmNachtragen()">übernehmen</button>
+        <button class="action-btn-small outline" style="padding: 10px 16px; font-weight: 600; font-size: 12px; border-color: var(--border); color: var(--text-muted);" onclick="schliesseNachtragen()">Schließen</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Excluded Leads Modal (Sub-modal overlays settings with higher z-index) -->
   <div id="excluded-leads-modal" class="modal-overlay hidden" style="z-index: 310;">
@@ -290,9 +322,9 @@
           </div>
         </div>
         
-        <div id="map-wrapper" style="display:none; flex:1; flex-direction:column; width:100%; height:100%; padding: 32px 48px;">
-
+        <div id="map-wrapper" style="display:none; position:relative; flex:1; flex-direction:column; width:100%; height:100%; padding: 32px 48px;">
           <div id="map-container" style="flex:1; width:100%; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.4);"></div>
+          <!-- Das HUD haengt karte.js hier hinein (#karte-hud) -->
         </div>
 
         <div id="scout-wrapper" style="display:none; flex:1; flex-direction:column; overflow:hidden; padding: 32px 48px;">
@@ -404,8 +436,12 @@
   <script src="core/leads.js?v=4.2"></script>
   <script src="core/tasks.js?v=4.2"></script>
   <script src="core/pipeline.js?v=4.2"></script>
-  <script src="ui/pipeline_ui.js?v=4.9"></script>
-  <script src="ui/main_ui.js?v=4.9"></script>
+  <script src="modules/oeffnungszeiten.js?v=1.0"></script>
+  <script src="modules/karte.js?v=1.0"></script>
+  <script src="modules/kontaktdaten.js?v=1.0"></script>
+  <script src="modules/backfill.js?v=1.0"></script>
+  <script src="ui/pipeline_ui.js?v=5.0"></script>
+  <script src="ui/main_ui.js?v=5.0"></script>
   <script src="modules/scraper.js?v=4.3"></script>
   <script type="module" src="ui/profile-modal.js?v=4.2"></script>
   <script type="module" src="ui/init.js?v=4.7"></script>

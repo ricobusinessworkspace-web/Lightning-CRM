@@ -104,6 +104,11 @@ window.setPipeline = async (type) => {
 
     const cancelContainer = document.getElementById('cancel-snooze-container');
     if (cancelContainer) cancelContainer.style.display = snoozeMs > Date.now() ? 'block' : 'none';
+
+    // Der Lead gehoert jetzt ans Ende der Liste (oder zurueck nach oben, wenn
+    // die Wiedervorlage aufgehoben wurde). Vorher blieb die Karte stehen, wo
+    // sie war, bis die Seite komplett neu geladen wurde.
+    if (typeof window.sortiereListenNeu === 'function') window.sortiereListenNeu();
     return true;
   };
 
@@ -1416,49 +1421,59 @@ window.setPipeline = async (type) => {
   };
 
   // ── copyPhone — F5: DOES NOT save lead data. Only copies + logs call. ────────
+  /**
+   * Rueckmeldung am Knopf — sofort, und ohne haengen zu bleiben.
+   *
+   * Vorher stand die Rueckmeldung hinter zwei Netzaufrufen: kopiert war
+   * sofort, zu sehen war es erst nach dem Anruf-Protokoll. Dazu zwei Fallen:
+   * `event.currentTarget` ist nach einem `await` null, und der urspruengliche
+   * Text wurde bei jedem Klick neu gemerkt — beim zweiten Klick also
+   * "Kopiert!", was dann fuer immer stehen blieb.
+   */
+  const knopfRueckmeldung = (knopf, text) => {
+    if (!knopf || knopf.tagName !== 'BUTTON') return;
+    if (!knopf.dataset.urtext) knopf.dataset.urtext = knopf.innerText;
+    if (knopf._rueckmeldung) clearTimeout(knopf._rueckmeldung);
+    knopf.innerText = text;
+    knopf.classList.add('knopf-erledigt');
+    knopf._rueckmeldung = setTimeout(() => {
+      knopf.innerText = knopf.dataset.urtext;
+      knopf.classList.remove('knopf-erledigt');
+      knopf._rueckmeldung = null;
+    }, 1500);
+  };
+
+  // Der angeklickte Knopf — synchron, bevor irgendetwas awaited wird.
+  const knopfAus = (e) => {
+    const ziel = (e && (e.currentTarget || e.target)) || null;
+    return ziel && ziel.closest ? ziel.closest('button') : ziel;
+  };
+
   window.copyPhone = async (e, id, phone) => {
-    // Always read the current phone from the input if available (most up-to-date)
-    const phoneInput = document.getElementById('sys-phone');
-    const targetPhone = phoneInput ? phoneInput.value.trim() : phone;
-    if (!targetPhone) return;
+    const knopf = knopfAus(e);
+    const feld = document.getElementById('sys-phone');
+    const nummer = feld ? feld.value.trim() : phone;
+    if (!nummer) return;
 
-    // Copy to clipboard
-    try {
-      await window.api.copyText(targetPhone);
-    } catch(err) {
-      console.log('Clipboard fallback error:', err);
-    }
+    // Erst kopieren und zurueckmelden, dann protokollieren. Das Protokoll
+    // haengt am Netz; die Rueckmeldung darf nicht darauf warten.
+    let kopiert = false;
+    try { kopiert = await window.api.copyText(nummer); }
+    catch (err) { console.log('Clipboard fallback error:', err); }
+    knopfRueckmeldung(knopf, kopiert === false ? 'Nicht kopiert' : 'Kopiert! 📞');
 
-    // Persist call log immediately — a call is a fact, not a draft
     try {
       await window.api.logCall(id);
       await window.updateTrayCount();
       if (typeof window.pushLeadActivity === 'function') {
-        const uName = window.globalUser?.name || 'Ich';
         window.pushLeadActivity(id, {
           activity_type: 'call',
           ts: Date.now(),
-          by_user_name: uName
+          by_user_name: window.globalUser?.name || 'Ich'
         });
       }
-    } catch(err) { console.warn('Call log failed:', err); }
-    
-    // Quick UI feedback for the copy button
-    const btn = e.currentTarget || e.target;
-    if (btn && btn.tagName === 'BUTTON') {
-      const orig = btn.innerText;
-      btn.innerText = 'Kopiert! 📞';
-      btn.style.borderColor = 'var(--success)';
-      btn.style.color = 'var(--success)';
-      setTimeout(() => {
-        if (btn) {
-          btn.innerText = orig;
-          btn.style.borderColor = 'var(--border)';
-          btn.style.color = 'var(--text-muted)';
-        }
-      }, 1500);
-    }
-    
+    } catch (err) { console.warn('Call log failed:', err); }
+
     // Fallback: update status (Element ist optional — existiert nicht in jedem Layout)
     const statusNode = document.getElementById('sys-status');
     if (statusNode) statusNode.value = 'Erreicht';
@@ -1493,32 +1508,17 @@ window.setPipeline = async (type) => {
 
   // E-Mail-Adresse kopieren und den Kontakt festhalten.
   window.copyEmail = async (e, id, email) => {
-    const emailInput = document.getElementById('sys-email');
-    const targetEmail = emailInput ? emailInput.value.trim() : email;
-    if (!targetEmail) return;
+    const knopf = knopfAus(e);
+    const feld = document.getElementById('sys-email');
+    const adresse = feld ? feld.value.trim() : email;
+    if (!adresse) return;
 
-    try {
-      await window.api.copyText(targetEmail);
-    } catch (err) {
-      console.log('Clipboard fallback error:', err);
-    }
+    let kopiert = false;
+    try { kopiert = await window.api.copyText(adresse); }
+    catch (err) { console.log('Clipboard fallback error:', err); }
+    knopfRueckmeldung(knopf, kopiert === false ? 'Nicht kopiert' : 'Kopiert! ✉️');
 
     await window.logContactMessage(id, 'email');
-
-    const btn = e.currentTarget || e.target;
-    if (btn && btn.tagName === 'BUTTON') {
-      const orig = btn.innerText;
-      btn.innerText = 'Kopiert! ✉️';
-      btn.style.borderColor = 'var(--success)';
-      btn.style.color = 'var(--success)';
-      setTimeout(() => {
-        if (btn) {
-          btn.innerText = orig;
-          btn.style.borderColor = 'var(--border)';
-          btn.style.color = 'var(--text-muted)';
-        }
-      }, 1500);
-    }
   };
 
   window.deleteLead = async (id) => {

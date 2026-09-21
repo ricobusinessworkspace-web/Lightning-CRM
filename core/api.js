@@ -55,6 +55,7 @@ window.api = {
   getUserRP: (userId) => db.getUserRP(userId),
   getLeadHistory: (id) => db.getLeadHistory(id),
   getStage: (lead) => db.getStage(lead),
+  sortLeads: (liste, filters) => db.sortLeads(liste, filters),
 
   // Call Tracking
   logCall: (id) => db.logCall(id),
@@ -68,11 +69,30 @@ window.api = {
 
   // Utilities
   updateTray: (count) => { console.log("Tray updated:", count); },
+  // Kopieren mit Rueckfallweg: die Zwischenablage-Schnittstelle verweigert
+  // den Dienst, wenn das Fenster nicht im Vordergrund ist oder die Seite nicht
+  // ueber https laeuft. Dann bleibt der alte Weg ueber ein verstecktes Feld.
   copyText: async (text) => {
+    const wert = String(text == null ? '' : text);
     try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch(e) {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(wert);
+        return true;
+      }
+    } catch (e) {
+      console.warn('Zwischenablage abgelehnt, nutze Rueckfallweg:', e && e.message);
+    }
+    try {
+      const feld = document.createElement('textarea');
+      feld.value = wert;
+      feld.setAttribute('readonly', '');
+      feld.style.cssText = 'position:fixed; top:-1000px; opacity:0;';
+      document.body.appendChild(feld);
+      feld.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(feld);
+      return !!ok;
+    } catch (e) {
       console.error('Clipboard error:', e);
       return false;
     }

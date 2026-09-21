@@ -113,13 +113,27 @@ function postProcessAndSort(rows, filters = {}) {
   }
 
   // 2. Sorting — unified global relevance sort
-  results.sort((a, b) => {
+  results.sort(vergleicheLeads(filters));
+
+  return results;
+}
+
+/**
+ * Die eine Reihenfolge, nach der Leads ueberall stehen.
+ *
+ * Steht hier fuer sich, weil die Oberflaeche sie nach einer Wiedervorlage
+ * noch einmal anwenden muss: ein gesnoozter Lead gehoert sofort nach unten,
+ * nicht erst nach dem naechsten vollstaendigen Laden.
+ */
+export function vergleicheLeads(filters = {}, jetzt = Date.now()) {
+  return (a, b) => {
     if (filters.tab === 'customers') {
       return b.id - a.id;
     }
 
-    const snoozedA = (a.snooze_until_ms && a.snooze_until_ms > now) ? 1 : 0;
-    const snoozedB = (b.snooze_until_ms && b.snooze_until_ms > now) ? 1 : 0;
+    // Gesnoozte ganz nach unten, und dort der zuerst, der am ehesten wiederkommt.
+    const snoozedA = (a.snooze_until_ms && a.snooze_until_ms > jetzt) ? 1 : 0;
+    const snoozedB = (b.snooze_until_ms && b.snooze_until_ms > jetzt) ? 1 : 0;
     if (snoozedA !== snoozedB) return snoozedA - snoozedB;
     if (snoozedA === 1 && snoozedB === 1) return a.snooze_until_ms - b.snooze_until_ms;
 
@@ -138,9 +152,7 @@ function postProcessAndSort(rows, filters = {}) {
     if (scoreA !== scoreB) return scoreB - scoreA;
 
     return b.id - a.id;
-  });
-
-  return results;
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -699,15 +711,26 @@ export const db = {
     }
   },
 
+  // Loeschen meldet jetzt ehrlich, ob wirklich etwas weg ist.
+  //
+  // Vorher wurde das Ergebnis von Supabase nicht angesehen: ein abgelehnter
+  // oder ins Leere laufender Loeschvorgang (falsche ID, Zugriffsregel) kam als
+  // Erfolg zurueck. Der Eintrag verschwand aus der Anzeige und war nach dem
+  // naechsten Laden wieder da.
   deleteActivity: async (id, type) => {
     if (!id || !type) return false;
+    const tabelle = type === 'call' ? 'crm_calls' : 'lead_activities';
     try {
-      if (type === 'call') {
-        await supabase.from('crm_calls').delete().eq('id', id);
-      } else {
-        await supabase.from('lead_activities').delete().eq('id', id);
+      const { data, error } = await supabase
+        .from(tabelle)
+        .delete()
+        .eq('id', id)
+        .select('id');       // zurueckgegebene Zeilen = wirklich geloescht
+      if (error) {
+        console.error('deleteActivity:', error.message || error);
+        return false;
       }
-      return true;
+      return Array.isArray(data) && data.length > 0;
     } catch (e) {
       console.error('deleteActivity error:', e);
       return false;
@@ -800,6 +823,11 @@ export const db = {
   },
 
   // ── Utils ───────────────────────────────────────────────────────────
+  // Dieselbe Reihenfolge wie beim Laden — fuer die Oberflaeche nach einer
+  // Wiedervorlage.
+  sortLeads: (liste, filters = {}) =>
+    Array.isArray(liste) ? liste.slice().sort(vergleicheLeads(filters)) : liste,
+
   getStage: (lead) => {
     if (lead.status === 'Uninteressant') return 'UNINTERESSANT';
     if (lead.stage) return lead.stage.toUpperCase();
