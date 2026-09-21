@@ -74,14 +74,32 @@ check('Der Name erscheint nur mit ausdrücklichem Schalter',
 check('Namen zeigen ist standardmäßig aus',
   /localStorage\.getItem\(SCHALTER\) === '1'/.test(quelle));
 
-// Kein fremder Routendienst — sonst wandern Standort und Lead-Koordinaten raus.
-const DIENSTE = ['osrm', 'mapbox', 'graphhopper', 'openrouteservice', 'google.com/maps/dir', 'here.com', 'tomtom'];
-check('Kein Aufruf an einen fremden Routendienst',
-  DIENSTE.every(d => quelle.toLowerCase().indexOf(d) === -1));
-check('Die Fahrzeit ist als Schätzung ausgewiesen',
+// Die Route folgt seit dem 21.09.2026 echten Straßen (ausdrücklich so
+// gewünscht). Nach draußen gehen dabei zwei Koordinatenpaare — und sonst
+// nichts. Diese Prüfung haelt genau das fest.
+const routenTeil = quelle.slice(quelle.indexOf('async function routeHolen'), quelle.indexOf('function routeLoeschen'));
+check('Die Route fragt den Straßendienst', /router\.project-osrm\.org/.test(routenTeil));
+check('An den Dienst gehen nur Koordinaten',
+  !/name|phone|email|address|maps_city|website/i.test(routenTeil));
+check('Der Aufruf hat eine Zeitgrenze', /AbortController/.test(routenTeil));
+check('Ohne Antwort bleibt der gezeichnete Weg',
+  /if \(!echt\) return;/.test(quelle) && quelle.includes('wegPunkte(spielerPos, ziel'));
+check('Geschätzte Zeiten bleiben als solche erkennbar',
   quelle.includes("'ca. '") && quelle.includes('geschätzt'));
 check('Der eigene Standort wird nur lokal geholt',
-  quelle.includes('navigator.geolocation.getCurrentPosition') && !/fetch\(/.test(quelle));
+  quelle.includes('navigator.geolocation.getCurrentPosition'));
+
+// ── Was beim Klick auf einen Lead passiert ────────────────────────────────
+// Kommentare raus — sonst zaehlt das Wort im erklaerenden Text als Treffer.
+const ohneKommentar = (t) => t.replace(/\/\/[^\n]*/g, '');
+const klickTeil = ohneKommentar(quelle.slice(quelle.indexOf("m.on('click'"), quelle.indexOf("m.on('mouseover'")));
+check('Ein Klick öffnet keine Karteikarte', !/openLead/.test(klickTeil));
+const zielTeil = ohneKommentar(quelle.slice(quelle.indexOf('function zielZeigen'), quelle.indexOf('// Beim Überfahren')));
+check('Die Zielkarte nennt keinen Namen und keine Adresse',
+  !/lead\.name|address|maps_city|phone|email|website/i.test(zielTeil));
+check('Die Zielkarte zeigt den Arbeitsstand',
+  /Anrufe/.test(zielTeil) && /Zuletzt/.test(zielTeil) && /Status/.test(zielTeil));
+check('Kein Geldbetrag auf der Karte', !/provi|umsatz|euro|€/i.test(zielTeil));
 
 console.log('\n✅ BESTANDEN (' + ok.length + ')');
 ok.forEach(t => console.log('   ' + t));

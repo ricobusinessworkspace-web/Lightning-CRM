@@ -1094,10 +1094,7 @@ const geoeffnet = [];
 w.api.openExternal = (url) => geoeffnet.push(url);
 
 const webFeld = feld('sys-web', '');
-const nameFeld = feld('sys-name', "Müller's Metzgerei", 'div');
-const webKnopf = w.document.createElement('button');
-webKnopf.id = 'web-oeffnen';
-w.document.body.appendChild(webKnopf);
+feld('sys-name', "Müller's Metzgerei", 'div');
 
 webFeld.value = 'https://www.metzgerei-mueller.de';
 w.oeffneLeadWebseite();
@@ -1120,12 +1117,6 @@ webFeld.value = '';
 w.oeffneLeadWebseite();
 check('Ohne Webseite wird nach dem Firmennamen gesucht',
   geoeffnet.at(-1) === 'https://www.google.com/search?q=' + encodeURIComponent("Müller's Metzgerei"));
-
-w.aktualisiereWebKnopf();
-check('Leeres Feld: der Knopf heisst Suchen', webKnopf.textContent === 'Suchen');
-webFeld.value = 'metzgerei-mueller.de';
-w.aktualisiereWebKnopf();
-check('Gefuelltes Feld: der Knopf heisst Öffnen', webKnopf.textContent === 'Öffnen');
 
 // Karte: dieselbe Reihenfolge wie in der Sprechblase am Kartenrand.
 w.store.state.leads = [{ id: 9, name: 'Metzgerei', google_maps_url: 'https://maps.google.com/?cid=1' }];
@@ -1161,15 +1152,19 @@ check('Reihenfolge der Karteikarte steht fest',
   folge.every(([, i], k) => k === 0 || i > folge[k - 1][1]));
 
 const kontaktBlock = karteQuelle.slice(h4('Kontakt'), h4('Standort'));
-check('Telefon, E-Mail und Webseite stehen beieinander',
-  ['sys-phone', 'sys-email', 'sys-web'].every(id => kontaktBlock.includes('id="' + id + '"')));
-check('Kein verstecktes Webseitenfeld mehr', !pipeSrc.includes('type="hidden" id="sys-web"'));
+check('Im Kontakt stehen Telefon und E-Mail',
+  ['sys-phone', 'sys-email'].every(id => kontaktBlock.includes('id="' + id + '"')));
+// Die Webadresse hat keine eigene Zeile mehr — sie steckt im Formular und
+// haengt an den beiden Links unter dem Standort.
+check('Keine Webseiten-Zeile im Kontakt', !kontaktBlock.includes('id="sys-web"'));
+check('Das Webfeld bleibt im Formular — sonst schreibt das Speichern es leer',
+  pipeSrc.includes('type="hidden" id="sys-web"'));
 
 const standortBlock = karteQuelle.slice(h4('Standort'), h4('Notizen'));
 // Die Adresse ist selbst der Link — sie wird in locListHtml gebaut.
 check('Standort zeigt die Adressliste', standortBlock.includes('${locListHtml}'));
-check('Adresse führt direkt zu Google Maps',
-  pipeSrc.includes('class="standort-adresse" onclick="window.oeffneLeadKarte('));
+check('Die Adresse führt zur Karte in der Anwendung, nicht nach draußen',
+  pipeSrc.includes('class="standort-adresse" onclick="window.flyToMap('));
 // Unter der Adresse stehen zwei Wege nach draussen — mehr nicht.
 check('Webseite und Google Maps stehen als zwei Links unter dem Standort',
   standortBlock.includes('oeffneLeadWebseite()') && standortBlock.includes('oeffneLeadKarte(')

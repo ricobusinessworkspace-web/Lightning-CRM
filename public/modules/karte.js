@@ -14,11 +14,12 @@
  * zeigen" hebt das für die eigene Arbeit auf; er steht standardmäßig aus und
  * merkt sich nichts über Sitzungen hinweg hinaus außer der eigenen Wahl.
  *
- * Die Route ist **geschätzt und stilisiert**. Sie fragt bewusst keinen
- * Routendienst: das würde den eigenen Standort und die Koordinaten des Leads
- * an einen Dritten schicken. Gezeichnet wird ein rechtwinkliger Weg im
- * GTA-Gelb, die Zeit kommt aus Luftlinie × Umwegfaktor ÷ Richtgeschwindigkeit.
- * Überall, wo sie auftaucht, steht „ca." davor.
+ * Die Route folgt **echten Straßen**. Dafür fragt sie den offenen
+ * OSRM-Dienst (router.project-osrm.org, ohne Schlüssel). Was dorthin geht:
+ * zwei Koordinatenpaare — der eigene Standort und der Zielpunkt. Was **nicht**
+ * dorthin geht: Name, Adresse, Telefonnummer, überhaupt irgendetwas aus dem
+ * Datensatz. Antwortet der Dienst nicht, wird der alte gezeichnete Weg
+ * genommen und die Zeit geschätzt; dann steht „ca." davor.
  *
  * Der Spieler-Pfeil steht auf dem eigenen Standort, wenn der Browser ihn
  * hergibt (nur lokal, nichts wird gesendet) — sonst in der Mitte der Karte.
@@ -36,6 +37,7 @@
   let standortSetzenAktiv = false;
   let aktiverLead = null;
   let leadsImSpeicher = [];
+  let routenLauf = 0;          // zaehlt Klicks, damit alte Antworten nichts ueberschreiben
 
   const SCHALTER = 'karteNamenZeigen';
   const namenZeigen = () => {
@@ -135,13 +137,15 @@
     m.stufe = stufe;
 
     m.on('click', () => {
+      // Bewusst KEIN openLead: auf dieser Ansicht soll nichts aufgehen, was
+      // einen Kunden erkennbar macht. Es erscheint die Zielkarte — Stufe,
+      // Fahrzeit, geöffnet/geschlossen, Anzahl der Anrufe. Nichts davon zeigt,
+      // um wen es geht.
       aktiverLead = l;
       blipsMarkieren(l.id);
+      zielZeigen(l);
       routeZeichnen(l);
       karte.panTo([l.lat, l.lng], { animate: true });
-      // Die Karteikarte öffnet sich in der Seitenleiste — dort stehen die
-      // echten Daten, nicht auf der Karte.
-      if (typeof window.openLead === 'function') window.openLead(l.id);
     });
     m.on('mouseover', () => hudBlipZeigen(l));
     m.on('mouseout', () => hudBlipZeigen(null));
@@ -231,22 +235,44 @@
     ];
   }
 
+  /**
+   * Echte Strecke über Straßen. Liefert null, wenn der Dienst nicht antwortet
+   * — dann zeichnet routeZeichnen den stilisierten Weg.
+   */
+  async function routeHolen(von, nach) {
+    const ziel = `https://router.project-osrm.org/route/v1/driving/`
+               + `${von.lng},${von.lat};${nach.lng},${nach.lat}`
+               + `?overview=full&geometries=geojson`;
+    const abbruch = new AbortController();
+    const uhr = setTimeout(() => abbruch.abort(), 6000);
+    try {
+      const antwort = await fetch(ziel, { signal: abbruch.signal });
+      if (!antwort.ok) return null;
+      const daten = await antwort.json();
+      const route = daten && daten.routes && daten.routes[0];
+      if (!route || !route.geometry || !Array.isArray(route.geometry.coordinates)) return null;
+      return {
+        punkte: route.geometry.coordinates.map(k => [k[1], k[0]]),   // OSRM: lng,lat
+        minuten: Math.max(1, Math.round(route.duration / 60)),
+        km: route.distance / 1000,
+        echt: true
+      };
+    } catch (e) {
+      return null;                     // Zeitüberschreitung oder kein Netz
+    } finally {
+      clearTimeout(uhr);
+    }
+  }
+
   function routeLoeschen() {
     routenLinien.forEach(l => karte.removeLayer(l));
     routenLinien = [];
     blipsMarkieren(null);
   }
 
-  function routeZeichnen(lead) {
-    if (!karte || !spielerPos || !lead || !lead.lat || !lead.lng) return;
-    routeLoeschen();
-    blipsMarkieren(lead.id);
-
-    const ziel = { lat: lead.lat, lng: lead.lng };
-    const punkte = wegPunkte(spielerPos, ziel, Number(lead.id) || 7);
-
-    // Zwei Linien übereinander: dunkle Fassung als Kante, gelbe darüber —
-    // so sieht die Linie in GTA aus.
+  // Zwei Linien übereinander: dunkle Fassung als Kante, gelbe darüber —
+  // so sieht das GPS-Band in GTA aus.
+  function linieZeichnen(punkte) {
     routenLinien.push(L.polyline(punkte, {
       color: '#000000', weight: 11, opacity: 0.55, lineJoin: 'round', lineCap: 'round'
     }).addTo(karte));
@@ -254,9 +280,29 @@
       className: 'karte-route', color: '#f7c948', weight: 6, opacity: 0.95,
       lineJoin: 'round', lineCap: 'round'
     }).addTo(karte));
+  }
 
-    const km = luftlinieKm(spielerPos, ziel);
-    hudRouteZeigen({ km: km * UMWEG, minuten: fahrzeitMinuten(km), stufe: stufeVon(lead) });
+  async function routeZeichnen(lead) {
+    if (!karte || !spielerPos || !lead || !lead.lat || !lead.lng) return;
+    routeLoeschen();
+    blipsMarkieren(lead.id);
+
+    const ziel = { lat: lead.lat, lng: lead.lng };
+    const laufNr = ++routenLauf;
+
+    // Sofort etwas zeichnen, damit der Klick nicht ins Leere greift …
+    linieZeichnen(wegPunkte(spielerPos, ziel, Number(lead.id) || 7));
+    const luft = luftlinieKm(spielerPos, ziel);
+    hudRouteZeigen({ km: luft * UMWEG, minuten: fahrzeitMinuten(luft), echt: false });
+
+    // … und die echte Strecke nachziehen, sobald sie da ist.
+    const echt = await routeHolen(spielerPos, ziel);
+    if (laufNr !== routenLauf) return;          // inzwischen anderer Lead geklickt
+    if (!echt) return;
+    routenLinien.forEach(l => karte.removeLayer(l));
+    routenLinien = [];
+    linieZeichnen(echt.punkte);
+    hudRouteZeigen({ km: echt.km, minuten: echt.minuten, echt: true });
   }
 
   // ── HUD ───────────────────────────────────────────────────────────────────
@@ -292,10 +338,15 @@
           <span class="karte-legende-eintrag karte-legende-hinweis" id="karte-anzahl"></span>
         </div>
         <div class="karte-route-karte" id="karte-route-info" style="display:none;">
+          <div class="karte-ziel-kopf">
+            <span class="karte-punkt" id="karte-ziel-punkt"></span>
+            <span id="karte-ziel-stufe">Ziel</span>
+          </div>
           <div class="karte-route-zeit" id="karte-route-zeit">—</div>
           <div class="karte-route-strecke" id="karte-route-strecke">—</div>
-          <div class="karte-route-fuss">geschätzt · keine echte Navigation</div>
-          <button class="karte-chip" onclick="window.Karte.routeLoeschen()">Route löschen</button>
+          <div class="karte-route-fuss" id="karte-route-fuss">—</div>
+          <div class="karte-ziel-werte" id="karte-ziel-werte"></div>
+          <button class="karte-chip" onclick="window.Karte.routeLoeschen()">Ziel löschen</button>
         </div>
         <div class="karte-blip-info" id="karte-blip-info" style="display:none;"></div>
       </div>
@@ -308,10 +359,47 @@
     if (!kasten) return;
     if (!daten) { kasten.style.display = 'none'; return; }
     kasten.style.display = 'block';
+    const vor = daten.echt ? '' : 'ca. ';
     const zeit = el('karte-route-zeit');
     const strecke = el('karte-route-strecke');
-    if (zeit) zeit.textContent = 'ca. ' + daten.minuten + ' Min';
-    if (strecke) strecke.textContent = 'ca. ' + daten.km.toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' km';
+    const fuss = el('karte-route-fuss');
+    if (zeit) zeit.textContent = vor + daten.minuten + ' Min';
+    if (strecke) strecke.textContent = vor + daten.km.toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' km';
+    if (fuss) fuss.textContent = daten.echt ? 'Fahrstrecke über Straßen' : 'geschätzt · Strecke nicht verfügbar';
+  }
+
+  /**
+   * Die Zielkarte — was über einen Lead auf der Karte stehen darf.
+   *
+   * Regel: nichts, woran man den Betrieb erkennt. Keine Firma, keine Adresse,
+   * keine Nummer, kein Geld. Was bleibt, ist der Arbeitsstand: Stufe, ob
+   * gerade offen ist, wie oft schon angerufen wurde, wie lange das her ist.
+   * Für ein Video sieht das aus wie eine Missionsanzeige — und es ist eine.
+   */
+  function zielZeigen(lead) {
+    const stufe = stufeVon(lead);
+    const punkt = el('karte-ziel-punkt');
+    const name = el('karte-ziel-stufe');
+    if (punkt) punkt.style.setProperty('--blip', STUFEN[stufe].farbe);
+    if (name) name.textContent = STUFEN[stufe].name;
+
+    const anrufe = (lead.call_history || lead.crm_calls || []).filter(x => x && x.ts);
+    const aktivitaeten = (lead.lead_activities || []).filter(x => x && x.ts);
+    const letzte = [].concat(anrufe, aktivitaeten).map(x => x.ts).sort((a, b) => b - a)[0] || 0;
+    const tage = letzte ? Math.floor((Date.now() - letzte) / 86400000) : null;
+
+    const zustand = window.Oeffnungszeiten ? window.Oeffnungszeiten.zustand(lead) : { offen: null };
+    const zeilen = [];
+    if (zustand.offen !== null) zeilen.push(['Status', zustand.offen ? 'Geöffnet' : 'Geschlossen']);
+    zeilen.push(['Anrufe', anrufe.length === 0 ? 'keiner' : anrufe.length + '×']);
+    zeilen.push(['Zuletzt', tage === null ? 'nie' : tage === 0 ? 'heute' : tage === 1 ? 'gestern' : 'vor ' + tage + ' Tagen']);
+    if (lead.size) zeilen.push(['Größe', lead.size === 'Großkunde' ? 'Groß' : 'Tarif']);
+
+    const werte = el('karte-ziel-werte');
+    if (werte) {
+      werte.innerHTML = zeilen.map(z =>
+        `<div class="karte-ziel-zeile"><span>${z[0]}</span><b>${z[1]}</b></div>`).join('');
+    }
   }
 
   // Beim Überfahren: Stufe, und nur mit ausdrücklichem Schalter der Name.
@@ -353,25 +441,30 @@
     if (anzahl) anzahl.textContent = gesetzt + ' Blips';
   };
 
+  // Von der Karteikarte auf die Karte springen. Öffnet bewusst keine
+  // Karteikarte — auf der Karte soll nichts aufgehen, was einen Kunden zeigt.
   window.flyToMap = async (id) => {
     if (typeof window.switchTab === 'function') await window.switchTab('map');
-    if (typeof window.openLead === 'function') await window.openLead(id);
     setTimeout(() => {
       if (!karte) return;
       const m = blips.find(x => x.leadId === id);
       const lead = leadsImSpeicher.find(x => x.id === id);
-      if (m) {
-        karte.flyTo(m.getLatLng(), 15, { duration: 1.2 });
-        if (lead) { aktiverLead = lead; routeZeichnen(lead); }
+      if (!m) return;
+      karte.flyTo(m.getLatLng(), 15, { duration: 1.2 });
+      if (lead) {
+        aktiverLead = lead;
+        blipsMarkieren(lead.id);
+        zielZeigen(lead);
+        routeZeichnen(lead);
       }
-    }, 150);
+    }, 200);
   };
 
   window.setMapStatusFilter = (val, knopf) => window.Karte.stufeFiltern(val, knopf);
   window.setMapUserFilter = () => {};      // Zuweisung spielt im Einzelplatz keine Rolle
 
   window.Karte = {
-    aufbauen,
+    aufbauen, zielZeigen,
     routeLoeschen: () => { routeLoeschen(); aktiverLead = null; hudRouteZeigen(null); },
     stufeFiltern: (stufe, knopf) => {
       window.store.state.currentMapStatusFilter = stufe;

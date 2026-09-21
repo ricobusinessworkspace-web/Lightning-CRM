@@ -5,7 +5,27 @@ window.Papa = Papa;
 
 window.api = {
   // Leads
-  openExternal: (url) => window.open(url, '_blank'),
+  // Immer ein neuer Reiter im selben Fenster.
+  //
+  // window.open() laesst Safari je nach Einstellung ein eigenes Fenster
+  // aufmachen. Ein angeklickter Verweis mit target="_blank" folgt dagegen der
+  // Einstellung "Seiten in Reitern statt in Fenstern oeffnen" — und die steht
+  // bei Safari standardmaessig auf Reitern.
+  openExternal: (url) => {
+    if (!url) return;
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) {
+      window.open(url, '_blank');      // Rueckfallweg
+    }
+  },
   getLeads: (filters) => db.getLeads(filters),
   getLead: (id) => db.getLead(id),
   saveLead: async (lead) => {

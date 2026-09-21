@@ -1,6 +1,6 @@
 ---
 last_updated: 2026-09-21
-last_agent: Claude Opus 5 (Fixes + Landkarte in GTA-Optik)
+last_agent: Claude Opus 5 (Nachbesserungen: Standort, Öffnungszeiten, echte Routen)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -58,10 +58,10 @@ Web-CRM für Leadgenerierung, Kaltakquise und Vertriebs-Pipeline. Aktuell im
   und OAuth 2.1 über den eigenen Anmelde-Server (`api/oauth/*`) — den verlangt
   die Connector-Maske von Claude, sie kennt kein Feld für ein festes Wort.
   Einrichtung: [docs/mcp-server-einrichten.md](docs/mcp-server-einrichten.md).
-- **Lead-Karteikarte:** Telefon, E-Mail und **Webseite** stehen als drei
-  gleiche Zeilen im Kontakt-Kasten; die Webseite war vorher nur über die
-  Landkarte erreichbar. Reihenfolge der Kästen nach Arbeitsablauf sortiert
-  (siehe „Bewusste Entscheidungen").
+- **Lead-Karteikarte:** Kontakt hält Telefon und E-Mail. Die Adresse im
+  Standort-Kasten führt zur Karte **in der Anwendung**; die beiden Wege nach
+  draußen (Webseite, Google Maps) stehen als zwei blaue Links darunter.
+  Öffnungszeiten sagen nur „Geöffnet" oder „Geschlossen".
 - **Kontaktdaten aus dem Impressum:** `public/modules/kontaktdaten.js` liest
   Telefon und E-Mail von einer Firmenseite — Startseite, Impressum, Kontakt,
   höchstens drei Seiten. Reine Textarbeit, kein DOM, dieselbe Datei läuft im
@@ -323,10 +323,14 @@ Antworten auf konkrete Beschwerden, keine Zufälle.
   Eigenschaften → Verknüpfte Leads → Zuweisung. Erst handeln, dann einordnen,
   dann verwalten. Prüfung 27d hält die Reihenfolge fest.
 - **Webseite und Karte sind von der Karteikarte aus erreichbar**, nicht nur
-  über die Sprechblase an der Landkarte. Gelesen wird aus dem Formular, damit
-  auch eine gerade eingetippte, noch nicht gespeicherte Adresse zählt. Die
-  Adresse im Standort-Kasten **ist** der Link nach Google Maps; die eigene
-  Karte im Programm steht als zweiter, leiser Weg darunter.
+  über die Sprechblase an der Landkarte. Gelesen wird aus dem Formular
+  (`#sys-web`, verstecktes Feld), damit auch eine gerade eingetippte, noch
+  nicht gespeicherte Adresse zählt.
+- **Die Adresse ist kein blauer Link.** Sie führt zur Karte in der Anwendung
+  und sieht aus wie Text. Blau sind nur die beiden Wege nach draußen darunter.
+- **Fremde Seiten öffnen als Reiter, nicht als Fenster.** `openExternal` klickt
+  einen unsichtbaren Verweis mit `target="_blank"` statt `window.open()` —
+  Safari macht daraus sonst je nach Einstellung ein eigenes Fenster.
 - **Nachtragen schreibt nur in leere Felder** und **erst nach Bestätigung**.
   Aus diesen Adressen sollen Serienmails werden — eine falsch zugeordnete
   Adresse schreibt dann an die falsche Firma. Die Regel steht als eigene
@@ -336,10 +340,14 @@ Antworten auf konkrete Beschwerden, keine Zufälle.
   braucht, klickt ihn an und liest ihn in der Seitenleiste. Der Schalter
   „Namen zeigen" hebt das für die eigene Arbeit auf und steht standardmäßig
   aus. Prüfblock in `tests/karte.test.mjs` hält das fest.
-- **Die Route auf der Karte ist gezeichnet, nicht berechnet.** Rechtwinkliger
-  Weg im GTA-Gelb, Zeit aus Luftlinie × 1,35 ÷ Richtgeschwindigkeit, überall
-  mit „ca." beschriftet. Ein echter Routendienst würde den eigenen Standort
-  und die Lead-Koordinaten an einen Dritten schicken — deshalb bewusst nicht.
+- **Die Route folgt echten Straßen** (ausdrücklich so gewünscht, 21.09.2026).
+  Gefragt wird der offene OSRM-Dienst; dorthin gehen **zwei Koordinatenpaare
+  und sonst nichts** — kein Name, keine Adresse, keine Nummer. Antwortet er
+  nicht, bleibt der gezeichnete Weg stehen und die Zeit trägt wieder „ca.".
+- **Ein Klick auf einen Blip öffnet keine Karteikarte.** Es erscheint die
+  Zielkarte: Stufe, Fahrzeit, geöffnet/geschlossen, Anzahl der Anrufe, wie
+  lange der letzte her ist, Kundengröße. Kein Name, keine Adresse, kein Geld.
+  Auf der Kartenansicht bleibt die Seitenleiste zu.
 - **Sortierung springt nur bei der Wiedervorlage.** Sonst bleibt sie nach dem
   Speichern stehen (siehe oben); ein gesnoozter Lead gehört aber sofort nach
   unten. `window.sortiereListenNeu()` ist die einzige Ausnahme.
@@ -634,6 +642,20 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Handover-Historie
+- 2026-09-21 (4) — Nachbesserungen nach Durchsicht.
+  Die Adresse im Standort-Kasten zeigt wieder auf die **Karte in der
+  Anwendung** und ist kein blauer Link mehr; die Wege nach draußen sind die
+  zwei Links darunter. Die Webseiten-Zeile im Kontakt-Kasten ist weg — das
+  Feld steckt wieder versteckt im Formular (der Speicherweg liest es, sonst
+  würde die Adresse beim nächsten Speichern geleert). Öffnungszeiten sagen
+  nur noch **„Geöffnet" oder „Geschlossen"**, in derselben Schrift wie der
+  Rest; die Uhrzeiten stehen im Tooltip. `openExternal` öffnet Reiter statt
+  Fenster (Safari). **Die Route folgt jetzt echten Straßen** über OSRM —
+  bewusste Kehrtwende gegenüber der vorherigen Fassung, auf Ansage; nach
+  draußen gehen nur zwei Koordinatenpaare. **Ein Klick auf einen Blip öffnet
+  keine Karteikarte mehr**, sondern die Zielkarte mit Arbeitsstand
+  (Stufe, Fahrzeit, offen/zu, Anrufe, letzter Kontakt, Größe) — nichts davon
+  zeigt, um wen es geht. Auf der Kartenansicht bleibt die Seitenleiste zu.
 - 2026-09-21 (3) — Vier Fehler behoben, Landkarte neu.
   **Öffnungszeiten:** Google liefert englische Zwölf-Stunden-Zeiten
   (`"Monday: 6:30 AM – 4:00 PM"`), und sie stehen bei 198 von 243 Leads am

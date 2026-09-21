@@ -43,17 +43,6 @@ window.oeffneLeadWebseite = () => {
   window.api.openExternal(/^https?:\/\//i.test(url) ? url : 'https://' + url);
 };
 
-// Beschriftung sagt, was der Knopf tut — sonst steht "Suchen" auf einem Knopf,
-// der laengst eine eingetippte Adresse oeffnen wuerde.
-window.aktualisiereWebKnopf = () => {
-  const feld  = document.getElementById('sys-web');
-  const knopf = document.getElementById('web-oeffnen');
-  if (!feld || !knopf) return;
-  const hat = !!feld.value.trim();
-  knopf.textContent = hat ? 'Öffnen' : 'Suchen';
-  knopf.title = hat ? 'Webseite in neuem Fenster öffnen' : 'Im Web nach dem Firmennamen suchen';
-};
-
 // Gleiche Reihenfolge wie in der Karte am Kartenrand: hinterlegte Maps-Adresse,
 // sonst die Place-ID, sonst eine Suche nach dem Namen.
 window.oeffneLeadKarte = (leadId, standortNr) => {
@@ -264,7 +253,9 @@ window.oeffneLeadKarte = (leadId, standortNr) => {
     $show('dashboard-wrapper', tab === 'dashboard' ? 'flex' : 'none');
     $show('main-list-wrapper', (tab !== 'map' && tab !== 'scout' && tab !== 'dashboard') ? 'flex' : 'none');
     
-    $show('main-sidebar', (tab === 'scout' || tab === 'dashboard') ? 'none' : 'flex');
+    // Auf der Karte bleibt die Seitenleiste zu: die Ansicht wird abgefilmt,
+    // und dort soll keine Karteikarte aufgehen.
+    $show('main-sidebar', (tab === 'scout' || tab === 'dashboard' || tab === 'map') ? 'none' : 'flex');
     const mc = document.querySelector('.main-content');
     if (mc) mc.style.display = (tab === 'map' || tab === 'scout' || tab === 'dashboard') ? 'none' : 'flex';
 
@@ -713,7 +704,7 @@ if (typeof window.renderDashboard === 'function') {
            ohHtml = `<div style="${ohStil} color: var(--text-muted); font-weight: 500; opacity: 0.5;">🕒 Keine Öffnungszeiten</div>`;
          } else {
            const ohFarbe = oz.offen ? 'var(--color-intent-success, #30d158)' : 'var(--color-text-secondary, #8e8e93)';
-           ohHtml = `<div style="${ohStil} color: ${ohFarbe}; font-weight: 600;" title="${escapeHtml(window.Oeffnungszeiten.heuteText(l) || '')}">🕒 ${escapeHtml(oz.text)}</div>`;
+           ohHtml = `<div style="${ohStil} color: ${ohFarbe}; font-weight: 600;" title="${escapeHtml(window.Oeffnungszeiten.heuteText(l) || '')}">🕒 ${oz.offen ? 'Geöffnet' : 'Geschlossen'}</div>`;
          }
 
          activityLog = `<div style="margin-top: 2px; display: flex; flex-direction: column; gap: 3px;">${cityHtml}${recentActivitiesHtml}${ohHtml}</div>`;
@@ -1265,10 +1256,11 @@ if (typeof window.renderDashboard === 'function') {
     }
 
     if (locations.length > 0) {
-      // Die Adresse ist selbst der Link — ein Klick fuehrt nach Google Maps.
+      // Die Adresse fuehrt zur Karte in der Anwendung — nicht nach draussen.
+      // Die beiden Wege nach draussen stehen als eigene Links darunter.
       locListHtml = locations.map((loc, idx) => `
         <div class="standort-zeile">
-          <button class="standort-adresse" onclick="window.oeffneLeadKarte(${l.id}, ${idx})" title="In Google Maps öffnen">${escapeHtml(loc.address || loc.name || 'Unbekannte Adresse')}</button>
+          <button class="standort-adresse" onclick="window.flyToMap(${l.id})" title="Auf der Karte zeigen">${escapeHtml(loc.address || loc.name || 'Unbekannte Adresse')}</button>
           <button class="standort-entfernen" onclick="removeLocation(${l.id}, ${idx})" title="Standort entfernen">✕</button>
         </div>
       `).join('');
@@ -1280,9 +1272,8 @@ if (typeof window.renderDashboard === 'function') {
       `;
     }
 
-    // Öffnungszeiten auf der Karteikarte: Zustand zuerst ("Offen bis 16:00"),
-    // darunter die Zeile fuer heute. Die ganze Woche steht im Tooltip — sie
-    // wird selten gebraucht und macht den Kasten sonst lang.
+    // Öffnungszeiten: nur die Frage, die im Gespräch zählt — haben die auf?
+    // Uhrzeiten standen vorher doppelt da und in einer anderen Schrift.
     let openingHoursHtml = '';
     if (window.Oeffnungszeiten) {
       const oz = window.Oeffnungszeiten.zustand(l);
@@ -1291,9 +1282,8 @@ if (typeof window.renderDashboard === 'function') {
           .map(z => `${z.tag}: ${z.zeit}`).join('\n');
         const farbe = oz.offen ? 'var(--color-intent-success, #30d158)' : 'var(--color-text-secondary, #8e8e93)';
         openingHoursHtml = `
-          <div style="margin-top: 12px; display: flex; align-items: baseline; gap: 8px;" title="${escapeHtml(woche)}">
-            <span style="font-size: 13px; color: ${farbe}; font-weight: 600;">🕒 ${escapeHtml(oz.text)}</span>
-            <span style="font-size: 12px; color: var(--color-text-secondary, #8e8e93);">${escapeHtml(window.Oeffnungszeiten.heuteText(l) || '')}</span>
+          <div class="standort-zeiten" style="color: ${farbe};" title="${escapeHtml(woche)}">
+            ${oz.offen ? 'Geöffnet' : 'Geschlossen'}
           </div>`;
       }
     }
@@ -1314,10 +1304,6 @@ if (typeof window.renderDashboard === 'function') {
       const lastCallText = lastCallTs ? `Letzter Anruf: ${new Date(lastCallTs).toLocaleDateString()}` : 'Noch nie angerufen';
       pitchCounterHtml = '';
     }
-
-    // Ohne hinterlegte Webseite sucht der Knopf im Web nach dem Firmennamen,
-    // statt ins Leere zu greifen. Die Beschriftung sagt, was passiert.
-    const hatWebseite = !!String(l.website_url || '').trim();
 
     const timeline = window.getTimeline(l);
     let activitiesHtml = '';
@@ -1379,16 +1365,6 @@ if (typeof window.renderDashboard === 'function') {
                  <input type="text" id="sys-email" class="kontakt-feld" inputmode="email" autocomplete="off" spellcheck="false" value="${escapeHtml(l.email || '')}" placeholder="Keine E-Mail">
                  <div class="kontakt-aktionen">
                    <button class="kontakt-btn" onclick="copyEmail(event, ${l.id}, '${escapeHtml(l.email || '')}')" title="Adresse kopieren und schriftlichen Kontakt festhalten">Schreiben</button>
-                 </div>
-               </div>
-
-               <!-- Webseite: stand frueher nur versteckt im Formular. Der Link
-                    war allein ueber die Landkarte zu erreichen — Umweg ueber
-                    zwei Ansichten mitten im Gespraech. -->
-               <div class="kontakt-zeile">
-                 <input type="text" id="sys-web" class="kontakt-feld" inputmode="url" autocomplete="off" spellcheck="false" value="${escapeHtml(l.website_url || '')}" placeholder="Keine Webseite" oninput="window.aktualisiereWebKnopf()">
-                 <div class="kontakt-aktionen">
-                   <button id="web-oeffnen" class="kontakt-btn" onclick="window.oeffneLeadWebseite()" title="${hatWebseite ? 'Webseite in neuem Fenster öffnen' : 'Im Web nach dem Firmennamen suchen'}">${hatWebseite ? 'Öffnen' : 'Suchen'}</button>
                  </div>
                </div>
             </div>
@@ -1570,6 +1546,7 @@ if (typeof window.renderDashboard === 'function') {
 
           <!-- Hidden System Fields -->
           <input type="hidden" id="sys-stage" value="${window.api.getStage(l).toLowerCase()}">
+          <input type="hidden" id="sys-web" value="${escapeHtml(l.website_url || '')}">
           <input type="hidden" id="sys-k" value="${isKunde ? 1 : 0}">
           <input type="hidden" id="sys-placeid" value="${l.google_place_id||''}">
           <input type="hidden" id="sys-lat" value="${l.lat||''}">
