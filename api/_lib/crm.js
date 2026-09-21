@@ -36,6 +36,29 @@ const SCHREIBBAR = new Set([
   'provi_umsatz', 'closed_at_ms'
 ]);
 
+/** Felder, in denen leerer Text "nicht vorhanden" heisst — dort gehoert NULL
+ *  hin, nicht ''. Dieselbe Regel wie in core/db.js (leerZuNull). */
+const LEER_IST_NULL = new Set(['email', 'website_url']);
+
+const leerZuNull = (wert) => {
+  if (wert === null || wert === undefined) return null;
+  const t = String(wert).trim();
+  return t === '' ? null : t;
+};
+
+/** Normalisierter Host einer Webadresse. Gleichlautend zu domainAus in
+ *  core/db.js — die beiden Schreibwege muessen dieselbe Domain erzeugen. */
+function domainAus(webadresse) {
+  const roh = leerZuNull(webadresse);
+  if (!roh) return null;
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(roh) ? roh : 'https://' + roh);
+    return url.hostname.toLowerCase().replace(/^www\./, '') || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 let client = null;
 export function supabase() {
   if (client) return client;
@@ -110,9 +133,13 @@ export async function leadSchreiben(id, felder, opts = {}) {
 
   const nutzlast = {};
   for (const [k, v] of Object.entries(felder)) {
-    if (SCHREIBBAR.has(k)) nutzlast[k] = v;
+    if (SCHREIBBAR.has(k)) nutzlast[k] = LEER_IST_NULL.has(k) ? leerZuNull(v) : v;
   }
   if (Object.keys(nutzlast).length === 0) throw fehler('Nichts zu schreiben.');
+
+  // Die Domain haengt an der Webadresse und wird nie von Hand gepflegt —
+  // genau wie im Browser-Schreibweg (core/db.js).
+  if ('website_url' in nutzlast) nutzlast.company_domain = domainAus(nutzlast.website_url);
 
   const bestand = await leadHolen(id);
 

@@ -259,6 +259,36 @@ try { await leadSchreiben(42, { claimed_by: 'irgendwer', created_at_ms: 1 }); }
 catch (e) { gesperrt = e; }
 check('Nicht freigegebene Spalten werden abgewiesen', !!gesperrt);
 
+// ── Dieselben Datenregeln wie im Browser-Schreibweg ───────────────────────
+// Zwei Schreibwege, eine Regel: leerer Text ist NULL, und die Domain haengt
+// an der Webadresse. Ohne das schreibt Jarvis wieder Leerstrings herein,
+// waehrend die Oberflaeche NULL schreibt.
+geschrieben.length = 0;
+await leadSchreiben(42, { email: '   ' });
+check('Leerer Text wird zu NULL, nicht zu ""', letzterPatch().daten.email === null);
+
+geschrieben.length = 0;
+await leadSchreiben(42, { website_url: 'https://www.Muster-GmbH.de/kontakt' });
+check('Die Domain wird aus der Webadresse gebildet',
+      letzterPatch().daten.company_domain === 'muster-gmbh.de');
+
+geschrieben.length = 0;
+await leadSchreiben(42, { website_url: '' });
+check('Ohne Webadresse gibt es auch keine Domain',
+      letzterPatch().daten.website_url === null && letzterPatch().daten.company_domain === null);
+
+geschrieben.length = 0;
+await leadSchreiben(42, { notes: 'nur eine Notiz' });
+check('Ohne Webadresse im Auftrag wird die Domain nicht angefasst',
+      !('company_domain' in letzterPatch().daten));
+
+// Die Domain ist abgeleitet, kein Eingabefeld: ein Auftrag, der NUR sie
+// setzen will, hat nichts zu schreiben.
+let vonAussen = null;
+try { await leadSchreiben(42, { company_domain: 'von-aussen.de' }); }
+catch (e) { vonAussen = e; }
+check('Die Domain laesst sich nicht von aussen setzen', !!vonAussen);
+
 // Fehlerfaelle sprechen Klartext.
 const fehlerText = async (n, a) => { try { await werkzeug(n, a); return null; } catch (e) { return e; } };
 check('Unbekannter Lead: 404',        (await fehlerText('lead_anzeigen', { lead_id: 999 }))?.status === 404);

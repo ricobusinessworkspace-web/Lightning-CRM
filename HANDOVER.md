@@ -80,7 +80,11 @@ Web-CRM für Leadgenerierung, Kaltakquise und Vertriebs-Pipeline. Aktuell im
   Schreibvorgang mitgeführt. **`is_multi_site`:** true, wenn dieselbe Domain
   mehrfach vorkommt — Plattformen ausgenommen. Neu berechnet von der
   SQL-Funktion `crm_multi_site_neu()`, aufgerufen am Ende jedes Imports.
-- **Tests:** 513 Prüfungen, alle grün — 267 Oberfläche (`tests/ui.test.mjs`),
+- **Zwei Schreibwege, eine Regel:** `core/db.js` (Browser) und
+  `api/_lib/crm.js` (MCP/Jarvis) setzen beide leeren Text auf NULL und leiten
+  `company_domain` aus `website_url` ab. Wer die Regel ändert, muss beide
+  Dateien anfassen — geprüft in `tests/mcp.test.mjs`.
+- **Tests:** 518 Prüfungen, alle grün — 267 Oberfläche (`tests/ui.test.mjs`),
   63 MCP-Server (`tests/mcp.test.mjs`), 46 Anmelde-Vorgang
   (`tests/oauth.test.mjs`), 42 Kontaktdaten (`tests/kontaktdaten.test.mjs`),
   27 Öffnungszeiten, 24 Landkarte. `npm test` fährt alle sechs.
@@ -671,6 +675,12 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
   mit Leerstrings, weil die live laufende Fassung noch den alten Code hatte.
   Die Migration heilt den Bestand, nicht die Quelle: **erst ausrollen, dann
   aufräumen.**
+  **Dashboard und Jarvis sind nicht betroffen:** die drei Sichten
+  (`crm_daily_metrics`, `crm_stock_metrics`, `lead_timeline`) benutzen keine
+  der geänderten Spalten, und der MCP-Lesepfad gibt `l.email || null` aus —
+  aus `''` wurde dort ohnehin `null`. Gegengeprüft am laufenden Server.
+  Nachgezogen wurde `api/_lib/crm.js`: schrieb bis dahin `''` weiter und
+  hätte bei einer Webadresse von Jarvis keine `company_domain` gesetzt.
   Rückweg: `update crm_leads set <spalte> = '' where <spalte> is null;` pro
   Spalte. Stand der 19 Zeilen mit echtem Inhalt liegt in
   `scratch/sicherung/crm_leads_impressumfelder_2026-09-21.json`.
