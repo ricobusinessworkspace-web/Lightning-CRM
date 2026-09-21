@@ -8,8 +8,8 @@
     "hash": "c001dc880c4e62fd"
   },
   "styles.css": {
-    "marker": "5.3",
-    "hash": "4bacaaa7d0e8b065"
+    "marker": "5.4",
+    "hash": "d8df2df70290d1bb"
   },
   "mobile.css": {
     "marker": "1.1",
@@ -60,8 +60,8 @@
     "hash": "d536377258990fb0"
   },
   "ui/pipeline_ui.js": {
-    "marker": "5.2",
-    "hash": "ee2f8cedc2ae18e8"
+    "marker": "5.3",
+    "hash": "0f17a0c2d645e9db"
   },
   "ui/main_ui.js": {
     "marker": "5.1",

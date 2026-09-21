@@ -1361,7 +1361,7 @@ if (typeof window.renderDashboard === 'function') {
                  <span class="kontakt-marke">Maps</span>
                  <input type="text" id="sys-phone" class="kontakt-feld" inputmode="tel" autocomplete="off" value="${escapeHtml(l.phone || '')}" placeholder="Keine Nummer">
                  <div class="kontakt-aktionen">
-                   ${l.phone ? `<a class="kontakt-btn" href="tel:${escapeHtml(String(l.phone).replace(/[^0-9+]/g, ''))}" title="Anrufen">Anrufen</a>` : ''}
+                   ${l.phone ? `<a class="kontakt-btn kontakt-hoerer" href="tel:${escapeHtml(String(l.phone).replace(/[^0-9+]/g, ''))}" title="Anrufen" aria-label="Anrufen"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.4.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.3 2.2z"/></svg></a>` : ''}
                    ${(l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone, l.id).replace('class="wa-icon"', 'class="wa-icon kontakt-wa"') : ''}
                    <button class="kontakt-btn" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')" title="Nummer kopieren">Copy</button>
                  </div>
@@ -1372,7 +1372,7 @@ if (typeof window.renderDashboard === 'function') {
                  <span class="kontakt-marke">Impressum</span>
                  <span class="kontakt-feld kontakt-fest" title="Von der Webseite des Betriebs gelesen">${escapeHtml(l.impressum_phone)}</span>
                  <div class="kontakt-aktionen">
-                   <a class="kontakt-btn" href="tel:${escapeHtml(String(l.impressum_phone).replace(/[^0-9+]/g, ''))}" title="Anrufen">Anrufen</a>
+                   <a class="kontakt-btn kontakt-hoerer" href="tel:${escapeHtml(String(l.impressum_phone).replace(/[^0-9+]/g, ''))}" title="Anrufen" aria-label="Anrufen"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.4.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.3 2.2z"/></svg></a>
                    <button class="kontakt-btn" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.impressum_phone)}', null)" title="Nummer kopieren">Copy</button>
                  </div>
                </div>`}
