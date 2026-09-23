@@ -269,7 +269,7 @@ window.setPipeline = async (type) => {
               || (window.store?.state?.leads || []).find(l => String(l.id) === String(leadId))
               || {};
 
-    const alsTag = (ms) => new Date(Number(ms)).toLocaleDateString('sv-SE');
+    const alsTag = window.Betrag.alsTag;
     const datumVor = lead.closed_at_ms ? alsTag(lead.closed_at_ms) : alsTag(Date.now());
     const wertVor = (lead.provi_umsatz === null || lead.provi_umsatz === undefined)
                     ? '' : lead.provi_umsatz;
@@ -315,17 +315,30 @@ window.setPipeline = async (type) => {
     };
 
     const uebernehmen = async () => {
-      const rohWert = String(document.getElementById('abschluss-wert')?.value ?? '').trim().replace(',', '.');
-      const zahl = Number(rohWert);
+      const wertEl = document.getElementById('abschluss-wert');
+      const rohWert = String(wertEl?.value ?? '').trim();
       const datum = document.getElementById('abschluss-datum')?.value || '';
 
-      const felder = {
-        // Leer heisst NULL ("noch nicht eingetragen"), nicht 0.
-        provi_umsatz: (rohWert === '' || Number.isNaN(zahl)) ? null : zahl,
-        // Mittags statt Mitternacht, damit der Tag beim Umrechnen nicht ueber
-        // eine Zeitzonengrenze auf den Vortag kippt.
-        closed_at_ms: datum ? new Date(`${datum}T12:00:00`).getTime() : null
-      };
+      // Unlesbarer Betrag: Dialog offen lassen statt still zu leeren.
+      const zahl = window.Betrag.leseBetrag(rohWert);
+      if (zahl === undefined) {
+        if (wertEl) { wertEl.setAttribute('aria-invalid', 'true'); wertEl.focus(); }
+        return;
+      }
+
+      const felder = { provi_umsatz: zahl };   // leer heisst NULL, nicht 0
+      // Datum nur schreiben, wenn sich der Tag aendert — sonst bliebe die echte
+      // Uhrzeit des Abschlusses erhalten und wuerde nicht auf 12:00 gesetzt.
+      if (datum !== alsTag(lead.closed_at_ms ?? '')) felder.closed_at_ms = window.Betrag.ausTag(datum) ?? null;
+
+      // Die Felder der Seitenleiste sofort nachziehen. Sonst stuende dort noch
+      // der alte Wert, und das naechste Autospeichern schriebe ihn zurueck.
+      if (window.getFormLeadId && window.getFormLeadId() === leadId) {
+        const proviEl = document.getElementById('sys-provi');
+        if (proviEl) { proviEl.value = zahl === null ? '' : String(zahl); proviEl.setAttribute('aria-invalid', 'false'); }
+        const datumEl = document.getElementById('sys-closed-at');
+        if (datumEl && 'closed_at_ms' in felder) datumEl.value = datum;
+      }
       schliesse(true);
       try {
         await window.leadStore.save(leadId, felder, { label: 'Abschlusswert' });
@@ -620,30 +633,53 @@ window.setPipeline = async (type) => {
         lng: parseFloat(document.getElementById('sys-lng')?.value) || null
     };
 
-    // Wert und Abschlussdatum nur uebernehmen, wenn die Felder ueberhaupt im
-    // Formular stehen. Ein fehlendes Feld darf nichts ueberschreiben —
-    // leadStore.diff ueberspringt undefined.
-    //
-    // Leeres Feld heisst NULL ("noch nicht eingetragen"), nicht 0. Ein
-    // Abschluss ohne eingetragenen Wert ist etwas anderes als ein Abschluss
-    // ueber null Euro.
+    const formId = window.getFormLeadId ? window.getFormLeadId() : null;
+    Object.assign(entwurf, window.leseWertFelder(formId ? window.leadStore.get(formId) : null));
+
+    return entwurf;
+  };
+
+  // ── Wert und Abschlussdatum aus der Seitenleiste ───────────────────────────
+  // Liefert nur, was sich gegenueber dem gespeicherten Stand wirklich geaendert
+  // hat. Fehlt ein Feld im Formular oder ist es unveraendert, kommt der
+  // Schluessel gar nicht vor — und ein fehlender Schluessel ueberschreibt nichts.
+  //
+  // Leeres Feld heisst NULL ("noch nicht eingetragen"), nicht 0.
+  //
+  // Das Datum wird nur geschrieben, wenn sich der TAG aendert. closed_at_ms
+  // traegt die echte Uhrzeit des Abschlusses; das Datumsfeld kennt nur den
+  // Tag. Ohne diesen Vergleich haette jedes Autospeichern (etwa beim Tippen
+  // einer Notiz) die Uhrzeit auf 12:00 umgeschrieben.
+  //
+  // Ein unlesbarer Betrag wird NICHT gespeichert — das Feld wird rot markiert,
+  // der alte Wert bleibt stehen.
+  window.leseWertFelder = (lData) => {
+    const out = {};
+    const B = window.Betrag;
+    if (!B) return out;
+
     const proviEl = document.getElementById('sys-provi');
     if (proviEl) {
-      const roh = String(proviEl.value ?? '').trim().replace(',', '.');
-      const zahl = Number(roh);
-      entwurf.provi_umsatz = (roh === '' || Number.isNaN(zahl)) ? null : zahl;
+      const roh = String(proviEl.value ?? '').trim();
+      const alt = lData ? lData.provi_umsatz : undefined;
+      if (roh !== String(alt ?? '')) {
+        const zahl = B.leseBetrag(roh);
+        proviEl.setAttribute('aria-invalid', zahl === undefined ? 'true' : 'false');
+        if (zahl !== undefined) out.provi_umsatz = zahl;
+      } else {
+        proviEl.setAttribute('aria-invalid', 'false');
+      }
     }
 
     const datumEl = document.getElementById('sys-closed-at');
     if (datumEl) {
-      // Mittags statt Mitternacht: so kippt der Tag beim Umrechnen nicht ueber
-      // eine Zeitzonen- oder Sommerzeitgrenze auf den Vortag.
-      entwurf.closed_at_ms = datumEl.value
-        ? new Date(`${datumEl.value}T12:00:00`).getTime()
-        : null;
+      const tag = datumEl.value || '';
+      if (tag !== B.alsTag(lData ? lData.closed_at_ms : null)) {
+        const ms = B.ausTag(tag);
+        if (ms !== undefined) out.closed_at_ms = ms;
+      }
     }
-
-    return entwurf;
+    return out;
   };
 
   // Remove confirmEnrich, autoEnrich, cancelEnrich, etc. (deprecated)
@@ -866,6 +902,11 @@ window.setPipeline = async (type) => {
 
     const starBtn = document.getElementById('sidebar-star-btn');
     if (starBtn) kandidat.starred = starBtn.getAttribute('data-starred') === '1' ? 1 : 0;
+
+    // Erwartete Provision und Abschlussdatum. Fehlten hier bis 23.09.2026 ganz:
+    // was man in der Seitenleiste eintrug, stand zwar im Feld, wurde aber nie
+    // geschrieben und war beim naechsten Oeffnen weg.
+    Object.assign(kandidat, window.leseWertFelder(lData));
 
 
     // ── Aufgaben nur schreiben, wenn die Liste zu GENAU diesem Lead gehört ───

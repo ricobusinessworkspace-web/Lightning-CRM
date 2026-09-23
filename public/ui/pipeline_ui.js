@@ -1353,15 +1353,15 @@ if (typeof window.renderDashboard === 'function') {
           <div class="apple-section">
             <h4 class="apple-section-title">Kontakt</h4>
             <div class="kontakt-liste">
-               <!-- Zwei Nummern, zwei Herkuenfte. Keine Auswahl, keine
-                    Zusammenfuehrung: "Maps" ist die Nummer aus dem
-                    Google-Eintrag, "Impressum" die von der eigenen Webseite.
-                    Wo nichts steht, faellt die Zeile weg. -->
+               <!-- Zwei Nummern. "Telefon" ist das Feld, das man selbst
+                    pflegt (anfangs oft aus dem Google-Eintrag), "Impressum"
+                    die von der eigenen Webseite gelesene. Wo keine
+                    Impressum-Nummer steht, faellt die Zeile weg.
+                    Kein Anruf-Knopf mehr (auf Wunsch entfernt, 23.09.2026). -->
                <div class="kontakt-zeile">
-                 <span class="kontakt-marke">Maps</span>
+                 <span class="kontakt-marke">Telefon</span>
                  <input type="text" id="sys-phone" class="kontakt-feld" inputmode="tel" autocomplete="off" value="${escapeHtml(l.phone || '')}" placeholder="Keine Nummer">
                  <div class="kontakt-aktionen">
-                   ${l.phone ? `<a class="kontakt-btn kontakt-hoerer" href="tel:${escapeHtml(String(l.phone).replace(/[^0-9+]/g, ''))}" title="Anrufen" aria-label="Anrufen"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.4.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.3 2.2z"/></svg></a>` : ''}
                    ${(l.phone && window.PhoneUtil) ? window.PhoneUtil.renderWhatsAppIcon(l.phone, l.id).replace('class="wa-icon"', 'class="wa-icon kontakt-wa"') : ''}
                    <button class="kontakt-btn" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.phone || '')}')" title="Nummer kopieren">Copy</button>
                  </div>
@@ -1372,7 +1372,6 @@ if (typeof window.renderDashboard === 'function') {
                  <span class="kontakt-marke">Impressum</span>
                  <span class="kontakt-feld kontakt-fest" title="Von der Webseite des Betriebs gelesen">${escapeHtml(l.impressum_phone)}</span>
                  <div class="kontakt-aktionen">
-                   <a class="kontakt-btn kontakt-hoerer" href="tel:${escapeHtml(String(l.impressum_phone).replace(/[^0-9+]/g, ''))}" title="Anrufen" aria-label="Anrufen"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.4.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.3 2.2z"/></svg></a>
                    <button class="kontakt-btn" onclick="copyPhone(event, ${l.id}, '${escapeHtml(l.impressum_phone)}', null)" title="Nummer kopieren">Copy</button>
                  </div>
                </div>`}
@@ -1837,7 +1836,11 @@ if (typeof window.renderDashboard === 'function') {
 
   window.removeLocation = async (id, index) => {
     try {
-      const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
+      // Erst das Getippte sichern, dann aendern. Frueher wurde hier ein Entwurf
+      // mitgenommen und beim Neuzeichnen in die Kopie im Speicher gelegt — damit
+      // hielt der Vergleich ungespeicherte Eingaben fuer gespeichert.
+      if (typeof window.flushLeadForm === 'function') await window.flushLeadForm();
+      const draft = null;
       const fullList = await window.api.getLeads({ all: true });
       const l = fullList.find(x => x.id === id);
       if (!l) return;
@@ -1980,61 +1983,83 @@ if (typeof window.renderDashboard === 'function') {
     }
   };
 
+  // ── Standort verknuepfen ────────────────────────────────────────────────
+  // Regel: Daten aus Google fuellen nur LUECKEN. Name, Telefon, Webseite und
+  // alles andere, was schon am Lead steht, bleibt unangetastet.
+  //
+  // Frueher: der Name wurde immer durch den Google-Namen ersetzt, und Standort,
+  // Adresse und Koordinaten wurden nur in die Kopie im Speicher geschrieben.
+  // saveLeadMain vergleicht aber gegen genau diese Kopie — sah also "keine
+  // Aenderung" und hat den Standort nie in die Datenbank geschrieben. Nach dem
+  // Neuladen war er weg, der ueberschriebene Name dagegen gespeichert.
+  //
+  // Jetzt: erst die offenen Eingaben sichern, dann die Standortfelder EINMAL
+  // ausdruecklich ueber leadStore.save schreiben, dann neu zeichnen.
   window.linkLeadLocation = async (leadId, encodedData) => {
     try {
       const data = JSON.parse(decodeURIComponent(encodedData));
-      
-      // Adopt the Google Maps name into the UI text field immediately
-      const nameNode = document.getElementById('sys-name');
-      if (nameNode) {
-         if (nameNode.tagName === 'INPUT' || nameNode.tagName === 'TEXTAREA') nameNode.value = data.name || nameNode.value;
-         else nameNode.innerText = data.name || nameNode.innerText;
-      }
-      const cityNode = document.getElementById('sys-city');
-      if (cityNode) cityNode.value = data.address || '';
-      
-      const phoneNode = document.getElementById('sys-phone');
-      if (phoneNode && data.phone && !phoneNode.value.trim()) phoneNode.value = data.phone;
-      
-      const webNode = document.getElementById('sys-web');
-      if (webNode && data.website && !webNode.value.trim()) webNode.value = data.website;
 
-      // Update the local store so saveLeadMain picks up the deep properties (locations, lat, lng, opening_hours)
-      if (window.store && window.store.state && window.store.state.leads) {
-         const storeLead = window.store.state.leads.find(x => x.id === leadId);
-         if (storeLead) {
-             storeLead.locations = [{
-                place_id: data.placeId || '',
-                name: data.name || '',
-                address: data.address || '',
-                lat: data.lat,
-                lng: data.lng,
-                source: 'manual'
-             }];
-             if (data.website && !storeLead.website_url) storeLead.website_url = data.website;
-             if (data.mapsUrl && !storeLead.google_maps_url) storeLead.google_maps_url = data.mapsUrl;
-             if (data.placeId && !storeLead.google_place_id) storeLead.google_place_id = data.placeId;
-             if (data.phone && !storeLead.phone) storeLead.phone = data.phone;
-             
-             storeLead.maps_city = data.address || '';
-             storeLead.lat = data.lat;
-             storeLead.lng = data.lng;
-             storeLead.opening_hours = data.opening_hours || '';
-         }
+      // 1. Was im Formular getippt wurde, zuerst sichern — sonst zeichnet
+      //    das Neuzeichnen unten den alten Stand hin.
+      if (typeof window.flushLeadForm === 'function') await window.flushLeadForm();
+      if (window.leadStore.ruhe) await window.leadStore.ruhe();
+
+      const bestand = window.leadStore.get(leadId) || {};
+      const leer = (v) => v === null || v === undefined || String(v).trim() === '';
+
+      // Oeffnungszeiten am Standort so ablegen, wie Oeffnungszeiten sie liest
+      let zeiten = null;
+      try {
+        const oh = data.opening_hours ? JSON.parse(data.opening_hours) : null;
+        if (oh && Array.isArray(oh.weekdayDescriptions)) zeiten = oh.weekdayDescriptions;
+      } catch (e) { /* unlesbar — dann eben ohne */ }
+
+      const neuerOrt = {
+        place_id: data.placeId || '',
+        name: data.name || '',
+        address: data.address || '',
+        lat: data.lat,
+        lng: data.lng,
+        source: 'manual'
+      };
+      if (zeiten) neuerOrt.opening_hours = zeiten;
+
+      // Vorhandene Standorte bleiben; derselbe Ort wird nicht doppelt angehaengt.
+      const bisher = Array.isArray(bestand.locations) ? bestand.locations : [];
+      const schonDa = neuerOrt.place_id && bisher.some(o => o && o.place_id === neuerOrt.place_id);
+      const felder = {};
+      if (!schonDa) felder.locations = [...bisher, neuerOrt];
+
+      // Hauptadresse nur setzen, wenn noch keine da ist
+      if (leer(bestand.maps_city) && (bestand.lat == null || bestand.lng == null)) {
+        felder.maps_city = data.address || null;
+        if (data.lat != null) felder.lat = data.lat;
+        if (data.lng != null) felder.lng = data.lng;
+      }
+
+      // Nur Luecken fuellen
+      if (leer(bestand.google_place_id) && data.placeId) felder.google_place_id = data.placeId;
+      if (leer(bestand.google_maps_url) && data.mapsUrl) felder.google_maps_url = data.mapsUrl;
+      if (leer(bestand.opening_hours) && data.opening_hours) felder.opening_hours = data.opening_hours;
+      if (leer(bestand.phone) && data.phone) felder.phone = data.phone;
+      if (leer(bestand.website_url) && data.website) felder.website_url = data.website;
+      if (leer(bestand.name) && data.name) felder.name = data.name;
+
+      if (Object.keys(felder).length === 0) {
+        showToast('Standort ist schon verknüpft');
+      } else {
+        const ok = await window.leadStore.save(leadId, felder, { label: 'Standort' });
+        if (!ok) return;   // leadStore hat den Fehler schon gemeldet
+        showToast('Standort verknüpft');
       }
 
       window._forceLocationSearch = false;
-      
-      // Save all drafted UI changes + the new location data together
-      if (typeof window.saveLeadMain === 'function') {
-         await window.saveLeadMain(leadId, true, true);
-      }
-      
-      showToast('Standort verknüpft');
-      
-      // Re-render the sidebar to show the new location UI
+
+      // Neu zeichnen — ohne Entwurf: alles Getippte ist oben schon gesichert,
+      // und ein Entwurf wuerde die frisch geschriebenen Felder wieder
+      // mit dem alten Formularstand ueberdecken.
       if (window.openLeadDirectly) {
-         await window.openLeadDirectly(leadId, false, false, typeof window.getDomDraft === 'function' ? window.getDomDraft() : null);
+         await window.openLeadDirectly(leadId);
       } else if (typeof window.openLead === 'function') {
          await window.openLead(leadId);
       }
@@ -2054,7 +2079,11 @@ if (typeof window.renderDashboard === 'function') {
 
   window.toggleLeadStar = async (id) => {
     try {
-      const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
+      // Erst das Getippte sichern, dann aendern. Frueher wurde hier ein Entwurf
+      // mitgenommen und beim Neuzeichnen in die Kopie im Speicher gelegt — damit
+      // hielt der Vergleich ungespeicherte Eingaben fuer gespeichert.
+      if (typeof window.flushLeadForm === 'function') await window.flushLeadForm();
+      const draft = null;
       const fullList = await window.api.getLeads({ all: true });
       const l = fullList.find(x => x.id === id);
       if (!l) return;
@@ -2755,7 +2784,11 @@ window.filterInlineLinkLeads = (val) => {
 
 window.saveInlineLeadLink = async (sourceId, targetId) => {
   if (!targetId || isNaN(targetId)) return;
-  const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
+  // Erst das Getippte sichern, dann aendern. Frueher wurde hier ein Entwurf
+      // mitgenommen und beim Neuzeichnen in die Kopie im Speicher gelegt — damit
+      // hielt der Vergleich ungespeicherte Eingaben fuer gespeichert.
+      if (typeof window.flushLeadForm === 'function') await window.flushLeadForm();
+      const draft = null;
   const type = document.getElementById('inline-link-type').value;
 
   const leads = window.store.state.leads;
@@ -2793,7 +2826,11 @@ window.removeLeadLink = async (sourceId, targetId) => {
     confirmLabel: 'Entfernen'
   });
   if (!ja) return;
-  const draft = typeof window.getDomDraft === 'function' ? window.getDomDraft() : null;
+  // Erst das Getippte sichern, dann aendern. Frueher wurde hier ein Entwurf
+      // mitgenommen und beim Neuzeichnen in die Kopie im Speicher gelegt — damit
+      // hielt der Vergleich ungespeicherte Eingaben fuer gespeichert.
+      if (typeof window.flushLeadForm === 'function') await window.flushLeadForm();
+      const draft = null;
   const leads = window.store.state.leads;
   const source = leads.find(l => l.id === sourceId);
   const target = leads.find(l => l.id === targetId);

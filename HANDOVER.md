@@ -1,6 +1,6 @@
 ---
-last_updated: 2026-09-21
-last_agent: Claude Opus 5 (NULL statt Leerstring, company_domain, beide Nummern)
+last_updated: 2026-09-23
+last_agent: Claude Opus 5.5 (Provision/Datum speichern, Standort überschreibt nichts mehr)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -111,6 +111,12 @@ Zu tun:
 ohne die Variable mit einem Hinweis ab. **Das entschärft nichts rückwirkend** —
 der alte Schlüssel steht weiter in der Versionsgeschichte und ist von dort
 nicht zu entfernen. Schritt 1 bleibt offen.
+
+**Nachgeprüft am 23.09.2026:** Das Repository ist **weiterhin öffentlich**
+(ohne Anmeldung abrufbar). Im aktuellen Code steht kein Google-Schlüssel mehr,
+in der Versionsgeschichte genau einer (beginnt mit `AIzaSyD099…`). Ob er in
+der Google Cloud Console schon gesperrt ist, lässt sich von hier nicht sehen —
+Schritte 1 bis 3 liegen bei Rico.
 
 Der Supabase-Schlüssel gleich daneben ist **kein** Problem: der „anon"-Schlüssel
 ist öffentlich gedacht, geschützt wird über die Zugriffsregeln.
@@ -373,6 +379,28 @@ Antworten auf konkrete Beschwerden, keine Zufälle.
 
 ## Gelöste Probleme (nicht wiederholen)
 
+- **Problem:** Provision und Abschlussdatum aus der Seitenleiste wurden nie
+  gespeichert — `saveLeadMain` hat beide Felder gar nicht mitgeschickt. Nur der
+  Dialog beim Wechsel auf „closed" schrieb sie.
+  **Lösung:** `window.leseWertFelder(lData)` in `main_ui.js`, genutzt von
+  `saveLeadMain` und `getDomDraft`. Beträge liest `public/modules/betrag.js`
+  („1.500,50" war vorher NaN → NULL). Unlesbares wird nicht gespeichert,
+  sondern rot markiert. Datum nur schreiben, wenn sich der **Tag** ändert.
+  **Warum wichtig:** Sonst setzt jedes Autospeichern die echte
+  Abschluss-Uhrzeit auf 12:00. Der Dialog zieht die Seitenleisten-Felder sofort
+  nach, sonst schreibt das nächste Autospeichern den alten Wert zurück.
+- **Problem:** „Standort verknüpfen" ersetzte den eigenen Namen durch den
+  Google-Namen und speicherte den Standort selbst nie (nur in die Kopie im
+  Speicher gelegt — der Vergleich in `saveLeadMain` sah deshalb „keine
+  Änderung").
+  **Lösung:** `linkLeadLocation` sichert erst das Formular, schreibt dann die
+  Standortfelder ausdrücklich über `leadStore.save` und füllt **nur Lücken**
+  (Name, Telefon, Webseite, Place-ID, Maps-Link, Öffnungszeiten).
+  **Warum wichtig:** Regel für alles aus Google Places: nie Bestehendes
+  überschreiben. Nie Werte direkt in `store.state.leads` legen, die noch nicht
+  gespeichert sind — der Vergleich hält sie dann für gespeichert.
+  Aus demselben Grund geben die vier Aufrufer von `getDomDraft` keinen Entwurf
+  mehr an `openLeadDirectly`, sondern rufen vorher `flushLeadForm()`.
 - **Problem:** Änderungen gingen beim Reiterwechsel verloren.
   **Lösung:** `flushLeadForm()` vor jeder Navigation; Formular (`data-lead-id`)
   statt Auswahl-State ist Quelle der Wahrheit.
@@ -654,6 +682,11 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Handover-Historie
+- 2026-09-23 — Provision/Abschlussdatum in der Seitenleiste speichern jetzt;
+  Standort verknüpfen überschreibt nichts mehr und wird wirklich gespeichert;
+  Kontakt-Marke „Maps" → „Telefon", Anruf-Knöpfe entfernt (Wunsch Rico).
+  Nicht im Browser gegen die echte Datenbank durchgeklickt — nur Tests
+  (Claude Opus 5.5).
 - 2026-09-21 (5) — Datenpflege und Mehrfach-Standorte.
   **Der Bestand war zu 100 % mit Leerstrings gefüllt** — 243 von 243 Leads
   hatten `''` statt NULL in `email`, `impressum_phone`, `legal_company_name`,

@@ -19,7 +19,10 @@ w.setTimeout = (fn) => 0;   // Animationen im Test nicht ausfuehren
 // core/leadstore.js zuerst — dort liegen queueSave und der Schreibweg
 dom.window.eval(fs.readFileSync('public/core/leadstore.js', 'utf8'));
 
+dom.window.eval(fs.readFileSync('public/modules/betrag.js', 'utf8'));
+
 const code = fs.readFileSync('public/ui/main_ui.js', 'utf8');
+const mainQuelleFrueh = code;
 dom.window.eval(code);
 
 // Teile von pipeline_ui.js werden ueber Textmarken herausgeschnitten. Wird eine
@@ -941,28 +944,51 @@ const wertFeld = (id, wert) => {
   e.value = wert; return e;
 };
 wertFeld('sys-name', 'Testfirma');
-wertFeld('sys-provi', '');
-check('Leeres Wertfeld wird zu NULL, nicht 0', w.getDomDraft().provi_umsatz === null);
-wertFeld('sys-provi', '0');
-check('Eingetragene 0 bleibt 0', w.getDomDraft().provi_umsatz === 0);
-wertFeld('sys-provi', '847,50');
-check('Komma wird als Dezimaltrenner verstanden', w.getDomDraft().provi_umsatz === 847.5);
-wertFeld('sys-provi', 'abc');
-check('Unlesbare Eingabe wird NULL statt NaN', w.getDomDraft().provi_umsatz === null);
-
+// Gespeicherter Stand: Abschluss am 10.09. um 15:37, noch ohne Wert
+const wertStand = { id: 7, provi_umsatz: null, closed_at_ms: new Date('2026-09-10T15:37:00').getTime() };
+const lies = () => w.leseWertFelder(wertStand);
 wertFeld('sys-closed-at', '2026-09-10');
-const dEntwurf = w.getDomDraft();
-check('Abschlussdatum landet auf demselben Tag',
-  new Date(dEntwurf.closed_at_ms).toLocaleDateString('sv-SE') === '2026-09-10');
+
+wertFeld('sys-provi', '');
+check('Leeres Wertfeld bei leerem Stand schreibt nichts', !('provi_umsatz' in lies()));
+wertFeld('sys-provi', '0');
+check('Eingetragene 0 bleibt 0', lies().provi_umsatz === 0);
+wertFeld('sys-provi', '847,50');
+check('Komma wird als Dezimaltrenner verstanden', lies().provi_umsatz === 847.5);
+wertFeld('sys-provi', '1.500,50');
+check('1.500,50 wird 1500.5 (frueher NaN -> geleert)', lies().provi_umsatz === 1500.5);
+wertFeld('sys-provi', 'abc');
+check('Unlesbare Eingabe wird NICHT gespeichert', !('provi_umsatz' in lies()));
+check('Unlesbare Eingabe wird markiert',
+  w.document.getElementById('sys-provi').getAttribute('aria-invalid') === 'true');
+wertFeld('sys-provi', '1500.5');
+check('Unveraenderter Wert wird nicht erneut geschrieben',
+  !('provi_umsatz' in w.leseWertFelder({ ...wertStand, provi_umsatz: 1500.5 })));
+wertFeld('sys-provi', '');
+check('Bewusst geleertes Feld wird NULL, nicht 0',
+  w.leseWertFelder({ ...wertStand, provi_umsatz: 900 }).provi_umsatz === null);
+
+// Datum: gleicher Tag heisst unveraendert — die echte Uhrzeit bleibt stehen
+check('Gleicher Tag ueberschreibt die Abschluss-Uhrzeit nicht', !('closed_at_ms' in lies()));
+wertFeld('sys-closed-at', '2026-09-12');
+check('Anderer Tag wird geschrieben, auf demselben Tag',
+  new Date(lies().closed_at_ms).toLocaleDateString('sv-SE') === '2026-09-12');
 wertFeld('sys-closed-at', '');
-check('Leeres Abschlussdatum wird NULL', w.getDomDraft().closed_at_ms === null);
+check('Geleertes Abschlussdatum wird NULL', lies().closed_at_ms === null);
 
 // Fehlt das Feld im Formular, darf nichts ueberschrieben werden
 w.document.getElementById('sys-provi').remove();
 w.document.getElementById('sys-closed-at').remove();
-const ohne = w.getDomDraft();
+const ohne = lies();
 check('Fehlendes Feld fasst den Wert nicht an',
   !('provi_umsatz' in ohne) && !('closed_at_ms' in ohne));
+
+// Der eigentliche Fehler: saveLeadMain hat beide Felder nie mitgeschickt.
+const saveTeil = ohneKommentare(mainQuelleFrueh.slice(
+  mainQuelleFrueh.indexOf('window.saveLeadMain = async'),
+  mainQuelleFrueh.indexOf('window.triggerSalesBell')));
+check('saveLeadMain schreibt Wert und Abschlussdatum mit',
+  saveTeil.includes('leseWertFelder(lData)'));
 
 // Kommentare zaehlen nicht mit — dort steht getAgentStats als Erklaerung,
 // warum der Team-Bereich sie noch benutzt.
@@ -1033,6 +1059,43 @@ check('Kein automatisches Neuladen ohne Zutun',
   !/setTimeout[\s\S]{0,120}location\.reload/.test(hinweisTeil));
 check('Vor dem Neuladen wird gesichert',
   hinweisTeil.indexOf('flushLeadForm') < hinweisTeil.indexOf('location.reload'));
+
+// ── 27b2. Standort verknuepfen fuellt nur Luecken ──────────────────────────
+// Vorfall 23.09.2026: Standort verknuepft -> der eigene Name war durch den
+// Google-Namen ersetzt, der Standort selbst aber nie gespeichert.
+{
+  const alterStore = w.leadStore;
+  const geschrieben = [];
+  const lead = { id: 42, name: 'Bäckerei Müller (Filiale Nord)', phone: '0351 123', website_url: null,
+                 size: 'Großkunde', provi_umsatz: 1500, closed_at_ms: 1757000000000,
+                 locations: [], maps_city: null, lat: null, lng: null, google_place_id: null };
+  let neuGezeichnet = false;
+  w.leadStore = { ...alterStore, get: () => lead, ruhe: async () => true,
+    save: async (id, felder) => { geschrieben.push({ id, felder }); Object.assign(lead, felder); return true; } };
+  const alterFlush = w.flushLeadForm, alterOpen = w.openLeadDirectly;
+  w.flushLeadForm = async () => true;
+  w.openLeadDirectly = async (id, a, b, draft) => { neuGezeichnet = !draft; };
+  w.eval(ausschnitt('window.linkLeadLocation = async (leadId, encodedData) => {', '\n  };\n'));
+  const ort = { name: 'Müller GmbH', address: 'Hauptstr. 1, 01067 Dresden', lat: 51.05, lng: 13.73,
+                website: 'https://mueller.de', mapsUrl: 'https://maps.google.com/x', phone: '0351 999',
+                placeId: 'ChIJabc', opening_hours: JSON.stringify({ weekdayDescriptions: ['Monday: Closed'] }) };
+  await w.linkLeadLocation(42, encodeURIComponent(JSON.stringify(ort)));
+  const f = geschrieben[0]?.felder || {};
+  check('Standort: wird tatsaechlich gespeichert', geschrieben.length === 1 && Array.isArray(f.locations) && f.locations.length === 1);
+  check('Standort: Adresse und Koordinaten werden gespeichert', f.maps_city === ort.address && f.lat === 51.05 && f.lng === 13.73);
+  check('Standort: eigener Name bleibt', !('name' in f) && lead.name === 'Bäckerei Müller (Filiale Nord)');
+  check('Standort: vorhandene Nummer bleibt', !('phone' in f));
+  check('Standort: leere Webseite wird gefuellt', f.website_url === 'https://mueller.de');
+  check('Standort: Wert, Datum, Groesse unberuehrt',
+    !('provi_umsatz' in f) && !('closed_at_ms' in f) && !('size' in f));
+  check('Standort: neu gezeichnet ohne alten Entwurf', neuGezeichnet);
+
+  geschrieben.length = 0;
+  await w.linkLeadLocation(42, encodeURIComponent(JSON.stringify(ort)));
+  check('Standort: derselbe Ort wird nicht doppelt angehaengt', geschrieben.length === 0);
+
+  w.leadStore = alterStore; w.flushLeadForm = alterFlush; w.openLeadDirectly = alterOpen;
+}
 
 // ── 27c. Beim Abschluss wird nach dem Wert gefragt ─────────────────────────
 // 55 von 55 Abschluessen ohne Wert: das Feld war da, nur hat niemand gefragt.

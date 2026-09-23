@@ -1951,7 +1951,6 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 .kontakt-btn:hover { background: rgba(10, 132, 255, 0.20); }
 a.kontakt-btn { text-decoration: none; display: inline-flex; align-items: center; }
 /* Der Hoerer braucht keinen Text — daneben steht die Nummer. */
-.kontakt-hoerer { padding: 6px 10px; }
 /* Kopiert-Rueckmeldung am Knopf */
 .kontakt-btn.knopf-erledigt {
   background: var(--color-intent-success-bg);
@@ -2115,4 +2114,7 @@ a.kontakt-btn { text-decoration: none; display: inline-flex; align-items: center
   font-variant-numeric: tabular-nums;
 }
 .abschluss-eingabe input:focus { outline: none; border-color: var(--color-brand-accent); }
+/* Unlesbarer Betrag — wird nicht gespeichert, bis er korrigiert ist */
+.abschluss-eingabe input[aria-invalid="true"],
+.wert-eingabe input[aria-invalid="true"] { border-color: var(--color-intent-danger); }
 .abschluss-eingabe > span { font-size: var(--text-md); color: var(--color-text-secondary); }
