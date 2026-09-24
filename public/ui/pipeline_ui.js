@@ -649,13 +649,10 @@ if (typeof window.renderDashboard === 'function') {
         const isSnoozed = (l.snooze_until_ms || 0) > Date.now();
         let snoozeBadge = '';
         if (isSnoozed) {
-          // "noch 3 Tage" sagt mehr als ein Datum, wenn man entscheiden will,
+          // "noch 20 Min" sagt mehr als ein Datum, wenn man entscheiden will,
           // ob der Lead heute noch eine Rolle spielt.
-          const restMs = l.snooze_until_ms - Date.now();
-          const stunden = Math.round(restMs / 3600000);
-          const rest = stunden < 1 ? 'unter einer Stunde'
-                     : stunden < 24 ? `noch ${stunden} Std.`
-                     : `noch ${Math.round(stunden / 24)} Tage`;
+          const W = window.Wiedervorlage;
+          const rest = W ? W.restText(l.snooze_until_ms, Date.now()) : '';
           const datum = new Date(l.snooze_until_ms)
             .toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
           snoozeBadge = `<div style="font-size: 11px; margin-top: 6px; color: var(--color-text-secondary, #8e8e93); display: flex; align-items: center; gap: 4px; font-weight: 500;" title="Wiedervorlage am ${datum}">🕒 Wiedervorlage · ${rest}</div>`;
@@ -1219,22 +1216,9 @@ if (typeof window.renderDashboard === 'function') {
     const gCalDetails = encodeURIComponent(`Firma: ${l.name}\nTelefon: ${l.phone || 'Keine'}\nURL: ${l.website_url || ''}\n\nNotizen:\n${l.notes || ''}`);
     const gCalUrl = `https://calendar.google.com/calendar/r/eventedit?text=${gCalText}&details=${gCalDetails}`;
 
-    let snoozeHtml = `
-      <div class="apple-section">
-        <h4 class="apple-section-title">Wiedervorlage</h4>
-        <div class="snooze-grid" id="snooze-group" style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <div style="flex: 1; min-width: 120px; display: flex; align-items: stretch;">
-            <input type="number" id="snooze-hours-input" value="${(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) ? window.store.state.currentSnoozeOffset : 24}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;">
-            <button class="action-btn snooze-opt ${(window.store.state.currentSnoozeOffset > 0 && window.store.state.currentSnoozeOffset <= 24) ? 'outline' : ''}" id="snz-hours" onclick="selectCustomSnoozeHours()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Std.</button>
-          </div>
-          <div style="flex: 1; min-width: 120px; display: flex; align-items: stretch;">
-            <input type="number" id="snooze-days-input" value="${window.store.state.currentSnoozeOffset > 24 ? window.store.state.currentSnoozeOffset / 24 : 7}" style="width: 40px; border-radius: 6px 0 0 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); text-align: center; font-size: 13px; box-sizing: border-box;">
-            <button class="action-btn snooze-opt ${window.store.state.currentSnoozeOffset > 24 ? 'outline' : ''}" id="snz-custom" onclick="selectCustomSnooze()" style="flex: 1; border-radius: 0 6px 6px 0; padding-left: 0; padding-right: 0;">Tage</button>
-          </div>
-        </div>
-        <div id="cancel-snooze-container" style="margin-top: 12px; text-align: center; display: ${isSnoozed ? 'block' : 'none'};"><button type="button" class="action-btn-small" style="border:1px dashed #ff453a; color:#ff453a; background:transparent; width:100%; padding: 8px;" onclick="cancelSnooze()">Wiedervorlage aufheben</button></div>
-      </div>
-    `;
+    // Wiedervorlage: Drehrad (Tage · Std. · Min.) oder Datum -> 8:00.
+    // Aufbau und Bedienung liegen in modules/wiedervorlage.js.
+    const snoozeHtml = window.Wiedervorlage ? window.Wiedervorlage.html(l) : '';
 
     // Removed Reminder Block
 
@@ -1601,6 +1585,8 @@ if (typeof window.renderDashboard === 'function') {
     //   change    -> Auswahlfelder und Datumsfelder sofort
     //   focusout  -> Feld verlassen heißt fertig getippt
     // Und darüber hinaus sichert flushLeadForm jede Navigation ab.
+    document.querySelectorAll('.wv').forEach(el => window.Wiedervorlage && window.Wiedervorlage.binde(el));
+
     ['.sidebar-body', '.sidebar-header'].forEach(sel => {
       const el = document.querySelector(sel);
       if (!el) return;
@@ -3230,9 +3216,9 @@ window.patchLeadCard = (leadId) => {
 // Feld verlassen = Eingabe fertig -> sofort speichern, nicht erst nach der
 // Verzoegerung. Betrifft vor allem die Notizen.
 // Feld verlassen = Eingabe fertig -> sofort schreiben.
-// Anruf-Notizen speichern selbst in crm_calls — kein Grund, dafuer das
-// Lead-Formular zu schreiben.
-const _eigenesFeld = (e) => !!(e && e.target && e.target.closest && e.target.closest('.anruf-notiz'));
+// Anruf-Notizen und die Wiedervorlage speichern selbst — kein Grund, dafuer
+// das Lead-Formular zu schreiben.
+const _eigenesFeld = (e) => !!(e && e.target && e.target.closest && e.target.closest('.anruf-notiz, [data-eigenes-speichern]'));
 
 window._autoSaveNow = (e) => {
     if (_eigenesFeld(e)) return;

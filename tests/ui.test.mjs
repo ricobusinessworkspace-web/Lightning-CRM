@@ -1165,6 +1165,90 @@ check('Vor dem Neuladen wird gesichert',
   w.store.state.leads = altLeads;
 }
 
+// ── 27b4. Wiedervorlage mit Drehrad ───────────────────────────────────────
+{
+  w._wvTick = 1;   // Countdown im Test nicht starten — er hielte den Prozess am Leben
+  w.eval(fs.readFileSync('public/modules/wiedervorlage.js', 'utf8'));
+  const W = w.Wiedervorlage;
+  const gesetzt = [];
+  const altSetze = w.setzeWiedervorlage;
+  w.setzeWiedervorlage = async (id, ms) => { gesetzt.push({ id, ms }); return true; };
+  w.requestAnimationFrame = (fn) => fn();
+
+  w.document.body.innerHTML = `<div class="sidebar-body">${W.html({ id: 5, snooze_until_ms: 0 })}</div>`;
+  const root = w.document.querySelector('.wv');
+  W.binde(root);
+  const setzenK = root.querySelector('.wv-setzen');
+  const anz = root.querySelector('.wv-anzeige');
+  check('Drehrad: drei Spalten, alle auf 0',
+    [...root.querySelectorAll('.wv-spalte')].map(x => x.getAttribute('aria-valuenow')).join() === '0,0,0');
+  check('Drehrad: Minuten in 5er-Schritten bis 55',
+    root.querySelector('[data-feld="minuten"]').getAttribute('aria-valuemax') === '55'
+    && root.querySelectorAll('[data-feld="minuten"] .wv-wert').length === 12);
+  check('Drehrad: bei 0 ist Setzen gesperrt', setzenK.disabled);
+  check('Drehrad: ohne laufende Wiedervorlage kein Aufheben', !root.querySelector('.wv-aufheben'));
+  check('Drehrad: eigenes Speichern, kein Lead-Autospeichern', root.hasAttribute('data-eigenes-speichern'));
+
+  // 20 Minuten drehen: Index 4 in der Minutenspalte
+  const minSp = root.querySelector('[data-feld="minuten"]');
+  minSp.scrollTop = 4 * 30;
+  minSp.dispatchEvent(new w.Event('scroll'));
+  check('Drehrad: Drehen zeigt den Zeitpunkt live', anz.textContent.includes('in 20 Min') && !setzenK.disabled);
+  check('Drehrad: gewaehlter Wert ist markiert', minSp.getAttribute('aria-valuenow') === '20');
+  const vorher = Date.now();
+  setzenK.click();
+  await new Promise(r => setImmediate(r));
+  const g = gesetzt.at(-1);
+  check('Drehrad: Setzen schreibt ~20 Min in die Zukunft, volle Minute',
+    g && g.id === 5 && g.ms % 60000 === 0 && g.ms - vorher > 19 * 60000 && g.ms - vorher <= 21 * 60000);
+
+  // Datum waehlen -> 8:00 an diesem Tag, Rad tritt zurueck
+  const morgen = new Date(Date.now() + 2 * 86400000).toLocaleDateString('sv-SE');
+  const dEl = root.querySelector('.wv-datum');
+  dEl.value = morgen;
+  dEl.dispatchEvent(new w.Event('change'));
+  check('Datum: Anzeige nennt 08:00', anz.textContent.includes('08:00'));
+  check('Datum: Rad tritt zurueck', root.classList.contains('wv-datum-modus'));
+  setzenK.disabled = false;
+  setzenK.click();
+  await new Promise(r => setImmediate(r));
+  const gd = new Date(gesetzt.at(-1).ms);
+  check('Datum: faellig um 8:00 an diesem Tag',
+    gd.toLocaleDateString('sv-SE') === morgen && gd.getHours() === 8 && gd.getMinutes() === 0);
+
+  // Drehen nach Datum -> Datum faellt weg
+  minSp.scrollTop = 2 * 30;
+  minSp.dispatchEvent(new w.Event('scroll'));
+  check('Datum: Drehen hebt das Datum auf', !root.classList.contains('wv-datum-modus') && dEl.value === '');
+
+  // Laufende Wiedervorlage: oben angezeigt, Aufheben schreibt 0
+  const ziel = Date.now() + 45 * 60000;
+  w.document.body.innerHTML = `<div class="sidebar-body">${W.html({ id: 5, snooze_until_ms: ziel })}</div>`;
+  const root2 = w.document.querySelector('.wv');
+  W.binde(root2);
+  check('Laufend: Restzeit steht da', root2.querySelector('.wv-aktiv-rest').textContent.startsWith('noch 4'));
+  check('Laufend: Knopf heisst "Neu setzen"', root2.querySelector('.wv-setzen').textContent === 'Neu setzen');
+  root2.querySelector('.wv-aufheben').click();
+  await new Promise(r => setImmediate(r));
+  check('Laufend: Aufheben schreibt 0', gesetzt.at(-1).ms === 0);
+
+  // Datums-Eingabe darf das Lead-Autospeichern nicht anstossen
+  let formular = 0;
+  const altStatus = w.setSaveStatus, altFlush = w.flushLeadForm;
+  w.setSaveStatus = (z) => { if (z === 'offen') formular++; };
+  w.flushLeadForm = async () => { formular++; return true; };
+  const body = w.document.querySelector('.sidebar-body');
+  body.addEventListener('input', w._triggerAutoSave);
+  body.addEventListener('change', w._autoSaveNow);
+  const d2 = root2.querySelector('.wv-datum');
+  d2.value = morgen;
+  d2.dispatchEvent(new w.Event('input', { bubbles: true }));
+  d2.dispatchEvent(new w.Event('change', { bubbles: true }));
+  check('Datum: loest kein Lead-Autospeichern aus', formular === 0);
+  w.setSaveStatus = altStatus; w.flushLeadForm = altFlush;
+  w.setzeWiedervorlage = altSetze;
+}
+
 // ── 27c. Beim Abschluss wird nach dem Wert gefragt ─────────────────────────
 // 55 von 55 Abschluessen ohne Wert: das Feld war da, nur hat niemand gefragt.
 w.document.body.innerHTML = '';
@@ -1302,8 +1386,11 @@ check('Webseite und Google Maps stehen als zwei Links unter dem Standort',
   && (standortBlock.match(/class="standort-link"/g) || []).length === 2);
 
 // Der Kasten hat sich selbst verdoppelt: die Ueberschrift stand zweimal da.
+// Seit 24.09.2026 baut modules/wiedervorlage.js den Kasten.
+const wvSrc = fs.readFileSync('public/modules/wiedervorlage.js', 'utf8');
 check('Wiedervorlage steht genau einmal in ihrem Kasten',
-  (pipeSrc.match(/apple-section-title">Wiedervorlage</g) || []).length === 1);
+  (pipeSrc.match(/apple-section-title">Wiedervorlage</g) || []).length === 0
+  && (wvSrc.match(/apple-section-title">Wiedervorlage</g) || []).length === 1);
 
 // ── 28. Handverteilte Cache-Marker muessen mitwachsen ──────────────────────
 // Dateien aus public/ werden unveraendert ausgeliefert; ihr ?v=-Anhaengsel ist

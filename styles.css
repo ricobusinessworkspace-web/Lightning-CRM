@@ -2164,3 +2164,104 @@ a.kontakt-btn { text-decoration: none; display: inline-flex; align-items: center
 .anruf-notiz::placeholder { color: var(--color-text-secondary); opacity: 0.7; }
 .anruf-notiz:focus { outline: none; border-color: var(--color-border-active); background: rgba(255,255,255,0.05); }
 .anruf-notiz[aria-invalid="true"] { border-color: var(--color-intent-danger); }
+
+/* ── Wiedervorlage: Drehrad ────────────────────────────────────────────────
+   Wie der iPhone-Timer: drei Spalten (Tage · Std. · Min.), die mit Wischen,
+   Trackpad, Mausrad oder Pfeiltasten einrasten. Die Zeilenhoehe (30px) steht
+   auch in modules/wiedervorlage.js (ZEILE) — beide muessen passen. */
+.wv-aktiv {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: 10px 12px; margin-bottom: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-intent-info-bg);
+}
+.wv-aktiv-symbol { color: var(--color-brand-accent); display: inline-flex; }
+.wv-aktiv-text { flex: 1; min-width: 0; }
+.wv-aktiv-wann { font-size: var(--text-base); font-weight: 600; color: var(--color-text-primary); }
+.wv-aktiv-rest { font-size: var(--text-xs); color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+.wv-aufheben {
+  background: none; border: none; padding: 4px 2px; cursor: pointer;
+  font: inherit; font-size: var(--text-sm); font-weight: 500; color: var(--color-intent-danger);
+}
+.wv-aufheben:hover { text-decoration: underline; }
+
+.wv-rad {
+  position: relative; height: 150px;
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 34%, #000 66%, transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 34%, #000 66%, transparent 100%);
+  user-select: none; -webkit-user-select: none;
+}
+.wv-band {
+  position: absolute; left: 0; right: 0; top: 60px; height: 30px;
+  border-radius: var(--radius-md); background: rgba(255,255,255,0.08);
+  pointer-events: none;
+}
+.wv-einheiten {
+  position: absolute; left: 0; right: 0; top: 60px; height: 30px;
+  display: grid; grid-template-columns: repeat(3, 1fr); pointer-events: none; z-index: 1;
+}
+.wv-einheit {
+  display: flex; align-items: center;
+  padding-left: calc(50% + 6px);
+  font-size: var(--text-sm); font-weight: 600; color: var(--color-text-primary);
+}
+.wv-spalte {
+  height: 150px; overflow-y: scroll; overscroll-behavior: contain;
+  scroll-snap-type: y mandatory; scrollbar-width: none;
+  outline: none; border-radius: var(--radius-md); position: relative;
+}
+.wv-spalte::-webkit-scrollbar { display: none; }
+.wv-spalte:focus-visible { box-shadow: inset 0 0 0 1.5px var(--color-brand-accent); }
+.wv-polster { height: 60px; }
+.wv-wert {
+  height: 30px; scroll-snap-align: center;
+  display: flex; align-items: center; justify-content: flex-end;
+  padding-right: calc(50% - 2px);
+  font-size: 17px; font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary); cursor: pointer;
+  transition: color .12s, font-size .12s;
+}
+.wv-wert.gewaehlt { color: var(--color-text-primary); font-size: 20px; font-weight: 500; }
+.wv-datum-modus .wv-rad { opacity: 0.35; }
+
+.wv-fuss { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+.wv-anzeige {
+  text-align: center; font-size: var(--text-sm); color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums; min-height: 18px;
+}
+.wv-anzeige.bereit { color: var(--color-text-primary); }
+.wv-anzeige b { color: var(--color-brand-accent); font-weight: 600; }
+.wv-aktionen { display: flex; gap: var(--space-2); }
+.wv-datum-feld { position: relative; display: flex; }
+.wv-datum-knopf {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 12px; border-radius: var(--radius-md);
+  background: transparent; border: 1px solid var(--color-border-base);
+  color: var(--color-text-secondary); font: inherit; font-size: var(--text-sm); cursor: pointer;
+}
+.wv-datum-knopf:hover { border-color: var(--color-border-active); color: var(--color-text-primary); }
+.wv-datum-knopf.aktiv { border-color: var(--color-brand-accent); color: var(--color-brand-accent); padding-right: 28px; }
+.wv-datum-weg {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 22px; height: 22px; border-radius: var(--radius-pill);
+  background: none; border: none; color: var(--color-brand-accent);
+  font-size: 16px; line-height: 1; cursor: pointer;
+}
+/* Das Datumsfeld selbst bleibt unsichtbar; der Knopf oeffnet seine Auswahl.
+   Kann der Browser das nicht, wird es sichtbar gemacht. */
+.wv-datum { position: absolute; inset: 0; opacity: 0; pointer-events: none; width: 100%; }
+.wv-datum-sichtbar .wv-datum { position: static; opacity: 1; pointer-events: auto; height: 36px; }
+.wv-datum-sichtbar .wv-datum-knopf { display: none; }
+.wv-setzen {
+  flex: 1; height: 36px; border-radius: var(--radius-md); border: none; cursor: pointer;
+  background: var(--color-brand-accent); color: #fff;
+  font: inherit; font-size: var(--text-base); font-weight: 600;
+  transition: opacity .15s;
+}
+.wv-setzen:disabled { opacity: 0.35; cursor: default; }
+.wv-setzen:focus-visible, .wv-datum-knopf:focus-visible { outline: 2px solid var(--color-brand-accent); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wv-wert { transition: none; }
+}

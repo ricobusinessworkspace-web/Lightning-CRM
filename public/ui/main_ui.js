@@ -72,24 +72,12 @@ window.setPipeline = async (type) => {
     }
   };
 
-  window.selectCustomSnooze = () => {
-    const daysInput = document.getElementById('snooze-days-input');
-    const days = daysInput ? parseInt(daysInput.value) || 7 : 7;
-    selectSnooze(days * 24);
-  };
-
-  window.selectCustomSnoozeHours = () => {
-    const hoursInput = document.getElementById('snooze-hours-input');
-    const hours = hoursInput ? parseInt(hoursInput.value) || 24 : 24;
-    selectSnooze(hours);
-  };
-
   // ── Snooze sofort speichern ────────────────────────────────────────────────
   // Vorher wurde nur ein Wert im Speicher vorgemerkt und darauf gehofft, dass
   // ein Auto-Save ihn aufsammelt. Der zustaendige Wrapper lief aber ins Leere
   // (falsche Ladereihenfolge), also ging die Wiedervorlage immer verloren.
-  window.persistSnooze = async (snoozeMs) => {
-    const id = window.store.state.currentSelectedLeadId;
+  window.persistSnooze = async (snoozeMs, leadId) => {
+    const id = leadId || window.store.state.currentSelectedLeadId;
     if (!id) return false;
 
     const ok = await window.leadStore.save(id, { snooze_until_ms: snoozeMs }, {
@@ -102,13 +90,27 @@ window.setPipeline = async (type) => {
     window.store.state.currentSnoozeTargetMs = 0;
     window.store.state.clearSnooze = false;
 
-    const cancelContainer = document.getElementById('cancel-snooze-container');
-    if (cancelContainer) cancelContainer.style.display = snoozeMs > Date.now() ? 'block' : 'none';
 
     // Der Lead gehoert jetzt ans Ende der Liste (oder zurueck nach oben, wenn
     // die Wiedervorlage aufgehoben wurde). Vorher blieb die Karte stehen, wo
     // sie war, bis die Seite komplett neu geladen wurde.
     if (typeof window.sortiereListenNeu === 'function') window.sortiereListenNeu();
+    return true;
+  };
+
+  // ── Wiedervorlage aus dem Drehrad ──────────────────────────────────────────
+  // zielMs = Zeitpunkt, 0 = aufheben. Der Abschnitt wird danach neu gezeichnet
+  // (Rad wieder auf 0, oben die laufende Wiedervorlage).
+  window.setzeWiedervorlage = async (leadId, zielMs) => {
+    const ok = await window.persistSnooze(zielMs, leadId);
+    if (!ok) return false;
+    if (window.Wiedervorlage) window.Wiedervorlage.neuZeichnen(leadId);
+    if (zielMs > Date.now()) {
+      const W = window.Wiedervorlage;
+      showToast(`Wiedervorlage: ${W ? W.wann(zielMs, Date.now()) : new Date(zielMs).toLocaleString('de-DE')}`);
+    } else {
+      showToast('Wiedervorlage aufgehoben');
+    }
     return true;
   };
 
