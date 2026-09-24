@@ -2118,3 +2118,49 @@ a.kontakt-btn { text-decoration: none; display: inline-flex; align-items: center
 .abschluss-eingabe input[aria-invalid="true"],
 .wert-eingabe input[aria-invalid="true"] { border-color: var(--color-intent-danger); }
 .abschluss-eingabe > span { font-size: var(--text-md); color: var(--color-text-secondary); }
+
+/* ── Verlauf: Eintraege und Anruf-Ergebnis ─────────────────────────────────
+   Jeder Anruf laesst sich nachtraeglich einordnen: ✓ durchgestellt,
+   ✕ nicht erreicht. Zwei kleine runde Knoepfe, im Ruhezustand kaum sichtbar;
+   gewaehlt fuellt sich der Kreis. Darunter ein randloses Notizfeld. */
+.akt-zeile { padding: var(--space-2) 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.akt-kopf { display: flex; align-items: center; gap: var(--space-2); }
+.akt-text { flex: 1; min-width: 0; }
+.akt-titel { font-size: var(--text-base); font-weight: 500; color: var(--color-text-primary); }
+.akt-zeit { font-size: var(--text-xs); color: var(--color-text-secondary); margin-top: 2px; }
+
+.anruf-ergebnis { display: flex; gap: 6px; flex-shrink: 0; }
+.anruf-knopf {
+  width: 24px; height: 24px; border-radius: var(--radius-pill);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--color-border-base);
+  color: var(--color-text-secondary); cursor: pointer; padding: 0;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.anruf-knopf:hover { border-color: var(--color-border-active); color: var(--color-text-primary); }
+.anruf-ja.aktiv   { background: var(--color-intent-success); border-color: var(--color-intent-success); color: #000; }
+.anruf-nein.aktiv { background: var(--color-intent-danger);  border-color: var(--color-intent-danger);  color: #fff; }
+.anruf-knopf:focus-visible { outline: 2px solid var(--color-brand-accent); outline-offset: 2px; }
+
+.anruf-ergebnis-text { font-weight: 400; }
+.anruf-reached     { color: var(--color-intent-success); }
+.anruf-not_reached { color: var(--color-intent-danger); }
+
+.akt-loeschen {
+  background: none; border: none; padding: 4px; cursor: pointer; flex-shrink: 0;
+  color: var(--color-text-secondary); opacity: 0.5; display: inline-flex;
+  transition: opacity .15s, color .15s;
+}
+.akt-loeschen:hover { opacity: 1; color: var(--color-intent-danger); }
+
+.anruf-notiz {
+  display: block; width: 100%; box-sizing: border-box; margin-top: 6px;
+  resize: none; overflow: hidden; field-sizing: content; min-height: 30px;
+  background: rgba(255,255,255,0.03); border: 1px solid transparent;
+  border-radius: var(--radius-md); padding: 6px 10px;
+  font: inherit; font-size: var(--text-sm); line-height: 1.4;
+  color: var(--color-text-primary);
+}
+.anruf-notiz::placeholder { color: var(--color-text-secondary); opacity: 0.7; }
+.anruf-notiz:focus { outline: none; border-color: var(--color-border-active); background: rgba(255,255,255,0.05); }
+.anruf-notiz[aria-invalid="true"] { border-color: var(--color-intent-danger); }

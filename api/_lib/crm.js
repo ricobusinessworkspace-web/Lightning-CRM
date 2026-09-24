@@ -194,16 +194,24 @@ export async function stufenwechselFesthalten(lead_id, von, nach) {
   if (error) throw fehler(error.message, 500);
 }
 
-export async function anrufFesthalten(lead_id) {
+// ergebnis: 'reached' | 'not_reached' | undefined, notiz: Text | undefined.
+// Gleiche Regeln wie core/db.js setCallDetails: leere Notiz ist NULL.
+export async function anrufFesthalten(lead_id, { ergebnis, notiz } = {}) {
   const jetzt = Date.now();
   const bestand = await leadHolen(lead_id);
+  if (ergebnis !== undefined && ergebnis !== null && ergebnis !== 'reached' && ergebnis !== 'not_reached') {
+    throw fehler('ergebnis muss "reached" oder "not_reached" sein', 400);
+  }
+  const text = notiz == null ? '' : String(notiz);
 
   const { error } = await supabase().from('crm_calls').insert({
     lead_id, ts: jetzt, type: 'call',
     stage_at_call: bestand.stage || 'cold',
     size_at_call: bestand.size || null,
     by_user_name: HERKUNFT,
-    is_estimated: false
+    is_estimated: false,
+    outcome: ergebnis ?? null,
+    notes: text.trim() === '' ? null : text
   });
   if (error) throw fehler(error.message, 500);
 

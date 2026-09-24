@@ -99,6 +99,11 @@ Nachgreifen.
 
 `sales.calls_count` ist davon **nicht** betroffen — ein Anruf ist ein Anruf.
 
+Seit 24.09.2026 tragen Anrufe optional `outcome` (`reached`/`not_reached`/NULL)
+und `notes`; in `lead_timeline` als `call_outcome`/`call_notes`. Nur für neue
+Anrufe gepflegt, Altanrufe sind NULL — für eine Erreichbarkeitsquote also erst
+ab diesem Tag aussagekräftig. `crm_calls.status` ist Altlast, nicht auswerten.
+
 ### 2. Conversion-Raten haben keine Vergangenheit
 
 Stufenwechsel wurden vor dem Umbau nur als Fließtext und **ohne die alte Stufe**

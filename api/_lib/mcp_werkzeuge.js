@@ -104,7 +104,10 @@ export const WERKZEUGE = [
       const l = await leadHolen(lead_id, true);
       const anrufe = (l.crm_calls || []).map(c => ({
         art: 'Anruf', zeitpunkt: new Date(c.ts).toISOString(),
-        stufe_damals: c.stage_at_call || null, durch: c.by_user_name || null
+        stufe_damals: c.stage_at_call || null, durch: c.by_user_name || null,
+        ergebnis: c.outcome === 'reached' ? 'durchgestellt'
+                : c.outcome === 'not_reached' ? 'nicht erreicht' : null,
+        text: c.notes || null
       }));
       const weitere = (l.lead_activities || []).map(x => ({
         art: x.type, zeitpunkt: new Date(x.ts).toISOString(),
@@ -276,17 +279,22 @@ export const WERKZEUGE = [
     name: 'anruf_festhalten',
     title: 'Anruf festhalten',
     description:
-      'Hält fest, dass mit dem Lead telefoniert wurde. Das CRM unterscheidet bewusst ' +
-      'nicht zwischen erreicht und nicht erreicht — ein Anruf ist ein Anruf. Zählt in ' +
-      'die Tagesstatistik.',
+      'Hält fest, dass mit dem Lead telefoniert wurde. Zählt in die Tagesstatistik — ' +
+      'jeder Anruf zählt, egal wie er ausging. Optional: ob durchgestellt wurde und ' +
+      'eine Notiz zum Gespräch.',
     inputSchema: {
       type: 'object',
-      properties: { lead_id: { type: 'integer' } },
+      properties: {
+        lead_id: { type: 'integer' },
+        ergebnis: { type: 'string', enum: ['reached', 'not_reached'],
+          description: 'reached = durchgestellt/angenommen, not_reached = nicht erreicht/abgelehnt. Weglassen, wenn unbekannt.' },
+        notiz: { type: 'string', description: 'Notiz zum Gespräch.' }
+      },
       required: ['lead_id'],
       additionalProperties: false
     },
-    async run({ lead_id }) {
-      const ts = await anrufFesthalten(lead_id);
+    async run({ lead_id, ergebnis, notiz }) {
+      const ts = await anrufFesthalten(lead_id, { ergebnis, notiz });
       return { ok: true, zeitpunkt: new Date(ts).toISOString() };
     }
   },

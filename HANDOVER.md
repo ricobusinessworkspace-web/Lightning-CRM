@@ -1,6 +1,6 @@
 ---
-last_updated: 2026-09-23
-last_agent: Claude Opus 5.5 (Provision/Datum speichern, Standort überschreibt nichts mehr)
+last_updated: 2026-09-24
+last_agent: Claude Opus 5.5 (Anruf-Ergebnis ✓/✕ und Anruf-Notiz im Verlauf)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -317,8 +317,15 @@ ist genau daran monatelang stillschweigend gescheitert.
 
 Antworten auf konkrete Beschwerden, keine Zufälle.
 
-- **Anrufe kennen kein „erreicht/nicht erreicht".** `call_status` nur
-  `never`/`called`. `crm_calls.status` existiert noch, wird nirgends ausgewertet.
+- **Jeder Anruf zählt, egal wie er ausging.** Copy-Knopf = Anruf gezählt.
+  Seit 24.09.2026 (Wunsch Rico) lässt er sich im Verlauf **nachträglich**
+  einordnen: ✓ durchgestellt / ✕ nicht erreicht (`crm_calls.outcome`:
+  `reached`/`not_reached`/NULL) plus Notiz (`crm_calls.notes`). Das ändert an
+  keiner Zählung etwas. `call_status` am Lead bleibt `never`/`called`.
+  **Nicht verwechseln:** die Altspalte `crm_calls.status` (Default `answered`)
+  steht in allen Zeilen und bedeutet nichts — nie auswerten.
+- **Löschen im Verlauf ist ein Papierkorb**, kein ✕ — das ✕ heißt beim Anruf
+  „nicht erreicht".
 - **Keine versteckte Ausblende-Logik.** Früher verschwanden Leads, wenn im
   Aufgabentext „mail" vorkam (traf auch „Rechnung mailen"). Leads bleiben
   immer sichtbar.
@@ -682,6 +689,14 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Handover-Historie
+- 2026-09-24 — Anrufe im Verlauf einordnen: ✓/✕ und Notizfeld je Anruf
+  (`renderCallActivity`, `setzeAnrufErgebnis`, `anrufNotizSichern` in
+  `pipeline_ui.js`; `setCallDetails` in `core/db.js`). DB: Spalten
+  `crm_calls.outcome`/`notes` + Sicht `lead_timeline` um `call_outcome`/
+  `call_notes` ergänzt (Migrationen `crm_calls_outcome_notes`,
+  `lead_timeline_call_outcome_notes`). MCP `anruf_festhalten` nimmt optional
+  `ergebnis`/`notiz`, `lead_anzeigen` zeigt sie. Notizfeld löst bewusst kein
+  Lead-Autospeichern aus. Nicht gegen die echte DB durchgeklickt (Claude Opus 5.5).
 - 2026-09-23 — Provision/Abschlussdatum in der Seitenleiste speichern jetzt;
   Standort verknüpfen überschreibt nichts mehr und wird wirklich gespeichert;
   Kontakt-Marke „Maps" → „Telefon", Anruf-Knöpfe entfernt (Wunsch Rico).

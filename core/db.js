@@ -12,9 +12,11 @@
  *     muss dort nachziehen. Siehe HANDOVER.md.
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * Anrufe werden NICHT nach "erreicht / nicht erreicht" unterschieden.
- * Ein Anruf ist ein Anruf. Die Spalte crm_calls.status bleibt aus
- * Bestandsgruenden erhalten, wird aber nirgends mehr ausgewertet.
+ * Ein Anruf ist ein Anruf — gezaehlt wird jeder, egal wie er ausging.
+ * Seit 24.09.2026 kann man ihn NACHTRAEGLICH einordnen: crm_calls.outcome
+ * ('reached' = durchgestellt, 'not_reached' = nicht erreicht, NULL = offen)
+ * und crm_calls.notes. Die Altspalte crm_calls.status (Default 'answered')
+ * bleibt stehen, wird aber nirgends ausgewertet — nicht verwechseln.
  *
  * call_status am Lead kennt nur noch: 'never' | 'called'
  */
@@ -639,8 +641,12 @@ export const db = {
         entry.by_user_name = currentUser.name;
       }
       
-      // 1. Insert into relational table
-      await supabase.from('crm_calls').insert(entry);
+      // 1. Insert into relational table — die neue Nummer wird gebraucht,
+      //    damit man den Anruf im Verlauf sofort einordnen kann.
+      const { data: neu, error: fehlerAnruf } = await supabase
+        .from('crm_calls').insert(entry).select('id').maybeSingle();
+      if (fehlerAnruf) throw fehlerAnruf;
+      const callId = neu ? neu.id : null;
       
       // 2. Update lead timestamp
       const { data, error } = await supabase
@@ -650,10 +656,37 @@ export const db = {
         .select('*, crm_calls(*)');
 
       if (error) throw error;
-      return Array.isArray(data) ? data[0] : data;
+      return { lead: Array.isArray(data) ? data[0] : data, callId };
     } catch (e) {
       console.error('logCall error:', e);
       return null;
+    }
+  },
+
+  // ── Anruf nachtraeglich einordnen ──────────────────────────────────────────
+  // Nur outcome und notes — sonst nichts am Anruf ist aenderbar (Zeitpunkt und
+  // Einordnung zum Anrufzeitpunkt sind Messwerte). Meldet ehrlich, ob die
+  // Zeile wirklich geaendert wurde.
+  setCallDetails: async (callId, felder) => {
+    const erlaubt = {};
+    if ('outcome' in felder) {
+      const o = felder.outcome;
+      if (o !== null && o !== 'reached' && o !== 'not_reached') return false;
+      erlaubt.outcome = o;
+    }
+    if ('notes' in felder) {
+      const n = felder.notes == null ? '' : String(felder.notes);
+      erlaubt.notes = n.trim() === '' ? null : n;   // leer ist NULL
+    }
+    if (!callId || Object.keys(erlaubt).length === 0) return false;
+    try {
+      const { data, error } = await supabase
+        .from('crm_calls').update(erlaubt).eq('id', callId).select('id');
+      if (error) { console.error('setCallDetails:', error.message || error); return false; }
+      return Array.isArray(data) && data.length > 0;
+    } catch (e) {
+      console.error('setCallDetails error:', e);
+      return false;
     }
   },
 

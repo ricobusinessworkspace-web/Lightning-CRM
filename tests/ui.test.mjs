@@ -1097,6 +1097,74 @@ check('Vor dem Neuladen wird gesichert',
   w.leadStore = alterStore; w.flushLeadForm = alterFlush; w.openLeadDirectly = alterOpen;
 }
 
+// ── 27b3. Anruf im Verlauf einordnen: ✓ / ✕ und Notiz ─────────────────────
+{
+  if (!w.CSS) w.CSS = { escape: (x) => String(x).replace(/["\\]/g, '\\$&') };
+  w.eval(ausschnitt('window.renderActivity = function(act) {', '// Eintrag aus dem Verlauf loeschen.'));
+  const geschrieben = [];
+  let antwort = true;
+  w.api.setCallDetails = async (id, felder) => { geschrieben.push({ id, felder }); return antwort; };
+  const anruf = { id: '501', lead_id: 9, ts: Date.now(), activity_type: 'call', by_user_name: 'Rico',
+                  call_outcome: null, call_notes: null };
+  const nachricht = { id: '77', lead_id: 9, ts: Date.now(), activity_type: 'message', details: 'E-Mail geschrieben' };
+  const altLeads = w.store.state.leads;
+  w.store.state.leads = [{ id: 9, timeline: [anruf, nachricht], crm_calls: [{ id: 501, outcome: null, notes: null }] }];
+  w.document.body.innerHTML = `<div class="sidebar-body"><div id="verlauf">${w.renderActivity(anruf)}${w.renderActivity(nachricht)}</div></div>`;
+  const zeile = () => w.document.querySelector('.akt-anruf[data-call-id="501"]');
+
+  check('Anruf: Haken und Kreuz stehen da', !!zeile().querySelector('.anruf-ja') && !!zeile().querySelector('.anruf-nein'));
+  check('Anruf: ohne Ergebnis noch kein Notizfeld', !zeile().querySelector('.anruf-notiz'));
+  check('Nachricht: keine Anruf-Knoepfe', !w.document.body.innerHTML.includes('data-call-id="77"')
+    && w.document.querySelectorAll('.anruf-ergebnis').length === 1);
+  check('Loeschen ist ein Papierkorb, kein ✕', w.document.querySelectorAll('.akt-loeschen').length === 2
+    && !w.document.querySelector('.akt-loeschen').textContent.includes('✕'));
+
+  await w.setzeAnrufErgebnis('501', 9, 'reached');
+  check('Anruf: Haken wird gespeichert', geschrieben.at(-1).id === '501' && geschrieben.at(-1).felder.outcome === 'reached');
+  check('Anruf: Haken ist sichtbar gesetzt', zeile().querySelector('.anruf-ja').classList.contains('aktiv'));
+  check('Anruf: nach Haken erscheint Notizfeld', !!zeile().querySelector('.anruf-notiz'));
+  check('Anruf: Anrufliste im Speicher nachgezogen', w.store.state.leads[0].crm_calls[0].outcome === 'reached');
+
+  await w.setzeAnrufErgebnis('501', 9, 'reached');
+  check('Anruf: zweiter Klick nimmt zurueck', geschrieben.at(-1).felder.outcome === null
+    && !zeile().querySelector('.anruf-ja.aktiv'));
+
+  await w.setzeAnrufErgebnis('501', 9, 'not_reached');
+  check('Anruf: Kreuz wird gespeichert', geschrieben.at(-1).felder.outcome === 'not_reached');
+  check('Anruf: auch nach Kreuz gibt es ein Notizfeld', !!zeile().querySelector('.anruf-notiz'));
+
+  // Notiz: Tippen darf das Lead-Autospeichern NICHT ausloesen
+  let formularGespeichert = 0;
+  const altFlush = w.flushLeadForm, altStatus = w.setSaveStatus;
+  w.flushLeadForm = async () => { formularGespeichert++; return true; };
+  w.setSaveStatus = (z) => { if (z === 'offen') formularGespeichert++; };
+  w.document.querySelector('.sidebar-body').addEventListener('input', w._triggerAutoSave);
+  w.document.querySelector('.sidebar-body').addEventListener('focusout', w._autoSaveNow);
+  const feld = zeile().querySelector('.anruf-notiz');
+  feld.value = 'Sekretariat, Chef ab 14 Uhr';
+  feld.dispatchEvent(new w.Event('input', { bubbles: true }));
+  feld.dispatchEvent(new w.FocusEvent('focusout', { bubbles: true }));
+  await new Promise(r => setImmediate(r));
+  check('Notiz: wird beim Verlassen gespeichert', geschrieben.at(-1).felder.notes === 'Sekretariat, Chef ab 14 Uhr');
+  check('Notiz: loest kein Lead-Autospeichern aus', formularGespeichert === 0);
+  w.flushLeadForm = altFlush; w.setSaveStatus = altStatus;
+  const anzahl = geschrieben.length;
+  await w.anrufNotizSichern(feld);
+  check('Notiz: unveraendert wird nicht erneut geschrieben', geschrieben.length === anzahl);
+
+  // Fehlschlag: Anzeige wird zurueckgenommen
+  antwort = false;
+  await w.setzeAnrufErgebnis('501', 9, 'reached');
+  check('Anruf: bei Fehler bleibt das alte Ergebnis', zeile().querySelector('.anruf-nein').classList.contains('aktiv')
+    && anruf.call_outcome === 'not_reached');
+
+  // Neu gezeichnet: Notiz steht wieder im Feld
+  w.document.getElementById('verlauf').innerHTML = w.renderActivity(anruf);
+  check('Notiz: steht nach Neuzeichnen wieder da', zeile().querySelector('.anruf-notiz').value === 'Sekretariat, Chef ab 14 Uhr');
+
+  w.store.state.leads = altLeads;
+}
+
 // ── 27c. Beim Abschluss wird nach dem Wert gefragt ─────────────────────────
 // 55 von 55 Abschluessen ohne Wert: das Feld war da, nur hat niemand gefragt.
 w.document.body.innerHTML = '';

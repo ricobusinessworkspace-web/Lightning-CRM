@@ -1512,10 +1512,14 @@ window.setPipeline = async (type) => {
     knopfRueckmeldung(knopf, kopiert === false ? 'Nicht kopiert' : 'Kopiert! 📞');
 
     try {
-      await window.api.logCall(id);
+      const ergebnis = await window.api.logCall(id);
       await window.updateTrayCount();
       if (typeof window.pushLeadActivity === 'function') {
+        // Mit der neuen Nummer, damit Haken/Kreuz und Notiz im Verlauf sofort
+        // funktionieren — ohne Nummer liesse sich der Anruf nicht einordnen.
         window.pushLeadActivity(id, {
+          id: ergebnis && ergebnis.callId != null ? String(ergebnis.callId) : undefined,
+          lead_id: id,
           activity_type: 'call',
           ts: Date.now(),
           by_user_name: window.globalUser?.name || 'Ich'

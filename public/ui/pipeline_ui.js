@@ -2900,15 +2900,200 @@ window.renderActivity = function(act) {
     const actLeadId = act.lead_id != null ? act.lead_id
                     : (window.store && window.store.state && window.store.state.currentSelectedLeadId) || '';
     
+    // Loeschen als Papierkorb, nicht als ✕ — das ✕ steht beim Anruf fuer
+    // "nicht erreicht" und darf nicht mit Loeschen verwechselt werden.
+    const loeschen = act.id
+      ? `<button class="akt-loeschen" onclick="window.deleteActivity(${actIdStr}, ${actTypeStr}, ${Number(actLeadId) || 0})" title="Eintrag löschen" aria-label="Eintrag löschen">${AKT_SYMBOL.papierkorb}</button>`
+      : '';
+
+    if (act.activity_type === 'call') {
+      return window.renderCallActivity(act, text, dateStr, loeschen, Number(actLeadId) || 0);
+    }
+
     return `
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-        <div style="flex: 1;">
-          <div style="font-size: 13px; color: var(--color-text-primary, #f2f2f7); font-weight: 500;">${escapeHtml(text)}</div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${dateStr}</div>
+      <div class="akt-zeile">
+        <div class="akt-kopf">
+          <div class="akt-text">
+            <div class="akt-titel">${escapeHtml(text)}</div>
+            <div class="akt-zeit">${dateStr}</div>
+          </div>
+          ${loeschen}
         </div>
-        ${act.id ? `<button onclick="window.deleteActivity(${actIdStr}, ${actTypeStr}, ${Number(actLeadId) || 0})" style="background:none; border:none; color:var(--text-muted); font-size:12px; cursor:pointer; padding:4px 8px; opacity:0.6;" onmouseover="this.style.opacity=1; this.style.color='#ff453a';" onmouseout="this.style.opacity=0.6; this.style.color='var(--text-muted)';">✕</button>` : ''}
       </div>
     `;
+};
+
+// ── Anruf im Verlauf: Ergebnis und Notiz ────────────────────────────────────
+// Copy-Knopf zaehlt den Anruf wie immer. Danach laesst er sich hier einordnen:
+//   ✓ durchgestellt / angenommen     ✕ nicht erreicht / abgelehnt
+// Ein zweiter Klick auf dieselbe Wahl nimmt sie zurueck. Sobald eine Wahl
+// getroffen ist (oder schon eine Notiz existiert), steht darunter ein
+// schlichtes Notizfeld, das beim Tippen von selbst speichert.
+//
+// Gespeichert wird in crm_calls.outcome / crm_calls.notes — NICHT am Lead.
+// Die Anrufzaehlung bleibt davon unberuehrt: ein Anruf ist ein Anruf.
+const AKT_SYMBOL = {
+  haken: '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  kreuz: '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  papierkorb: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+
+const anrufFelder = (act) => ({
+  outcome: act.call_outcome !== undefined ? act.call_outcome : (act.outcome ?? null),
+  notes:   act.call_notes   !== undefined ? act.call_notes   : (act.notes ?? null)
+});
+
+window.renderCallActivity = function(act, text, dateStr, loeschen, leadId) {
+  const id = act.id != null ? String(act.id) : '';
+  const { outcome, notes } = anrufFelder(act);
+  const ergebnisText = outcome === 'reached' ? 'Durchgestellt'
+                     : outcome === 'not_reached' ? 'Nicht erreicht' : '';
+  const idArg = escapeHtml(JSON.stringify(id));
+
+  // Ohne Nummer (Protokollierung fehlgeschlagen) laesst sich nichts einordnen
+  const knoepfe = !id ? '' : `
+    <div class="anruf-ergebnis" role="group" aria-label="Ergebnis des Anrufs">
+      <button type="button" class="anruf-knopf anruf-ja${outcome === 'reached' ? ' aktiv' : ''}"
+        aria-pressed="${outcome === 'reached'}" title="Durchgestellt"
+        onclick="window.setzeAnrufErgebnis(${idArg}, ${leadId}, 'reached')">${AKT_SYMBOL.haken}</button>
+      <button type="button" class="anruf-knopf anruf-nein${outcome === 'not_reached' ? ' aktiv' : ''}"
+        aria-pressed="${outcome === 'not_reached'}" title="Nicht erreicht"
+        onclick="window.setzeAnrufErgebnis(${idArg}, ${leadId}, 'not_reached')">${AKT_SYMBOL.kreuz}</button>
+    </div>`;
+
+  const zeigeNotiz = id && (outcome || (notes && String(notes).trim()));
+  const platzhalter = outcome === 'not_reached' ? 'Notiz, z. B. wann wieder anrufen' : 'Notiz zum Gespräch';
+  // Tippen und Verlassen fangen die Listener unten ab (anruf-notiz). Das
+  // Autospeichern des Lead-Formulars ignoriert dieses Feld ausdruecklich.
+  const zeilen = Math.min(8, Math.max(1, String(notes || '').split('\n').length));
+  const notiz = !zeigeNotiz ? '' : `
+    <textarea class="anruf-notiz" rows="${zeilen}" placeholder="${platzhalter}"
+      data-call-id="${escapeHtml(id)}" data-lead-id="${leadId}">${escapeHtml(notes || '')}</textarea>`;
+
+  return `
+    <div class="akt-zeile akt-anruf" data-call-id="${escapeHtml(id)}">
+      <div class="akt-kopf">
+        <div class="akt-text">
+          <div class="akt-titel">${escapeHtml(text)}${ergebnisText ? `<span class="anruf-ergebnis-text anruf-${outcome}"> · ${ergebnisText}</span>` : ''}</div>
+          <div class="akt-zeit">${dateStr}</div>
+        </div>
+        ${knoepfe}
+        ${loeschen}
+      </div>
+      ${notiz}
+    </div>`;
+};
+
+// Alle Kopien des Anrufs im Speicher nachziehen — Zeitleiste und Anrufliste
+// des Leads, auch in den Zwischenspeichern der Reiter.
+const anrufLokalSetzen = (callId, leadId, felder) => {
+  const st = window.store && window.store.state;
+  if (!st) return;
+  const listen = [st.leads || []];
+  for (const k of Object.keys(st.tabCache || {})) {
+    const v = st.tabCache[k];
+    if (Array.isArray(v)) listen.push(v);
+    else if (v && Array.isArray(v.leads)) listen.push(v.leads);
+  }
+  for (const liste of listen) {
+    const lead = liste.find(x => x && Number(x.id) === Number(leadId));
+    if (!lead) continue;
+    for (const feld of ['timeline', 'crm_calls', 'call_history']) {
+      if (!Array.isArray(lead[feld])) continue;
+      for (const a of lead[feld]) {
+        if (!a || typeof a !== 'object' || String(a.id) !== String(callId)) continue;
+        if ('outcome' in felder) { a.outcome = felder.outcome; if ('call_outcome' in a || feld === 'timeline') a.call_outcome = felder.outcome; }
+        if ('notes' in felder)   { a.notes = felder.notes;     if ('call_notes' in a || feld === 'timeline') a.call_notes = felder.notes; }
+      }
+    }
+  }
+};
+
+const anrufAusSpeicher = (callId, leadId) => {
+  const lead = (window.store?.state?.leads || []).find(x => Number(x.id) === Number(leadId));
+  const tl = (lead && lead.timeline) || [];
+  return tl.find(a => a && String(a.id) === String(callId)) || null;
+};
+
+// Nur die eine Zeile neu zeichnen — Aufklappzustand und Scrollposition bleiben.
+const anrufZeileNeu = (callId, leadId) => {
+  const alt = document.querySelector(`.akt-anruf[data-call-id="${CSS.escape(String(callId))}"]`);
+  const act = anrufAusSpeicher(callId, leadId);
+  if (!alt || !act) return null;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = window.renderActivity(act);
+  const neu = tmp.firstElementChild;
+  if (neu) alt.replaceWith(neu);
+  return neu;
+};
+
+window.setzeAnrufErgebnis = async (callId, leadId, wahl) => {
+  const act = anrufAusSpeicher(callId, leadId);
+  const vorher = act ? anrufFelder(act).outcome : null;
+  const neu = vorher === wahl ? null : wahl;   // zweiter Klick nimmt zurueck
+
+  // Sofort zeigen, dann schreiben; bei Fehler zuruecknehmen
+  anrufLokalSetzen(callId, leadId, { outcome: neu });
+  const zeile = anrufZeileNeu(callId, leadId);
+  if (neu === 'reached' && zeile) {
+    const feld = zeile.querySelector('.anruf-notiz');
+    if (feld && !feld.value) feld.focus();
+  }
+
+  const ok = await window.queueSave(() => window.api.setCallDetails(callId, { outcome: neu }));
+  if (!ok) {
+    anrufLokalSetzen(callId, leadId, { outcome: vorher });
+    anrufZeileNeu(callId, leadId);
+    if (typeof window.showToast === 'function') window.showToast('Ergebnis konnte nicht gespeichert werden', true);
+  }
+};
+
+// Notiz: waehrend des Tippens nach kurzer Ruhe speichern, beim Verlassen sofort.
+const _notizTimer = {};
+const _notizGespeichert = {};
+window.anrufNotizTippen = (feld) => {
+  // Feld waechst mit dem Text
+  feld.style.height = 'auto';
+  feld.style.height = feld.scrollHeight + 'px';
+  const id = feld.getAttribute('data-call-id');
+  clearTimeout(_notizTimer[id]);
+  _notizTimer[id] = setTimeout(() => window.anrufNotizSichern(feld), 800);
+};
+
+// Einmal fuer das ganze Dokument: die Seitenleiste wird staendig neu
+// gezeichnet, Listener am Feld selbst gingen dabei verloren.
+if (!window._anrufNotizListener) {
+  window._anrufNotizListener = true;
+  document.addEventListener('input', (e) => {
+    const f = e.target && e.target.closest && e.target.closest('.anruf-notiz');
+    if (f) window.anrufNotizTippen(f);
+  });
+  document.addEventListener('focusout', (e) => {
+    const f = e.target && e.target.closest && e.target.closest('.anruf-notiz');
+    if (f) window.anrufNotizSichern(f);
+  });
+}
+
+window.anrufNotizSichern = async (feld) => {
+  const id = feld.getAttribute('data-call-id');
+  const leadId = Number(feld.getAttribute('data-lead-id')) || 0;
+  clearTimeout(_notizTimer[id]);
+  const text = feld.value;
+  const act = anrufAusSpeicher(id, leadId);
+  const bekannt = _notizGespeichert[id] !== undefined ? _notizGespeichert[id]
+                : (act ? (anrufFelder(act).notes || '') : null);
+  if (bekannt !== null && String(bekannt) === text) return;   // nichts geaendert
+
+  _notizGespeichert[id] = text;
+  anrufLokalSetzen(id, leadId, { notes: text.trim() === '' ? null : text });
+  const ok = await window.queueSave(() => window.api.setCallDetails(id, { notes: text }));
+  if (!ok) {
+    delete _notizGespeichert[id];
+    feld.setAttribute('aria-invalid', 'true');
+    if (typeof window.showToast === 'function') window.showToast('Notiz konnte nicht gespeichert werden', true);
+  } else {
+    feld.setAttribute('aria-invalid', 'false');
+  }
 };
 
 // Eintrag aus dem Verlauf loeschen.
@@ -3045,7 +3230,12 @@ window.patchLeadCard = (leadId) => {
 // Feld verlassen = Eingabe fertig -> sofort speichern, nicht erst nach der
 // Verzoegerung. Betrifft vor allem die Notizen.
 // Feld verlassen = Eingabe fertig -> sofort schreiben.
-window._autoSaveNow = () => {
+// Anruf-Notizen speichern selbst in crm_calls — kein Grund, dafuer das
+// Lead-Formular zu schreiben.
+const _eigenesFeld = (e) => !!(e && e.target && e.target.closest && e.target.closest('.anruf-notiz'));
+
+window._autoSaveNow = (e) => {
+    if (_eigenesFeld(e)) return;
     window.flushLeadForm();
 };
 
@@ -3057,7 +3247,8 @@ window._autoSaveNow = () => {
 // anderen Reiter den Schreibvorgang meist schon vorfindet, lang genug, dass
 // nicht bei jedem Buchstaben geschrieben wird. Zusaetzlich sichert
 // flushLeadForm jede Navigation ab, falls die Zeit doch nicht reicht.
-window._triggerAutoSave = () => {
+window._triggerAutoSave = (e) => {
+    if (_eigenesFeld(e)) return;
     if (typeof window.setSaveStatus === 'function') window.setSaveStatus('offen');
     if (!window._debouncedSave) {
         window._debouncedSave = window.debounce(() => {
