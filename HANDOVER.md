@@ -1,6 +1,6 @@
 ---
 last_updated: 2026-09-24
-last_agent: Claude Opus 5.5 (Rückruf-Timer: Drehrad, Glocke, Push)
+last_agent: Claude Opus 5.5 (Review + ruhige Liste + Kleinigkeiten)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -81,7 +81,7 @@ Web-CRM für Leadgenerierung, Kaltakquise und Vertriebs-Pipeline. Aktuell im
   mehrfach vorkommt — Plattformen ausgenommen. Neu berechnet von der
   SQL-Funktion `crm_multi_site_neu()`, aufgerufen am Ende jedes Imports.
 - **Zwei Schreibwege, eine Regel:** `core/db.js` (Browser) und
-  `api/_lib/crm.js` (MCP/Jarvis) setzen beide leeren Text auf NULL und leiten
+  `api/_lib/crm.js` (MCP-Connector) setzen beide leeren Text auf NULL und leiten
   `company_domain` aus `website_url` ab. Wer die Regel ändert, muss beide
   Dateien anfassen — geprüft in `tests/mcp.test.mjs`.
 - **Tests:** 518 Prüfungen, alle grün — 267 Oberfläche (`tests/ui.test.mjs`),
@@ -120,6 +120,43 @@ Schritte 1 bis 3 liegen bei Rico.
 
 Der Supabase-Schlüssel gleich daneben ist **kein** Problem: der „anon"-Schlüssel
 ist öffentlich gedacht, geschützt wird über die Zugriffsregeln.
+
+---
+
+## 🔴 Fürs Wochenende — Review vom 24.09.2026
+
+Von Rico aufs Wochenende gelegt. Reihenfolge = Empfehlung.
+
+1. **`lead_timeline` ist ohne Anmeldung lesbar** (anon-Schlüssel reicht, 345
+   Zeilen: Anrufe, Nachrichten, Stufenwechsel, **Anruf-Notizen**). Die Sicht
+   läuft als SECURITY DEFINER und umgeht die Zugriffsregeln. Lösung:
+   `alter view public.lead_timeline set (security_invoker = true);` — dann
+   gelten die Regeln von `crm_calls`/`lead_activities` (nur `authenticated`).
+   Danach mit anon-Schlüssel gegenprüfen (muss 0 liefern) und im CRM den
+   Verlauf eines Leads öffnen (muss weiter gehen).
+2. **11 Jarvis-Tabellen ohne RLS** — von außen lesbar, änderbar, löschbar:
+   `core_*` (4), `ingest_*` (4, darunter **Gesundheitsdaten**), `mail_*` (2),
+   `core_manual_values`. Gehört zu Jarvis OS — zusammen mit dem Jarvis-Projekt
+   angehen, sonst bricht dort etwas. Runbook: `docs/ungeschuetzte-tabellen.md`.
+3. **Google-Schlüssel sperren, Repository privat?** (Kasten „Sofort“ oben).
+4. **Registrierung prüfen:** Supabase → Authentication → Sign In / Providers →
+   Email → „Allow new users to sign up“ muss AUS sein. Sonst kann sich jeder
+   ein Konto anlegen und sieht dank `auth_full_access` alle Leads.
+   Außerdem darf jeder Angemeldete seine eigene `user_profiles.role` ändern
+   (Policy „Users can manage their own profile“ ohne Spaltenschutz) — vor
+   Team-Betrieb schließen. „Leaked password protection“ einschalten.
+5. **Offene Karteikarte dreht Connector-Änderungen zurück.** Schreibt ein
+   Claude-Chat über den MCP-Connector in einen Lead, der gerade offen ist,
+   schreibt das nächste Autospeichern die alten Formularwerte (Stufe, Notiz)
+   zurück — inkl. falschem Stufenwechsel im Verlauf. **Offene Entscheidung
+   (Rico):** Connector nur lesend machen (dann entfällt das) oder Karteikarte
+   bei fremder Änderung am offenen Lead nachziehen.
+
+**Wichtig zur Begrifflichkeit:** *Jarvis OS* liest nur (Lesevertrag,
+Sichten mit `security_invoker`) und schreibt **nie** ins CRM — so gewollt.
+Der zweite Schreibweg (`api/mcp.js` → `api/_lib/crm.js`) ist der
+**MCP-Connector für Claude-Chats**, nicht Jarvis. Frühere Einträge und der
+Commit `a79526b` nennen ihn fälschlich „Jarvis-Schreibweg“.
 
 ---
 
@@ -332,6 +369,13 @@ Antworten auf konkrete Beschwerden, keine Zufälle.
   erscheint sie trotzdem sofort. Abgehakt = Anruf/Nachricht nach Fälligkeit
   (`last_contact_ms`) oder × (`snooze_erledigt_ms`). „Später“ = +10 Min.
   **`snooze_until_ms` von Altfällen nie anfassen** — `crm_stock_metrics` liest es.
+- **Die Liste bleibt beim Aktualisieren stehen.** Einblend-Kaskade nur beim
+  ersten Zeichnen eines Reiters (`renderQueue` → `.liste-ruhig`); Karten, die
+  ihren Platz wechseln, gleiten hin; eine ausgetauschte Karte (`.ruhig`) blendet
+  nicht neu ein. Eigene Schreibvorgänge ohne `leadStore` (Anruf, Nachricht)
+  melden sich über `eigeneAenderung(id)` in `core/db.js` als eigen an — sonst
+  lädt das Live-Echo die Liste neu. Live-Änderungen patchen nur, außer Stufe/
+  Status/Zuweisung/Größe ändern sich (`ui/init.js`).
 - **Löschen im Verlauf ist ein Papierkorb**, kein ✕ — das ✕ heißt beim Anruf
   „nicht erreicht".
 - **Keine versteckte Ausblende-Logik.** Früher verschwanden Leads, wenn im
@@ -700,6 +744,17 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Handover-Historie
+- 2026-09-24 — Review der ganzen Codebase (ohne Änderungen, Ergebnisse im
+  Kasten „Fürs Wochenende“). Danach auf Ricos Wunsch die Kleinigkeiten:
+  ruhige Liste (kein Neuladen-Flackern nach Copy, Haken, Wiedervorlage),
+  Anruf/Nachricht als eigene Änderung, Live-Änderungen patchen statt
+  neu laden, Priorisieren/Standort-Entfernen laden nur noch einen Lead,
+  zwei ungeschützte Textstellen (Ort-Tooltip, Nutzername im Profil)
+  maskiert, Indizes für `lead_activities.lead_id`, `crm_leads.claimed_by`,
+  `crm_push_subscriptions.user_id`, `crm_notifications`. Vorher schon:
+  `sw.js` nach `public/` (wurde nie ausgeliefert). Supabase-Hinweise zu
+  doppelten RLS-Policies bewusst nicht angefasst — gehört zu Punkt 4 am
+  Wochenende (Claude Opus 5.5).
 - 2026-09-24 — Rückruf-Timer in drei Phasen. (1) `modules/wiedervorlage.js`:
   Drehrad + Datum, ersetzt Std./Tage. (2) `modules/rueckruf.js`: Glocke im Kopf,
   Stapel oben rechts, eigene Fanfare (WebAudio, kein Fremdmaterial), Copy/
@@ -751,7 +806,7 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
   der geänderten Spalten, und der MCP-Lesepfad gibt `l.email || null` aus —
   aus `''` wurde dort ohnehin `null`. Gegengeprüft am laufenden Server.
   Nachgezogen wurde `api/_lib/crm.js`: schrieb bis dahin `''` weiter und
-  hätte bei einer Webadresse von Jarvis keine `company_domain` gesetzt.
+  hätte bei einer Webadresse über den Connector keine `company_domain` gesetzt.
   Rückweg: `update crm_leads set <spalte> = '' where <spalte> is null;` pro
   Spalte. Stand der 19 Zeilen mit echtem Inhalt liegt in
   `scratch/sicherung/crm_leads_impressumfelder_2026-09-21.json`.

@@ -1618,6 +1618,12 @@ body { background-color: var(--bg); color: var(--text-main); height: 100dvh; dis
 .lead-card:nth-child(9) { animation-delay: 0.27s; }
 .lead-card:nth-child(n+10) { animation-delay: 0.30s; }
 
+/* Nur beim ersten Zeichnen eines Reiters. Beim Aktualisieren bleibt die Liste
+   stehen (renderQueue setzt .liste-ruhig); nur wirklich neue Karten blenden
+   einzeln ein, eine ausgetauschte Karte (.ruhig) gar nicht. */
+.liste-ruhig .lead-card, .lead-card.ruhig { animation: none; }
+.liste-ruhig .lead-card.karte-neu { animation: ux-fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards; animation-delay: 0s; }
+
 /* Wer Bewegung reduziert haben will, bekommt keine. */
 @media (prefers-reduced-motion: reduce) {
   .lead-card, .sidebar-body, .sidebar-header, #lead-sidebar-content > div { animation: none !important; }

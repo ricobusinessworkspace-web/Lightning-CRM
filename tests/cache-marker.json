@@ -8,8 +8,8 @@
     "hash": "c001dc880c4e62fd"
   },
   "styles.css": {
-    "marker": "5.8",
-    "hash": "d987c4557b8e0294"
+    "marker": "5.9",
+    "hash": "b541ec8452b9692b"
   },
   "mobile.css": {
     "marker": "1.1",
@@ -72,12 +72,12 @@
     "hash": "53b172ee2382510f"
   },
   "ui/pipeline_ui.js": {
-    "marker": "5.6",
-    "hash": "61c1b1d968b1669d"
+    "marker": "5.7",
+    "hash": "2cb749fb1b1ba51b"
   },
   "ui/main_ui.js": {
-    "marker": "5.5",
-    "hash": "dae9bbf4ac623ed4"
+    "marker": "5.6",
+    "hash": "133fadfe23887872"
   },
   "modules/scraper.js": {
     "marker": "4.4",

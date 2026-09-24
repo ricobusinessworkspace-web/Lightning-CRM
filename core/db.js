@@ -23,6 +23,14 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+// Eigene Schreibvorgaenge kurz vormerken: das Echo der Live-Aktualisierung
+// (ui/init.js) wird dann nicht als fremde Aenderung behandelt.
+const eigeneAenderung = (id) => {
+  if (typeof window === 'undefined' || !window.pendingLocalWrites || !id) return;
+  window.pendingLocalWrites.add(id);
+  setTimeout(() => window.pendingLocalWrites.delete(id), 2000);
+};
+
 const SUPABASE_URL     = 'https://duzmanqvyhqurxlpxrrg.supabase.co';
 const SUPABASE_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1em1hbnF2eWhxdXJ4bHB4cnJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzOTk1NTQsImV4cCI6MjA5NDk3NTU1NH0.v7dSCQQn2T_3LHrTj4j2K5Byz3oKvuKE2zO7M9BA4Uo';
 const TABLE            = 'crm_leads';
@@ -649,7 +657,10 @@ export const db = {
       if (fehlerAnruf) throw fehlerAnruf;
       const callId = neu ? neu.id : null;
       
-      // 2. Update lead timestamp
+      // 2. Update lead timestamp — als eigene Aenderung markieren. Sonst haelt
+      //    die Live-Aktualisierung das Echo fuer eine fremde Aenderung und laedt
+      //    nach jedem Copy die ganze Liste neu.
+      eigeneAenderung(id);
       const { data, error } = await supabase
         .from(TABLE)
         .update({ last_contact_ms: now })
@@ -737,6 +748,7 @@ export const db = {
         .insert({ ...basis, type: 'message' });
       if (error) throw error;
 
+      eigeneAenderung(id);   // Echo nicht als fremde Aenderung behandeln
       const { data, error: updErr } = await supabase
         .from(TABLE)
         .update({ last_contact_ms: now })

@@ -1768,7 +1768,7 @@ window.setPipeline = async (type) => {
               <span style="font-size: 10px; color: var(--text-muted); font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${l.google_place_id}">ID: ${localEscape(l.google_place_id)}</span>
             </div>
             <div style="display: flex; align-items: center; gap: 12px;">
-              <span style="font-size: 12px; color: var(--text-muted); max-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${l.maps_city || 'Unbekannt'}">📍 ${localEscape(l.maps_city || 'Unbekannt')}</span>
+              <span style="font-size: 12px; color: var(--text-muted); max-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${localEscape(l.maps_city || 'Unbekannt')}">📍 ${localEscape(l.maps_city || 'Unbekannt')}</span>
               <button class="action-btn-small success-bold" style="padding: 6px 12px; font-size: 11px;" onclick="reactivateLead(${l.id})">Reaktivieren</button>
             </div>
           </div>

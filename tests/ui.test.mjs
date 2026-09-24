@@ -1328,6 +1328,30 @@ check('Vor dem Neuladen wird gesichert',
   w.setInterval = altInterval;
 }
 
+// ── 27b6. Ruhige Liste: kein Neuladen-Flackern ────────────────────────────
+{
+  const stile = fs.readFileSync('styles.css', 'utf8');
+  check('Ruhig: beim Aktualisieren kein Einblenden',
+    /\.liste-ruhig \.lead-card, \.lead-card\.ruhig \{ animation: none; \}/.test(stile));
+  check('Ruhig: renderQueue unterscheidet erstes Zeichnen und Aktualisieren',
+    pipeSrc.includes("qList.classList.toggle('liste-ruhig', !erstesMal)"));
+  check('Ruhig: ausgetauschte Karte blendet nicht neu ein',
+    pipeSrc.includes("fresh.classList.add('ruhig')"));
+  const dbSrc = fs.readFileSync('core/db.js', 'utf8');
+  const logCallTeil = dbSrc.slice(dbSrc.indexOf('logCall: async'), dbSrc.indexOf('setCallDetails: async'));
+  check('Ruhig: Anruf-Zeitstempel ist eigene Aenderung (kein Echo-Neuladen)',
+    logCallTeil.indexOf('eigeneAenderung(id)') > -1
+    && logCallTeil.indexOf('eigeneAenderung(id)') < logCallTeil.indexOf(".update({ last_contact_ms: now })"));
+  const initSrc = fs.readFileSync('ui/init.js', 'utf8');
+  check('Ruhig: Live-Aenderung ohne Reiterwechsel patcht nur',
+    initSrc.includes("REITER_FELDER = ['stage', 'status', 'claimed_by', 'size']")
+    && initSrc.includes('window.leadStore.patch(neu.id, felder)'));
+  check('Ruhig: Live-Zeile ueberschreibt Anrufliste und Status nicht',
+    initSrc.includes("['crm_calls', 'lead_activities', 'timeline', 'call_history', 'call_status'].forEach(k => delete felder[k])"));
+  check('Priorisieren laedt nicht mehr die ganze Liste',
+    !pipeSrc.slice(pipeSrc.indexOf('window.toggleLeadStar'), pipeSrc.indexOf('window.toggleLeadStar') + 600).includes('getLeads({ all: true })'));
+}
+
 // ── 27c. Beim Abschluss wird nach dem Wert gefragt ─────────────────────────
 // 55 von 55 Abschluessen ohne Wert: das Feld war da, nur hat niemand gefragt.
 w.document.body.innerHTML = '';

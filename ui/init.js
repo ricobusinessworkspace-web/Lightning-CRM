@@ -508,6 +508,7 @@ window.addEventListener('online', () => {
 
   if (window.api && window.api.onLeadsChanged) {
     let realtimeDebounceTimer = null;
+    const realtimeGesammelt = [];
     window.api.onLeadsChanged(({ eventType, newRow, oldRow }) => {
       console.log('⚡ Supabase Realtime Update:', eventType, newRow?.name || oldRow?.name);
       
@@ -520,10 +521,38 @@ window.addEventListener('online', () => {
         return; // Ignore our own write
       }
 
+      // Fremde Aenderung einsammeln und nach kurzer Ruhe verarbeiten.
+      //
+      // Vorher lud jede einzelne davon die ganze Liste neu — auch das Echo
+      // von Zeitschaltuhr und Rueckruf-Vermerken. Jetzt: aendert sich an einem
+      // Lead nichts, was ihn in einen anderen Reiter schieben koennte, wird er
+      // nur im Speicher nachgezogen und neu einsortiert (ohne Netzaufruf,
+      // ruhig gezeichnet). Nur Neuanlagen, Loeschungen und Wechsel von Stufe,
+      // Status, Zuweisung oder Groesse laden die Liste frisch.
+      realtimeGesammelt.push({ eventType, newRow, oldRow });
       if (realtimeDebounceTimer) clearTimeout(realtimeDebounceTimer);
       realtimeDebounceTimer = setTimeout(() => {
-        // Auto-refresh the current tab and the call tracker badge
-        if (typeof loadUi === 'function') loadUi();
+        const liste = realtimeGesammelt.splice(0);
+        const REITER_FELDER = ['stage', 'status', 'claimed_by', 'size'];
+        const ganzNeu = liste.some(({ eventType: art, newRow: neu }) => {
+          if (art !== 'UPDATE' || !neu || !window.leadStore) return true;
+          const alt = window.leadStore.get(neu.id);
+          if (!alt) return true;
+          return REITER_FELDER.some(k => String(alt[k] ?? '') !== String(neu[k] ?? ''));
+        });
+        if (ganzNeu) {
+          if (typeof loadUi === 'function') loadUi();
+        } else {
+          liste.forEach(({ newRow: neu }) => {
+            // Die Live-Zeile kommt ohne Anrufe und Zeitleiste. normalizeRow leitet
+            // daraus leere Listen und call_status 'never' ab — die duerfen den
+            // bekannten Stand nicht ueberschreiben.
+            const felder = { ...neu };
+            ['crm_calls', 'lead_activities', 'timeline', 'call_history', 'call_status'].forEach(k => delete felder[k]);
+            window.leadStore.patch(neu.id, felder);
+          });
+          if (typeof window.sortiereListenNeu === 'function') window.sortiereListenNeu();
+        }
         if (typeof updateTrayCount === 'function') updateTrayCount();
         if (typeof updateRPUI === 'function') updateRPUI();
       }, 500);

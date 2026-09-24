@@ -122,7 +122,13 @@ async function loadAdminUsers(currentRole) {
       
       const displayRole = (u.role === 'minion' || u.role === 'agent') ? 'Agent' : u.role;
       const info = document.createElement('div');
-      info.innerHTML = `<strong>${u.name}</strong> <span class="mono">${displayRole}</span>`;
+      // Als Text einsetzen, nicht als Markup — Namen kommen aus der Datenbank
+      const fett = document.createElement('strong');
+      fett.textContent = u.name || '';
+      const rolle = document.createElement('span');
+      rolle.className = 'mono';
+      rolle.textContent = displayRole || '';
+      info.append(fett, ' ', rolle);
       
       const actions = document.createElement('div');
       if (currentRole === 'developer' && u.role !== 'developer') {

@@ -609,7 +609,57 @@ if (typeof window.renderDashboard === 'function') {
   };
 
 
+  // ── Liste ruhig neu zeichnen ────────────────────────────────────────────
+  // Vorher lief bei JEDEM Neuzeichnen die gestaffelte Einblend-Bewegung aller
+  // Karten von vorn — nach einem Copy, einem Haken, einer Wiedervorlage. Das
+  // sah aus wie ein Neuladen der ganzen Seite.
+  //
+  // Jetzt: Einblenden nur beim ersten Zeichnen eines Reiters. Danach bleibt die
+  // Liste stehen; Karten, die ihren Platz wechseln, gleiten dorthin, neue
+  // blenden einzeln ein. Die Scrollposition bleibt erhalten.
+  let _gezeichneterReiter = null;
+  const kartenPositionen = () => {
+    const pos = new Map();
+    if (!qList) return pos;
+    qList.querySelectorAll('.lead-card[id^="lead-card-"]').forEach(el => pos.set(el.id, el.getBoundingClientRect().top));
+    return pos;
+  };
+  const bewegungReduziert = () => {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return true; }
+  };
   function renderQueue(leads) {
+    const reiter = `${window.store.state.currentTab}|${window.store.state.currentSearch || ''}`;
+    const erstesMal = reiter !== _gezeichneterReiter;
+    _gezeichneterReiter = reiter;
+    const vorher = erstesMal ? null : kartenPositionen();
+    const scroller = qList && qList.parentElement;
+    const scrollOben = qList ? qList.scrollTop : 0;
+    const scrollOben2 = scroller ? scroller.scrollTop : 0;
+
+    renderQueueInnen(leads);
+    if (!qList) return;
+
+    qList.classList.toggle('liste-ruhig', !erstesMal);
+    if (erstesMal) return;
+    qList.scrollTop = scrollOben;
+    if (scroller) scroller.scrollTop = scrollOben2;
+    if (bewegungReduziert()) return;
+
+    qList.querySelectorAll('.lead-card[id^="lead-card-"]').forEach(el => {
+      if (!vorher.has(el.id)) { el.classList.add('karte-neu'); return; }
+      const dy = vorher.get(el.id) - el.getBoundingClientRect().top;
+      if (Math.abs(dy) < 1) return;
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${dy}px)`;
+      requestAnimationFrame(() => {
+        el.style.transition = 'transform .32s cubic-bezier(.2,.8,.2,1)';
+        el.style.transform = '';
+        el.addEventListener('transitionend', () => { el.style.transition = ''; }, { once: true });
+      });
+    });
+  }
+
+  function renderQueueInnen(leads) {
     if(!leads || leads.length === 0) {
       let icon = '📞';
       let stateMsg = 'Hörer in die Hand und loslegen.';
@@ -1827,8 +1877,8 @@ if (typeof window.renderDashboard === 'function') {
       // hielt der Vergleich ungespeicherte Eingaben fuer gespeichert.
       if (typeof window.flushLeadForm === 'function') await window.flushLeadForm();
       const draft = null;
-      const fullList = await window.api.getLeads({ all: true });
-      const l = fullList.find(x => x.id === id);
+      // Frisch aus der Datenbank, aber nur diesen einen Lead
+      const l = await window.api.getLead(id);
       if (!l) return;
       if (Array.isArray(l.locations)) {
         const restLocations = l.locations.slice();
@@ -2070,8 +2120,8 @@ if (typeof window.renderDashboard === 'function') {
       // hielt der Vergleich ungespeicherte Eingaben fuer gespeichert.
       if (typeof window.flushLeadForm === 'function') await window.flushLeadForm();
       const draft = null;
-      const fullList = await window.api.getLeads({ all: true });
-      const l = fullList.find(x => x.id === id);
+      // Nur diesen Lead, nicht die ganze Liste
+      const l = window.leadStore.get(id) || await window.api.getLead(id);
       if (!l) return;
       
       const neuStarred = l.starred ? 0 : 1;
@@ -3205,6 +3255,7 @@ window.patchLeadCard = (leadId) => {
     const fresh = tmp.firstElementChild;
     if (!fresh) return false;
 
+    fresh.classList.add('ruhig');   // getauschte Karte blendet nicht neu ein
     el.replaceWith(fresh);
     return true;
   } catch (e) {
