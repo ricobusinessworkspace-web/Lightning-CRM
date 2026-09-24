@@ -297,6 +297,13 @@
   const istHomescreen = () => (window.navigator.standalone === true) ||
     (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 
+  // serviceWorker.ready wartet ewig, wenn der Service Worker nie startet —
+  // nach 5 Sekunden aufgeben statt die Glocke haengen zu lassen.
+  const swBereit = () => Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((_, nein) => setTimeout(() => nein(new Error('Service Worker startet nicht')), 5000))
+  ]);
+
   function schluesselBytes(b64) {
     const pad = '='.repeat((4 - b64.length % 4) % 4);
     const roh = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
@@ -312,11 +319,11 @@
     else if (Notification.permission === 'denied') z = 'gesperrt';
     else {
       try {
-        const reg = await navigator.serviceWorker.ready;
+        const reg = await swBereit();
         const abo = await reg.pushManager.getSubscription();
         const passt = abo && gleicheBytes(abo.options && abo.options.applicationServerKey, schluesselBytes(VAPID).buffer);
         z = passt && Notification.permission === 'granted' ? 'an' : 'aus';
-      } catch (e) { z = 'aus'; }
+      } catch (e) { z = 'nicht-moeglich'; }
     }
     if (z !== pushZustand) { pushZustand = z; zeichnen(); }
   }
@@ -338,7 +345,7 @@
     try {
       const erlaubnis = await Notification.requestPermission();
       if (erlaubnis !== 'granted') { await pushStatus(); return; }
-      const reg = await navigator.serviceWorker.ready;
+      const reg = await swBereit();
       const schluessel = schluesselBytes(VAPID);
       let abo = await reg.pushManager.getSubscription();
       // Ein altes Abo mit anderem Schluessel kann nie zugestellt werden — ersetzen

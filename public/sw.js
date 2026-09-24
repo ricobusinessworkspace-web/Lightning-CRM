@@ -1,10 +1,14 @@
-// Safer Service Worker for Offline Fallback & caching
+// Service Worker: Offline-Rueckfall, Zwischenspeicher, Push.
+//
+// Liegt in public/, damit Vite ihn nach dist/ kopiert. Bis 24.09.2026 lag er
+// im Hauptordner und wurde NIE ausgeliefert (/sw.js war 404) — deshalb kam
+// weder Push an noch der Versionshinweis nach einem Deploy.
 const CACHE_NAME = 'lightning-crm-cache-v5';
+// styles.css und theme.css buendelt Vite in assets/ — unter /styles.css gibt
+// es sie nicht, und ein einziger Fehlgriff laesst cache.addAll ganz scheitern.
 const urlsToCache = [
   '/',
   '/index.html',
-  '/styles.css',
-  '/theme.css',
   '/manifest.json'
 ];
 
@@ -32,8 +36,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
 
-  // Bypass cache for APIs, Supabase, and non-GET requests
-  if (req.method !== 'GET' || req.url.includes('supabase.co') || req.url.includes('/api/')) {
+  // Nur eigene GET-Anfragen. Fremde Adressen (Supabase, Kartenkacheln,
+  // Nominatim, Google) laufen am Zwischenspeicher vorbei — sonst bekaeme man
+  // dort fuer immer die erste Antwort.
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) {
     return;
   }
 
