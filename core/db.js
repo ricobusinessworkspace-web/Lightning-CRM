@@ -343,7 +343,8 @@ export const db = {
       'closed_gas', 'zaehlernummern', 'abschlussdatum', 'provi_umsatz', 'last_edited_ms',
       'locations', 'email', 'impressum_phone', 'legal_company_name', 'director_name',
       'phone_source', 'estimated_kwh', 'opening_hours', 'linked_leads', 'last_contact_ms',
-      'claimed_by', 'created_at_ms', 'closed_at_ms', 'company_domain', 'is_multi_site'
+      'claimed_by', 'created_at_ms', 'closed_at_ms', 'company_domain', 'is_multi_site',
+      'snooze_erledigt_ms'
     ];
 
     let payload = {};
@@ -661,6 +662,26 @@ export const db = {
       console.error('logCall error:', e);
       return null;
     }
+  },
+
+  // ── Faellige Rueckrufe ─────────────────────────────────────────────────────
+  // Wiedervorlagen, deren Zeitpunkt erreicht ist und die noch niemand
+  // abgehakt hat. Abgehakt heisst: snooze_erledigt_ms oder ein Kontakt
+  // (last_contact_ms, also Anruf oder Nachricht) NACH dem Faelligwerden.
+  // Wer aus der Seitenleiste anruft, hakt damit automatisch ab.
+  // Nur die letzten 30 Tage — aeltere stehen nicht mehr als Aufgabe im Raum.
+  getFaelligeRueckrufe: async () => {
+    const jetzt = Date.now();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('id, name, phone, impressum_phone, snooze_until_ms, snooze_erledigt_ms, last_contact_ms')
+      .gt('snooze_until_ms', 0)
+      .lte('snooze_until_ms', jetzt)
+      .gte('snooze_until_ms', jetzt - 30 * 24 * 60 * 60 * 1000)
+      .order('snooze_until_ms', { ascending: true });
+    if (error) throw error;
+    return (data || []).filter(l =>
+      Math.max(Number(l.snooze_erledigt_ms) || 0, Number(l.last_contact_ms) || 0) < Number(l.snooze_until_ms));
   },
 
   // ── Anruf nachtraeglich einordnen ──────────────────────────────────────────

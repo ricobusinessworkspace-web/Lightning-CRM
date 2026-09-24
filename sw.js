@@ -1,5 +1,5 @@
 // Safer Service Worker for Offline Fallback & caching
-const CACHE_NAME = 'lightning-crm-cache-v4';
+const CACHE_NAME = 'lightning-crm-cache-v5';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -61,51 +61,62 @@ self.addEventListener('fetch', (event) => {
 });
 
 // --- Web Push Handling ---
+//
+// Rueckrufe (api/rueckrufe.js) und die Sales Bell kommen hier an.
+//
+// Ist das CRM auf DIESEM Geraet gerade vorne und im Fokus, zeigt es die
+// Meldung selbst (Karte oben rechts mit Ton) — eine zweite Systemmitteilung
+// waere doppelt. Das gilt nur fuer Chrome/Edge: Safari (Mac und iPhone)
+// verlangt zu jedem Push eine sichtbare Mitteilung und entzieht sonst die
+// Erlaubnis. Dort erscheint sie immer; das `tag` sorgt dafuer, dass sich
+// Meldungen zum selben Lead ersetzen statt stapeln.
 
-self.addEventListener('push', function(event) {
+const istChromium = /Chrome|Chromium|Edg\//.test(self.navigator.userAgent) &&
+                    !/iPhone|iPad|iPod/.test(self.navigator.userAgent);
+
+self.addEventListener('push', (event) => {
   let data = {};
   if (event.data) {
-    try {
-      data = event.data.json();
-    } catch(e) {
-      data = { title: 'CRM Benachrichtigung', body: event.data.text() };
-    }
+    try { data = event.data.json(); }
+    catch (e) { data = { title: 'Lightning CRM', body: event.data.text() }; }
   }
 
-  const title = data.title || 'Lightning CRM';
-  const options = {
-    body: data.body || 'Neue Benachrichtigung',
-    icon: '/favicon.ico', // You should add a proper 192x192 icon here later
-    badge: '/favicon.ico',
-    vibrate: [200, 100, 200],
-    data: {
-      url: data.url || '/'
-    }
-  };
+  event.waitUntil((async () => {
+    const fenster = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    fenster.forEach(c => c.postMessage({ typ: data.typ || 'push', leadId: data.leadId }));
 
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
+    const vorne = fenster.some(c => c.focused && c.visibilityState === 'visible');
+    if (vorne && istChromium && (data.typ === 'rueckruf' || data.typ === 'rueckrufe')) return;
+
+    await self.registration.showNotification(data.title || 'Lightning CRM', {
+      body: data.body || '',
+      icon: '/icon-192.png?v=4',
+      badge: '/icon-192.png?v=4',
+      tag: data.tag || undefined,
+      renotify: !!data.tag,
+      requireInteraction: data.typ === 'rueckruf' || data.typ === 'rueckrufe',
+      vibrate: [120, 60, 120, 60, 240],
+      data: { url: data.url || '/', leadId: data.leadId || null, typ: data.typ || null }
+    });
+  })());
 });
 
-self.addEventListener('notificationclick', function(event) {
+self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  
-  // This looks to see if the current is already open and focuses if it is
-  event.waitUntil(
-    clients.matchAll({ type: 'window' }).then(windowClients => {
-      const targetUrl = event.notification.data.url;
-      // Check if there is already a window/tab open with the target URL
-      for (let i = 0; i < windowClients.length; i++) {
-        const client = windowClients[i];
-        if (client.url.includes(targetUrl) && 'focus' in client) {
-          return client.focus();
-        }
-      }
-      // If not, open a new window
-      if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
-      }
-    })
-  );
+  const d = event.notification.data || {};
+  const url = d.url || '/';
+
+  event.waitUntil((async () => {
+    const fenster = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // Ein offenes CRM-Fenster nach vorne holen und dort den Lead oeffnen —
+    // statt ein zweites Fenster aufzumachen.
+    const crm = fenster.find(c => new URL(c.url).origin === self.location.origin);
+    if (crm) {
+      await crm.focus();
+      if (d.leadId) crm.postMessage({ typ: 'oeffne', leadId: d.leadId });
+      else if (d.typ === 'rueckrufe') crm.postMessage({ typ: 'oeffne-stapel' });
+      return;
+    }
+    if (clients.openWindow) await clients.openWindow(url);
+  })());
 });

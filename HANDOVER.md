@@ -1,6 +1,6 @@
 ---
 last_updated: 2026-09-24
-last_agent: Claude Opus 5.5 (Anruf-Ergebnis ✓/✕ und Anruf-Notiz im Verlauf)
+last_agent: Claude Opus 5.5 (Rückruf-Timer: Drehrad, Glocke, Push)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -324,6 +324,14 @@ Antworten auf konkrete Beschwerden, keine Zufälle.
   keiner Zählung etwas. `call_status` am Lead bleibt `never`/`called`.
   **Nicht verwechseln:** die Altspalte `crm_calls.status` (Default `answered`)
   steht in allen Zeilen und bedeutet nichts — nie auswerten.
+- **Wiedervorlage = Rückruf-Timer (seit 24.09.2026).** Drehrad Tage/Std./Min.
+  (5er-Schritte, startet auf 0) oder Datum → 8:00. Geschrieben wird nur
+  `snooze_until_ms`, erst mit „Setzen“. Jede fällige Wiedervorlage meldet sich:
+  im CRM als Karte unter der Glocke (mit Ton, abschaltbar), auf den Geräten per
+  Push. **Nachtruhe 21–8 Uhr (Berlin):** kein Push, um 8:00 gesammelt; im CRM
+  erscheint sie trotzdem sofort. Abgehakt = Anruf/Nachricht nach Fälligkeit
+  (`last_contact_ms`) oder × (`snooze_erledigt_ms`). „Später“ = +10 Min.
+  **`snooze_until_ms` von Altfällen nie anfassen** — `crm_stock_metrics` liest es.
 - **Löschen im Verlauf ist ein Papierkorb**, kein ✕ — das ✕ heißt beim Anruf
   „nicht erreicht".
 - **Keine versteckte Ausblende-Logik.** Früher verschwanden Leads, wenn im
@@ -662,6 +670,9 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Für nächsten Agent
+- **Push einrichten ist Ricos Schritt:** iPhone → Safari → Teilen → „Zum
+  Home-Bildschirm“, dort öffnen → Glocke → „Aktivieren“ → „Test senden“.
+  Solange kein Gerät angemeldet ist, kommt nur die Karte im CRM.
 
 - **Lies zuerst** den Kasten „🔴 Sofort" und die „⚠️ Kritische Fallen"
   oben — jede Falle hat schon einmal Zeit gekostet.
@@ -689,6 +700,18 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Handover-Historie
+- 2026-09-24 — Rückruf-Timer in drei Phasen. (1) `modules/wiedervorlage.js`:
+  Drehrad + Datum, ersetzt Std./Tage. (2) `modules/rueckruf.js`: Glocke im Kopf,
+  Stapel oben rechts, eigene Fanfare (WebAudio, kein Fremdmaterial), Copy/
+  Später/×, am Handy zusätzlich „Anrufen“. (3) Push: `api/rueckrufe.js` +
+  `api/_lib/rueckrufe.js` (Regeln), `sw.js` neu (tag, Klick öffnet Lead).
+  DB: `crm_leads.snooze_notified_ms`/`snooze_erledigt_ms` (83 Altfälle als
+  gemeldet+erledigt markiert), Vault-Geheimnis `rueckruf_secret`, Funktion
+  `rueckruf_zugang_pruefen` (nur service_role), `pg_net`, Cron-Job
+  `rueckrufe-melden` (jede Minute, nur 8–21 Uhr und nur wenn etwas fällig ist).
+  **Befund:** Push hat vorher nie funktioniert (keine VAPID-Schlüssel bei
+  Vercel, 0 Geräte). Neues Schlüsselpaar von Rico bei Vercel hinterlegt; der
+  alte Schlüssel im Sales-Bell-Code ersetzt (Claude Opus 5.5).
 - 2026-09-24 — Anrufe im Verlauf einordnen: ✓/✕ und Notizfeld je Anruf
   (`renderCallActivity`, `setzeAnrufErgebnis`, `anrufNotizSichern` in
   `pipeline_ui.js`; `setCallDetails` in `core/db.js`). DB: Spalten

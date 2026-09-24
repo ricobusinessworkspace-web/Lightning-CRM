@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <link rel="stylesheet" href="theme.css?v=4.7">
-  <link rel="stylesheet" href="styles.css?v=5.7">
+  <link rel="stylesheet" href="styles.css?v=5.8">
   <link rel="stylesheet" href="mobile.css?v=1.1">
 </head>
 <body>
@@ -150,6 +150,12 @@
 
     <div class="header-actions" style="display: flex; align-items: center; gap: 12px;">
       <div id="topbar-calls-count" style="display: none;"></div>
+
+      <!-- Faellige Rueckrufe: blendet den Stapel oben rechts ein und aus (modules/rueckruf.js) -->
+      <button id="rr-glocke" class="header-icon-btn rr-glocke" type="button" aria-label="Rückrufe" aria-expanded="false" title="Rückrufe">
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M8 2.2a3.6 3.6 0 0 0-3.6 3.6v2.1c0 .9-.3 1.7-.9 2.4l-.6.7h10.2l-.6-.7a3.6 3.6 0 0 1-.9-2.4V5.8A3.6 3.6 0 0 0 8 2.2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6.6 13a1.5 1.5 0 0 0 2.8 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        <span class="rr-zahl" hidden>0</span>
+      </button>
       
       <div onclick="openProfileModal()" class="header-profile-btn" title="Account & Profil">
         <span id="header-profile-initial">?</span>
@@ -441,9 +447,10 @@
   <script src="modules/kontaktdaten.js?v=1.1"></script>
   <script src="modules/backfill.js?v=1.0"></script>
   <script src="modules/betrag.js?v=1.0"></script>
-  <script src="modules/wiedervorlage.js?v=1.0"></script>
+  <script src="modules/wiedervorlage.js?v=1.1"></script>
+  <script src="modules/rueckruf.js?v=1.0"></script>
   <script src="ui/pipeline_ui.js?v=5.6"></script>
-  <script src="ui/main_ui.js?v=5.4"></script>
+  <script src="ui/main_ui.js?v=5.5"></script>
   <script src="modules/scraper.js?v=4.4"></script>
   <script type="module" src="ui/profile-modal.js?v=4.2"></script>
   <script type="module" src="ui/init.js?v=4.7"></script>

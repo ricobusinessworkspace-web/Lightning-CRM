@@ -1249,6 +1249,85 @@ check('Vor dem Neuladen wird gesichert',
   w.setzeWiedervorlage = altSetze;
 }
 
+// ── 27b5. Faellige Rueckrufe: Glocke und Stapel ───────────────────────────
+{
+  const jetzt = Date.now();
+  let antwort = [
+    { id: 21, name: 'Später fällig GmbH', phone: '0351 2', snooze_until_ms: jetzt - 60000 },
+    { id: 20, name: 'Früh fällig KG', phone: '0351 1', snooze_until_ms: jetzt - 600000 }
+  ];
+  const geschrieben = [];
+  const altSave = w.leadStore.save, altCopy = w.copyPhone, altOpen = w.openLeadDirectly, altSort = w.sortiereListenNeu;
+  w.api.getFaelligeRueckrufe = async () => [...antwort].sort((a, b) => a.snooze_until_ms - b.snooze_until_ms);
+  w.leadStore.save = async (id, felder) => { geschrieben.push({ id, felder }); return true; };
+  const kopiert = [], geoeffnet = [];
+  w.copyPhone = async (e, id, nr) => { kopiert.push({ id, nr }); };
+  w.openLeadDirectly = async (id) => { geoeffnet.push(id); };
+  w.sortiereListenNeu = () => {};
+  w.globalUser = { id: 'rico', name: 'Rico' };
+  const altInterval = w.setInterval;
+  w.setInterval = () => 0;
+  w.document.body.innerHTML = '<button id="rr-glocke"><span class="rr-zahl" hidden>0</span></button>';
+  w.eval(fs.readFileSync('public/modules/rueckruf.js', 'utf8'));
+  await w.Rueckruf.pruefen();
+
+  const karten = [...w.document.querySelectorAll('.rr-karte')];
+  check('Rückruf: beide Karten stehen da', karten.length === 2);
+  check('Rückruf: aelteste zuerst', karten[0].getAttribute('data-id') === '20');
+  check('Rückruf: Glocke zaehlt', w.document.querySelector('.rr-zahl').textContent === '2'
+    && !w.document.querySelector('.rr-zahl').hidden);
+  check('Rückruf: neue Karten sind markiert (Animation)', karten.every(k => k.classList.contains('neu')));
+  check('Rückruf: Stapel ist sichtbar', !w.document.getElementById('rr-stapel').hidden);
+
+  // Zweiter Durchlauf ohne Aenderung: nichts neu zeichnen
+  const vorher = w.document.querySelector('.rr-karte');
+  await w.Rueckruf.pruefen();
+  check('Rückruf: unveraendert wird nicht neu gezeichnet', w.document.querySelector('.rr-karte') === vorher);
+
+  // Erledigt (×)
+  w.document.querySelector('.rr-karte[data-id="21"] [data-aktion="erledigt"]').click();
+  await new Promise(r => setImmediate(r));
+  const erl = geschrieben.find(g => g.id === 21);
+  check('Erledigt: schreibt snooze_erledigt_ms', erl && erl.felder.snooze_erledigt_ms >= jetzt);
+  check('Erledigt: Karte ist weg', !w.document.querySelector('.rr-karte[data-id="21"]'));
+  check('Erledigt: fasst die Wiedervorlage selbst nicht an', !('snooze_until_ms' in erl.felder));
+
+  // Spaeter
+  antwort = antwort.filter(l => l.id !== 21);
+  w.document.querySelector('.rr-karte[data-id="20"] [data-aktion="spaeter"]').click();
+  await new Promise(r => setImmediate(r));
+  const sp = geschrieben.find(g => g.id === 20 && 'snooze_until_ms' in g.felder);
+  check('Später: schiebt um 10 Minuten', sp && Math.abs(sp.felder.snooze_until_ms - (Date.now() + 600000)) < 5000);
+  check('Später: Karte ist weg, Glocke leer', !w.document.querySelector('.rr-karte')
+    && w.document.querySelector('.rr-zahl').hidden);
+  check('Leer: Stapel blendet sich aus', w.document.getElementById('rr-stapel').hidden);
+
+  // Glocke oeffnet den leeren Stapel trotzdem (fuer die Einstellungen)
+  w.Rueckruf.umschalten();
+  check('Glocke: oeffnet auch leer', !w.document.getElementById('rr-stapel').hidden
+    && w.document.querySelector('.rr-leer'));
+  w.Rueckruf.umschalten();
+  check('Glocke: blendet wieder aus', w.document.getElementById('rr-stapel').hidden);
+
+  // Copy: kopiert ueber den normalen Weg, oeffnet den Lead
+  antwort = [{ id: 30, name: 'Copy AG', phone: '0351 3', snooze_until_ms: Date.now() - 1000 }];
+  await w.Rueckruf.pruefen();
+  w.document.querySelector('.rr-karte[data-id="30"] [data-aktion="copy"]').click();
+  await new Promise(r => setImmediate(r));
+  await new Promise(r => setImmediate(r));
+  check('Copy: nimmt den normalen Kopier- und Zaehlweg', kopiert.length === 1 && kopiert[0].id === 30 && kopiert[0].nr === '0351 3');
+  check('Copy: oeffnet den Lead', geoeffnet.includes(30));
+  check('Copy: Karte ist weg', !w.document.querySelector('.rr-karte[data-id="30"]'));
+
+  // Ohne lokalen Speicher (hier gesperrt, wie im privaten Fenster) laeuft alles weiter
+  let speicherGesperrt = false;
+  try { w.localStorage.getItem('x'); } catch (e) { speicherGesperrt = true; }
+  check('Gesperrter Speicher bricht nichts', speicherGesperrt ? true : (w.localStorage.getItem('rr-gesehen') || '').includes('30:'));
+
+  w.leadStore.save = altSave; w.copyPhone = altCopy; w.openLeadDirectly = altOpen; w.sortiereListenNeu = altSort;
+  w.setInterval = altInterval;
+}
+
 // ── 27c. Beim Abschluss wird nach dem Wert gefragt ─────────────────────────
 // 55 von 55 Abschluessen ohne Wert: das Feld war da, nur hat niemand gefragt.
 w.document.body.innerHTML = '';

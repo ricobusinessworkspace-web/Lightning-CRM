@@ -81,6 +81,7 @@ window.api = {
   // Call Tracking
   logCall: (id) => db.logCall(id),
   setCallDetails: (callId, felder) => db.setCallDetails(callId, felder),
+  getFaelligeRueckrufe: () => db.getFaelligeRueckrufe(),
   logMessage: (id, kanal) => db.logMessage(id, kanal),
   logEmail: (id) => db.logMessage(id, 'email'),
   logTaskDone: (id, text, hauptText) => db.logTaskDone(id, text, hauptText),

@@ -1527,6 +1527,8 @@ window.setPipeline = async (type) => {
           by_user_name: window.globalUser?.name || 'Ich'
         });
       }
+      // Ein Anruf hakt einen faelligen Rueckruf ab — Glocke gleich nachziehen
+      if (window.Rueckruf) window.Rueckruf.pruefen();
     } catch (err) { console.warn('Call log failed:', err); }
 
     // Fallback: update status (Element ist optional — existiert nicht in jedem Layout)
@@ -1966,7 +1968,9 @@ window.setPipeline = async (type) => {
       }
 
       // Hardcoded Public VAPID key
-      const vapidPublicKey = 'BHyEIPrHyhQCvVghKL1_mMGsoAU7mdprcWHxzMpXA8txelYBkjE0c4XLzDtwrOapXTbsCpaL9Zg3nI9Nh4YO4hI';
+      // Seit 24.09.2026 derselbe Schluessel wie fuer die Rueckrufe (VAPID_PUBLIC_KEY bei Vercel).
+      // Der alte hatte keinen passenden privaten Schluessel — Push konnte nie ankommen.
+      const vapidPublicKey = 'BEz1sMulB4ee_7LY3i-eHpP2Fmei6RHAzU1QzpAusy3PniUTbX47juEulS_4nCBiHxajVx__L5R37Ve0hxEGBkg';
       const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
 
       const subscription = await registration.pushManager.subscribe({

@@ -2265,3 +2265,95 @@ a.kontakt-btn { text-decoration: none; display: inline-flex; align-items: center
 @media (prefers-reduced-motion: reduce) {
   .wv-wert { transition: none; }
 }
+
+/* ── Faellige Rueckrufe: Glocke und Stapel ─────────────────────────────────
+   Oben rechts, ueber der Seitenleiste, unter Dialogen. Jede Karte ist ein
+   faelliger Rueckruf, aelteste zuerst. Neue Karten gleiten herein und
+   leuchten einmal kurz auf. */
+.rr-glocke { position: relative; }
+.rr-glocke.hat-faellige { color: var(--color-intent-warning); border-color: rgba(255,159,10,0.45); }
+.rr-zahl {
+  position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: var(--radius-pill); background: var(--color-intent-danger); color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
+  font-variant-numeric: tabular-nums; box-sizing: border-box;
+}
+
+.rr-stapel {
+  position: fixed; top: 64px; right: 16px; z-index: 1050;
+  width: 320px; max-height: calc(100vh - 88px); overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px; border-radius: var(--radius-xl);
+  background: rgba(22,22,24,0.86);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.55);
+  animation: rr-ein .28s cubic-bezier(.2,.8,.2,1);
+}
+.rr-stapel[hidden] { display: none; }
+.rr-leiste { display: flex; align-items: center; gap: 6px; padding: 2px 4px 2px 6px; }
+.rr-titel { flex: 1; font-size: var(--text-sm); font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--color-text-secondary); }
+.rr-ton, .rr-zu {
+  width: 26px; height: 26px; border-radius: var(--radius-pill); border: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--color-text-secondary); font-size: 16px; line-height: 1;
+}
+.rr-ton:hover, .rr-zu:hover { background: var(--fill-hover); color: var(--color-text-primary); }
+.rr-ton.an { color: var(--color-text-primary); }
+.rr-liste { display: flex; flex-direction: column; gap: 8px; }
+.rr-leer { padding: 14px 8px; text-align: center; font-size: var(--text-sm); color: var(--color-text-secondary); }
+
+.rr-karte {
+  position: relative; overflow: hidden;
+  padding: 10px 12px 12px; border-radius: var(--radius-lg);
+  background: var(--fill-subtle); border: 1px solid var(--hairline);
+}
+.rr-karte::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--color-intent-warning); }
+.rr-karte.neu { animation: rr-karte-ein .45s cubic-bezier(.2,.8,.2,1), rr-leuchten 1.6s ease-out .2s; }
+.rr-kopf { display: flex; align-items: center; gap: 6px; }
+.rr-punkt { width: 7px; height: 7px; border-radius: 50%; background: var(--color-intent-warning); animation: rr-puls 1.8s infinite; }
+.rr-seit { flex: 1; font-size: var(--text-xs); font-weight: 600; color: var(--color-intent-warning); font-variant-numeric: tabular-nums; }
+.rr-weg {
+  width: 22px; height: 22px; border-radius: var(--radius-pill); border: none; cursor: pointer;
+  background: transparent; color: var(--color-text-secondary); font-size: 16px; line-height: 1;
+}
+.rr-weg:hover { background: var(--fill-hover); color: var(--color-text-primary); }
+.rr-name {
+  display: block; width: 100%; text-align: left; margin-top: 4px; padding: 0;
+  background: none; border: none; cursor: pointer;
+  font: inherit; font-size: var(--text-md); font-weight: 600; color: var(--color-text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rr-name:hover { color: var(--color-brand-accent); }
+.rr-nummer { font-size: var(--text-sm); color: var(--color-text-secondary); font-variant-numeric: tabular-nums; margin-top: 2px; user-select: all; }
+.rr-aktionen { display: flex; gap: 6px; margin-top: 10px; }
+.rr-knopf {
+  flex: 1; height: 30px; border-radius: var(--radius-md); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
+  background: var(--fill-subtle); border: 1px solid var(--hairline-strong);
+  color: var(--color-text-primary); font: inherit; font-size: var(--text-sm); font-weight: 500;
+}
+.rr-knopf:hover { background: var(--fill-hover); }
+.rr-knopf.haupt { background: var(--color-brand-accent); border-color: var(--color-brand-accent); color: #fff; font-weight: 600; }
+.rr-knopf.haupt:hover { filter: brightness(1.08); }
+.rr-knopf:focus-visible, .rr-name:focus-visible, .rr-weg:focus-visible { outline: 2px solid var(--color-brand-accent); outline-offset: 2px; }
+
+.rr-fuss {
+  display: flex; align-items: center; gap: 8px; padding: 6px 6px 2px;
+  border-top: 1px solid var(--hairline); font-size: var(--text-xs); color: var(--color-text-secondary);
+}
+.rr-fuss span { flex: 1; line-height: 1.4; }
+.rr-an { color: var(--color-intent-success); }
+.rr-link { background: none; border: none; padding: 0; cursor: pointer; font: inherit; font-size: var(--text-xs); font-weight: 600; color: var(--color-brand-accent); white-space: nowrap; }
+
+@keyframes rr-ein { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes rr-karte-ein { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@keyframes rr-leuchten { 0% { box-shadow: 0 0 0 0 rgba(255,159,10,.55); } 100% { box-shadow: 0 0 0 14px rgba(255,159,10,0); } }
+@keyframes rr-puls { 0% { box-shadow: 0 0 0 0 rgba(255,159,10,.6); } 70% { box-shadow: 0 0 0 7px rgba(255,159,10,0); } 100% { box-shadow: 0 0 0 0 rgba(255,159,10,0); } }
+@media (prefers-reduced-motion: reduce) {
+  .rr-stapel, .rr-karte.neu, .rr-punkt { animation: none; }
+}
+@media (max-width: 768px) {
+  .rr-stapel { top: calc(env(safe-area-inset-top, 0px) + 60px); left: 12px; right: 12px; width: auto; max-height: calc(100vh - 170px); }
+  .rr-knopf { height: 38px; font-size: var(--text-base); }
+}

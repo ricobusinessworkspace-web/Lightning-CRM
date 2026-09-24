@@ -203,7 +203,10 @@
         anzeige.classList.remove('bereit');
       } else {
         const jetzt = Date.now();
-        anzeige.innerHTML = `<b>${wann(z, jetzt)}</b> · ${inText(z, jetzt)}`;
+        const h = new Date(z).getHours();
+        // Nachts (21–8 Uhr) bleibt das Handy still, die Mitteilung kommt um 8:00
+        const nacht = (h >= 21 || h < 8) ? ' · Handy meldet sich um 8:00' : '';
+        anzeige.innerHTML = `<b>${wann(z, jetzt)}</b> · ${inText(z, jetzt)}${nacht}`;
         anzeige.classList.add('bereit');
       }
       setzen.disabled = !z;
