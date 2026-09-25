@@ -1352,6 +1352,14 @@ check('Vor dem Neuladen wird gesichert',
     !pipeSrc.slice(pipeSrc.indexOf('window.toggleLeadStar'), pipeSrc.indexOf('window.toggleLeadStar') + 600).includes('getLeads({ all: true })'));
 }
 
+// ── 27b7. iPhone: Reiter-Leiste darf den Kopf nicht verdecken ─────────────
+{
+  const mobil = fs.readFileSync('mobile.css', 'utf8');
+  const kopf = mobil.slice(mobil.indexOf('.drag-header {'), mobil.indexOf('.drag-header .logo'));
+  check('iPhone: Kopf ohne backdrop-filter (sonst sitzt die Leiste ueber Glocke und Profil)',
+    /backdrop-filter: none !important/.test(kopf) && /-webkit-backdrop-filter: none !important/.test(kopf));
+}
+
 // ── 27c. Beim Abschluss wird nach dem Wert gefragt ─────────────────────────
 // 55 von 55 Abschluessen ohne Wert: das Feld war da, nur hat niemand gefragt.
 w.document.body.innerHTML = '';
