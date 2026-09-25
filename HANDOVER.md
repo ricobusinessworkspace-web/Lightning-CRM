@@ -1,6 +1,6 @@
 ---
-last_updated: 2026-09-24
-last_agent: Claude Opus 5.5 (Review + ruhige Liste + Kleinigkeiten)
+last_updated: 2026-09-25
+last_agent: Claude Opus 5.5 (iPhone: Reiter-Leiste verdeckte den Kopf)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -744,6 +744,16 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Handover-Historie
+- 2026-09-25 — iPhone: die untere Reiter-Leiste saß über dem Kopf und
+  verdeckte Logo, Glocke und Profil (Push ließ sich darum nicht aktivieren).
+  Ursache: `.top-nav` (fixed) steckt in `.drag-header`, und Safari nimmt ein
+  Element mit `backdrop-filter` als Bezugsrahmen für fixed. Chrome zeigte es
+  richtig — deshalb in der Vorschau nicht aufgefallen. Fix in `mobile.css`:
+  am Handy kein `backdrop-filter` am Kopf. **Merke:** keinem Vorfahren von
+  `.top-nav` einen `backdrop-filter`, `filter` oder `transform` geben.
+  Offen: schlanke Handy-Ansicht (suchen, schnell ändern, Lead anlegen,
+  Glocke) — Plan steht aus, Rico entscheidet noch über Karte/Kunden am Handy
+  (Claude Opus 5.5).
 - 2026-09-24 — Review der ganzen Codebase (ohne Änderungen, Ergebnisse im
   Kasten „Fürs Wochenende“). Danach auf Ricos Wunsch die Kleinigkeiten:
   ruhige Liste (kein Neuladen-Flackern nach Copy, Haken, Wiedervorlage),
