@@ -12,3 +12,6 @@ dist/
 *.zip
 scratch/
 *.backup
+
+# Vertraulich (Verträge, Vermarktung) — nie ins öffentliche Repository
+docs/handover-vermarktung.md

@@ -15,19 +15,5 @@ export const auth = {
       console.error(err);
       return { success: false, error: err.message };
     }
-  },
-
-  // Developer Unlock Bootstrapper
-  unlockDeveloper: async () => {
-    try {
-      const user = await window.api.getCurrentUser();
-      if (!user) throw new Error("Not logged in");
-      
-      const success = await window.api.makeMeDeveloper();
-      return success;
-    } catch (err) {
-      console.error("Developer unlock failed:", err);
-      return false;
-    }
   }
 };

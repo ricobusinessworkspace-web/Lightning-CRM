@@ -280,23 +280,11 @@ window.addEventListener('online', () => {
     window.location.reload();
   };
 
-  window.handleProfileTitleClick = async () => {
-    window._profileClickCount = (window._profileClickCount || 0) + 1;
-    if (window._profileClickCount >= 5 && globalUser?.role !== 'developer') {
-      try {
-        // window.supabase existiert im Client nicht — der Client geht ueber window.api
-        const ok = await window.api.makeMeDeveloper();
-        if (ok) {
-          globalUser.role = 'developer';
-          window.globalUser = globalUser;
-          window.showToast('Entwicklermodus aktiv');
-          openProfileModal(); // Refresh modal
-        }
-      } catch (err) {
-        console.error('Unlock failed', err);
-      }
-    }
-  };
+  // Frueher stand hier ein versteckter Weg zur Entwicklerrolle: fuenfmal auf
+  // den Profiltitel tippen, und das eigene Profil bekam role = 'developer'.
+  // Das durfte jeder Angemeldete — und 'developer' darf in der Datenbank
+  // alles. Entfernt am 28.09.2026. Rollen vergibt man in Supabase, nicht per
+  // Geheimgeste im Browser.
 
   window.openProfileModal = () => {
     window._profileClickCount = 0;

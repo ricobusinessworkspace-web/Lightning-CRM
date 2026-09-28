@@ -1,6 +1,6 @@
 ---
-last_updated: 2026-09-25
-last_agent: Claude Opus 5.5 (iPhone: Reiter-Leiste verdeckte den Kopf)
+last_updated: 2026-09-28
+last_agent: Claude Opus 5.5 (Bestandsaufnahme + Plan zur Kommerzialisierung)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -19,6 +19,8 @@ status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz o
 | `docs/mcp-server-einrichten.md` | Adresse, Zugangswort, Connector eintragen | Wenn der MCP-Zugang klemmt |
 | `docs/ungeschuetzte-tabellen.md` | Neun Jarvis-Tabellen ohne Zugriffsregeln | Wenn jemand Jarvis anfasst |
 | `docs/wohin-das-geht.md` | Richtung und Reihenfolge der nächsten Schritte | Wenn unklar ist, was als Nächstes dran ist |
+| `docs/kommerzialisierung.md` | Vom eigenen Werkzeug zum Bezahlprodukt: Befunde, Abo-Modell, Lead-Finder rechtlich, Plan in Phasen | Wenn es um Verkauf, Mandanten, Abrechnung oder den Lead-Finder als Plus geht |
+| `docs/umbau-infrastruktur.md` | Umzug in eigene Produkt-Datenbank: Schritte A–F, Test-Umgebung, Umzugsabend, Rückweg | Bevor jemand an Datenbank, Umgebungsvariablen oder Vercel-Umgebungen baut |
 | `docs/lesevertrag-jarvis.md` | Was Jarvis OS aus dem CRM liest: Sichten, `metric_key`-Katalog, Grenzen | Bevor jemand die Kennzahlen anfasst oder Jarvis anbindet |
 
 **Module unter `public/modules/`** — jedes für eine Sache, jedes mit eigener
@@ -642,6 +644,15 @@ Stelle zum Nachsehen.
 > **Reihenfolge und Begründung stehen in
 > [docs/wohin-das-geht.md](docs/wohin-das-geht.md).** Hier nur die Liste.
 
+- **Kommerzialisierung — Zielgruppe entschieden (28.09.2026):** nur TELESON
+  direkt, kein Verkauf an andere Vertriebe, keine anderen Branchen vorerst.
+  Vor größerem Umbau (Mandanten, Abrechnung) erst das Gespräch mit TELESON.
+- **Kommerzialisierung (seit 28.09.2026):** übrige Entscheidungen offen —
+  Zielgruppe, Datenquelle Lead-Finder, Name (Kollision mit „Salesforce
+  Lightning"), Zahlungsanbieter, Claude-Anbindung für Kunden, Zeitpunkt des
+  eigenen Umzugs. Stehen in
+  [docs/kommerzialisierung.md](docs/kommerzialisierung.md) §7.
+
 - **`getAgentStats` lädt drei Tabellen ungefiltert** (`core/db.js`). Läuft nur
   noch im Team-Betrieb und meldet seit dem 11.09. selbst, wenn es an die
   1000-Zeilen-Grenze stößt — ein Hinweis ersetzt aber keine Auswertung in der
@@ -744,6 +755,38 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Handover-Historie
+- 2026-09-28 — Rico hat `docs/handover-vermarktung.md` abgelegt: Ziel,
+  harte Regeln und Phasen A–F für den Verkauf. **Vertraulich, per
+  `.gitignore` aus dem Repository gehalten** (enthält Vertragsinhalte). Ab
+  jetzt führend für Vermarktung und Recht; `kommerzialisierung.md` und
+  `umbau-infrastruktur.md` werden nach Ricos Entscheidungen angeglichen.
+  Abgleich ergab u. a.: `OCC_LOCKED`, `flushPendingWrites`, Instant-Save und
+  die „zwei Stage-Migrations-SQLs" gibt es im Code/Repo nicht — die
+  Entsprechungen sind Konflikt-Selbstheilung + Statuszeile und
+  `flushLeadForm()`. Widersprüche an Rico gemeldet, nichts umgesetzt
+  (Claude Opus 5.5).
+- 2026-09-28 — Kundensicht ergänzt (`docs/kommerzialisierung.md` §6a): eine
+  Web-App für alle, Kunde richtet nichts ein. **Neu bemerkt:** Kartenkacheln
+  (Esri ohne Schlüssel) und Route (OSRM-Demo-Server) sind für ein
+  Bezahlprodukt nicht lizenziert — vor dem Verkauf umstellen (Claude Opus 5.5).
+- 2026-09-28 — Ablauf des Infrastruktur-Umbaus ausgeschrieben
+  (`docs/umbau-infrastruktur.md`): Live bleibt bis zum Umzugsabend unberührt,
+  Test-Datenbank + Vorschau-Adressen pro Zweig, Generalprobe mit echten Daten,
+  Umzug an einem Abend mit Rückweg. **Neu bemerkt:** `npm run dev` schreibt
+  heute in die echte Datenbank (Adresse fest in `core/db.js`) — lokale Tests
+  sind Tests an Echtdaten, bis Schritt B4 steht (Claude Opus 5.5).
+- 2026-09-28 — Bestandsaufnahme für den Verkauf (keine Codeänderung):
+  Oberfläche mit Beispieldaten durchgeklickt (echte Daten unberührt), Code und
+  Infrastruktur geprüft, Plan in `docs/kommerzialisierung.md`. Neu gefunden:
+  (a) Fünfmal auf den Profiltitel tippen macht jeden Angemeldeten zum
+  `developer` (`ui/init.js:283` → `makeMeDeveloper`), heute harmlos, weil
+  Registrierung aus; (b) `getLeads` lädt alles und läuft ab 1000 Leads still
+  ins Supabase-Limit; (c) Supabase läuft im **kostenlosen Tarif**, also ohne
+  automatische Sicherungen zum Zurückspielen — der Hinweis „Backup über
+  Supabase → Database → Backups" unten greift dort nicht; (d) Scout speichert
+  Google-Places-Daten dauerhaft und zeigt sie auf Leaflet — für den Eigenbedarf
+  bekannt, für ein Bezahlprodukt nicht mit Googles Bedingungen vereinbar
+  (Claude Opus 5.5).
 - 2026-09-25 — iPhone: die untere Reiter-Leiste saß über dem Kopf und
   verdeckte Logo, Glocke und Profil (Push ließ sich darum nicht aktivieren).
   Ursache: `.top-nav` (fixed) steckt in `.drag-header`, und Safari nimmt ein
