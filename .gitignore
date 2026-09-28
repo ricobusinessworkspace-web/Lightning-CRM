@@ -15,3 +15,12 @@ scratch/
 
 # Vertraulich (Verträge, Vermarktung) — nie ins öffentliche Repository
 docs/handover-vermarktung.md
+
+# Eigene Umgebungsvariablen — enthalten Schlüssel, nie einchecken
+.env
+.env.local
+.env.*.local
+
+# Produkt, Recht, Preise, Marketing — vertraulich, solange das Repository öffentlich ist.
+# Sobald es privat ist: diese Zeile entfernen und den Ordner einchecken (Abendplan, Abend 1).
+docs/produkt/
