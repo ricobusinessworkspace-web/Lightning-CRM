@@ -1,4 +1,5 @@
-import { db } from './db.js';
+import { db, postProcessAndSort, normalizeRow } from './db.js';
+import { demoGewuenscht, installiereDemo } from './demo.js';
 import Papa from 'papaparse';
 
 window.Papa = Papa;
@@ -59,7 +60,6 @@ window.api = {
   inviteUser: (email) => db.inviteUser(email),
   updateUserRole: (userId, newRole) => db.updateUserRole(userId, newRole),
   deactivateUser: (userId) => db.deactivateUser(userId),
-  makeMeDeveloper: () => db.makeMeDeveloper(),
   getAgentStats: () => db.getAgentStats(),
 
   // Kennzahlen — lesen aus den Sichten, nicht aus den Rohtabellen
@@ -145,3 +145,10 @@ window.api = {
   sendNotification: (userId, type, leadId, message) => db.sendNotification(userId, type, leadId, message),
   subscribeToNotifications: (callback) => db.subscribeToNotifications(callback)
 };
+
+// Demo-Modus (Adresse mit ?demo): alle Funktionen oben laufen dann gegen
+// erfundene Daten im Speicher, nichts erreicht die Datenbank. Ohne ?demo
+// passiert hier nichts. Siehe core/demo.js.
+if (typeof window !== 'undefined' && demoGewuenscht(window.location)) {
+  installiereDemo(window, window.api, { postProcessAndSort, normalizeRow });
+}

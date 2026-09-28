@@ -31,8 +31,15 @@ const eigeneAenderung = (id) => {
   setTimeout(() => window.pendingLocalWrites.delete(id), 2000);
 };
 
-const SUPABASE_URL     = 'https://duzmanqvyhqurxlpxrrg.supabase.co';
-const SUPABASE_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1em1hbnF2eWhxdXJ4bHB4cnJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzOTk1NTQsImV4cCI6MjA5NDk3NTU1NH0.v7dSCQQn2T_3LHrTj4j2K5Byz3oKvuKE2zO7M9BA4Uo';
+// Welche Datenbank? Kommt aus den Umgebungsvariablen (Vercel bzw. .env.local),
+// damit Live, Vorschau und Entwicklung auf verschiedene Datenbanken zeigen
+// koennen. Fehlt die Variable, gilt die bisherige Live-Datenbank — so aendert
+// sich nichts, solange niemand etwas eintraegt. Siehe .env.example.
+// Der anon-Schluessel ist oeffentlich gedacht; geschuetzt wird ueber die
+// Zugriffsregeln der Datenbank, nicht ueber Geheimhaltung.
+const umgebung         = import.meta.env || {};
+const SUPABASE_URL     = umgebung.VITE_SUPABASE_URL || 'https://duzmanqvyhqurxlpxrrg.supabase.co';
+const SUPABASE_KEY     = umgebung.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1em1hbnF2eWhxdXJ4bHB4cnJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzOTk1NTQsImV4cCI6MjA5NDk3NTU1NH0.v7dSCQQn2T_3LHrTj4j2K5Byz3oKvuKE2zO7M9BA4Uo';
 const TABLE            = 'crm_leads';
 const EVENTS_TABLE     = 'crm_events';
 const PROJECTS_TABLE   = 'crm_projects';
@@ -70,7 +77,7 @@ function deriveCallStatus(callHistory) {
 }
 
 // ─── Internal: map Supabase row → renderer-compatible object ─────────────────
-function normalizeRow(row) {
+export function normalizeRow(row) {
   if (!row) return row;
   const callHistory = Array.isArray(row.crm_calls) ? row.crm_calls : (Array.isArray(row.call_history) ? row.call_history : []);
   // Sort by ts ascending just to be safe
@@ -120,7 +127,7 @@ function domainAus(webadresse) {
 }
 
 // ─── Internal: JS Post-Processing & Sorting ───────────────────────────
-function postProcessAndSort(rows, filters = {}) {
+export function postProcessAndSort(rows, filters = {}) {
   const now = Date.now();
   let results = rows.map(normalizeRow);
 
@@ -1130,17 +1137,6 @@ export const db = {
     } catch (e) {
       throw new Error(e.message);
     }
-  },
-
-  makeMeDeveloper: async () => {
-    if (!currentUser) throw new Error("Nicht eingeloggt");
-    const { error } = await supabase.from('user_profiles')
-      .update({ role: 'developer' })
-      .eq('id', currentUser.id);
-    
-    if (error) throw new Error(error.message);
-    currentUser.role = 'developer';
-    return true;
   },
 
   // ── Kennzahlen ─────────────────────────────────────────────────────────────
