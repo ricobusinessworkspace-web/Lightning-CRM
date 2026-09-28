@@ -1758,8 +1758,8 @@ window.setPipeline = async (type) => {
       container.innerHTML = filtered.map(l => {
         const hasMapsUrl = l.google_maps_url && l.google_maps_url.trim();
         const titleWithLink = hasMapsUrl 
-          ? `<a href="#" onclick="window.api.openExternal('${l.google_maps_url}')" style="color:var(--text-main); font-weight:600; text-decoration:none; font-size:13px;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-main)'">${localEscape(l.name)} 🔗</a>`
-          : `<span style="font-weight: 600; color: var(--text-main); font-size: 13px;">${localEscape(l.name)}</span>`;
+          ? `<a href="#" onclick="window.api.openExternal('${l.google_maps_url}')" class="pii" style="color:var(--text-main); font-weight:600; text-decoration:none; font-size:13px;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-main)'">${localEscape(l.name)} 🔗</a>`
+          : `<span class="pii" style="font-weight: 600; color: var(--text-main); font-size: 13px;">${localEscape(l.name)}</span>`;
 
         return `
           <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px;">
@@ -1768,7 +1768,7 @@ window.setPipeline = async (type) => {
               <span style="font-size: 10px; color: var(--text-muted); font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${l.google_place_id}">ID: ${localEscape(l.google_place_id)}</span>
             </div>
             <div style="display: flex; align-items: center; gap: 12px;">
-              <span style="font-size: 12px; color: var(--text-muted); max-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${localEscape(l.maps_city || 'Unbekannt')}">📍 ${localEscape(l.maps_city || 'Unbekannt')}</span>
+              <span style="font-size: 12px; color: var(--text-muted); max-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${localEscape(l.maps_city || 'Unbekannt')}">📍 <span class="pii">${localEscape(l.maps_city || 'Unbekannt')}</span></span>
               <button class="action-btn-small success-bold" style="padding: 6px 12px; font-size: 11px;" onclick="reactivateLead(${l.id})">Reaktivieren</button>
             </div>
           </div>

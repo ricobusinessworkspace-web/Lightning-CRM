@@ -717,7 +717,7 @@ if (typeof window.renderDashboard === 'function') {
          let cityHtml = '';
          const city = l.maps_city || (l.locations && l.locations.length > 0 && l.locations[0].maps_city) || '';
          if (city) {
-           cityHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📍 ${escapeHtml(city)}</div>`;
+           cityHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">📍 <span class="pii">${escapeHtml(city)}</span></div>`;
          } else {
            cityHtml = `<div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.5;">📍 Kein Standort</div>`;
          }
@@ -789,7 +789,7 @@ if (typeof window.renderDashboard === 'function') {
             </div>
             
             <div class="lead-name truncate-2" style="margin-bottom: ${isCustomerTab ? '0' : '12px'}; font-weight: 600; color: var(--color-text-primary, #f2f2f7); padding-right: 20px; width: 100%;">
-              <span>${escapeHtml(l.name)}</span>
+              <span class="pii">${escapeHtml(l.name)}</span>
             </div>
           </div>
           
@@ -1085,7 +1085,7 @@ if (typeof window.renderDashboard === 'function') {
               subtasksHtml += `
                 <div class="task-item" style="padding: 10px 0; ${borderBottom} display:flex; align-items:flex-start; gap:12px;">
                   ${appleCheckbox(st.done, `toggleTaskFast(${lead.id}, ${t.id}, ${!st.done}, ${st.id})`)}
-                  <div style="flex:1; font-size:13px; color:var(--color-text-primary, #f2f2f7); outline:none; transition:0.2s; line-height:1.4; padding-top:2px; ${stStyle}">${escapeHtml(st.text)}</div>
+                  <div class="pii" style="flex:1; font-size:13px; color:var(--color-text-primary, #f2f2f7); outline:none; transition:0.2s; line-height:1.4; padding-top:2px; ${stStyle}">${escapeHtml(st.text)}</div>
                 </div>
               `;
             });
@@ -1110,13 +1110,13 @@ if (typeof window.renderDashboard === 'function') {
             <div class="task-item" style="display:flex; flex-direction:column; align-items: stretch; background: var(--color-surface-base, #161618); border-radius: var(--radius-lg, 12px); padding: 16px; position: relative; box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.3)); height: 100%; box-sizing: border-box; cursor: pointer;" onclick="openLead(${lead.id})">
               <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border-base, #2c2c2e); min-height: 42px;">
                 <div class="truncate-2" style="font-size: 13px; color: ${leadColor}; font-weight: 700; cursor: pointer; display:flex; align-items:flex-start; gap: 6px; line-height: 1.4; padding-right: 8px;">
-                  <span>${lead.starred ? '★ ' : ''}${escapeHtml(lead.name)}</span>
+                  <span>${lead.starred ? '★ ' : ''}<span class="pii">${escapeHtml(lead.name)}</span></span>
                 </div>
                 ${avatarHtml}
               </div>
               <div style="display:flex; align-items:flex-start; gap: 12px;">
                 ${appleCheckbox(t.done, `toggleTaskFast(${lead.id}, ${t.id}, ${!t.done})`)}
-                <div style="flex:1; font-size:15px; font-weight:500; color:var(--color-text-primary, #f2f2f7); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}">${escapeHtml(t.text)}</div>
+                <div class="pii" style="flex:1; font-size:15px; font-weight:500; color:var(--color-text-primary, #f2f2f7); outline:none; transition:0.2s; line-height:1.4; padding-top:1px; ${textStyle}">${escapeHtml(t.text)}</div>
                 ${deadlineBadge}
               </div>
               ${subtasksHtml}
@@ -1527,7 +1527,7 @@ if (typeof window.renderDashboard === 'function') {
                           <div style="display:flex; align-items:center; gap:8px;">
                             <span style="font-size:16px; color:var(--text-muted); opacity:0.7;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>
                             <div style="display:flex; flex-direction:column;">
-                              <span style="font-size:13px; color:var(--color-text-primary, #f2f2f7); font-weight:500;">${escapeHtml(name)}</span>
+                              <span class="pii" style="font-size:13px; color:var(--color-text-primary, #f2f2f7); font-weight:500;">${escapeHtml(name)}</span>
                               <span style="font-size:10px; color:var(--text-muted);">${escapeHtml(link.type)}</span>
                             </div>
                           </div>
@@ -1554,7 +1554,7 @@ if (typeof window.renderDashboard === 'function') {
                   let opts = '';
                   sortedLeads.forEach(sl => {
                     if (sl.id !== l.id && sl.name) {
-                      opts += `<div class="link-lead-option" style="padding:8px 12px; background:rgba(0,0,0,0.2); border-radius:6px; cursor:pointer; color:white; font-size:12px; transition:0.2s; display:none;" onmouseover="this.style.background='rgba(0,0,0,0.4)'" onmouseout="this.style.background='rgba(0,0,0,0.2)'" onclick="window.saveInlineLeadLink(${l.id}, ${sl.id})">${escapeHtml(sl.name)}</div>`;
+                      opts += `<div class="link-lead-option pii" style="padding:8px 12px; background:rgba(0,0,0,0.2); border-radius:6px; cursor:pointer; color:white; font-size:12px; transition:0.2s; display:none;" onmouseover="this.style.background='rgba(0,0,0,0.4)'" onmouseout="this.style.background='rgba(0,0,0,0.2)'" onclick="window.saveInlineLeadLink(${l.id}, ${sl.id})">${escapeHtml(sl.name)}</div>`;
                     }
                   });
                   return opts;
@@ -1849,9 +1849,9 @@ if (typeof window.renderDashboard === 'function') {
       const hasLoc = !!(l.lat || (l.locations && l.locations.length > 0));
       return `
         <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); padding:10px; border-radius:8px; margin-bottom:4px; cursor:pointer;" onclick="openLeadDirectly(${l.id}, true)">
-          <div style="font-size:13px; font-weight:600; color:var(--text-main);">${escapeHtml(l.name)}</div>
+          <div class="pii" style="font-size:13px; font-weight:600; color:var(--text-main);">${escapeHtml(l.name)}</div>
           <div style="font-size:11px; color:var(--text-muted); display:flex; justify-content:space-between; margin-top:4px;">
-            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(l.maps_city || 'Kein Ort')}</span>
+            <span class="pii" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(l.maps_city || 'Kein Ort')}</span>
             <span>${hasLoc ? '🗺️ Hat Standort' : '📍 Fehlt'}</span>
           </div>
         </div>
@@ -1996,10 +1996,10 @@ if (typeof window.renderDashboard === 'function') {
           }
           return `
             <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255, 69, 58, 0.3); padding: 8px; border-radius: 6px; display: flex; flex-direction: column; gap: 4px; opacity: 0.8;">
-              <div style="font-size: 12px; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div>
-              <div style="font-size: 10px; color: var(--text-muted); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;" title="${escapeHtml(r.address)}">${escapeHtml(r.address)}</div>
+              <div class="pii" style="font-size: 12px; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div>
+              <div class="pii" style="font-size: 10px; color: var(--text-muted); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;" title="${escapeHtml(r.address)}">${escapeHtml(r.address)}</div>
               <div style="color: #ffcc00; font-size: 10px; font-weight: bold; margin-top: 4px;">⚠️ Bereits verknüpft mit Lead:</div>
-              <div style="color: var(--text-muted); font-size: 10px;">${escapeHtml(dupLead.name)} (Gehört: ${escapeHtml(ownerStr)})</div>
+              <div class="pii" style="color: var(--text-muted); font-size: 10px;">${escapeHtml(dupLead.name)} (Gehört: ${escapeHtml(ownerStr)})</div>
               <button class="action-btn-small" style="background: transparent; color: var(--text-muted); border-color: var(--border); font-weight: bold; font-size: 10px; padding: 4px 8px; width: 100%; margin-top: 4px; cursor: not-allowed;" disabled>Verknüpfen blockiert</button>
             </div>
           `;
@@ -2007,8 +2007,8 @@ if (typeof window.renderDashboard === 'function') {
         
         return `
           <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 8px; border-radius: 6px; display: flex; flex-direction: column; gap: 4px;">
-            <div style="font-size: 12px; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div>
-            <div style="font-size: 10px; color: var(--text-muted); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;" title="${escapeHtml(r.address)}">${escapeHtml(r.address)}</div>
+            <div class="pii" style="font-size: 12px; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div>
+            <div class="pii" style="font-size: 10px; color: var(--text-muted); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;" title="${escapeHtml(r.address)}">${escapeHtml(r.address)}</div>
             <button class="action-btn-small" style="background: var(--success); color: black; border-color: var(--success); font-weight: bold; font-size: 10px; padding: 4px 8px; width: 100%; margin-top: 4px;" onclick="linkLeadLocation(${id}, '${encodeURIComponent(JSON.stringify(r)).replace(/'/g, "%27")}')">Auswählen & Verknüpfen</button>
           </div>
         `;
@@ -2646,7 +2646,7 @@ if (typeof window.renderDashboard === 'function') {
       // ── Offen ──────────────────────────────────────────────────────────────
       const liste = nachtragen.slice(0, 8).map(l => `
         <button class="cc-liste-zeile" onclick="window.openLeadDirectly(${l.id})">
-          <span>${escapeHtml(l.name || 'Ohne Namen')}</span>
+          <span class="pii">${escapeHtml(l.name || 'Ohne Namen')}</span>
           <em>${l.provi_umsatz === null ? 'Wert fehlt' : ''}${l.provi_umsatz === null && !l.closed_at_ms ? ' · ' : ''}${!l.closed_at_ms ? 'Datum fehlt' : ''}</em>
         </button>`).join('');
 
@@ -2721,7 +2721,7 @@ if (typeof window.renderDashboard === 'function') {
               </div>
               <div class="cc-zeilen">
                 ${team.map(t => `<div class="cc-zeile">
-                    <span>${escapeHtml(t.name || '—')}</span>
+                    <span class="pii">${escapeHtml(t.name || '—')}</span>
                     <strong>${ccZahl(t.today.calls)}<em class="cc-rate">${ccZahl(t.week.calls)} diese Woche</em></strong>
                   </div>`).join('')}
               </div>

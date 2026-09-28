@@ -1360,6 +1360,32 @@ check('Vor dem Neuladen wird gesichert',
     /backdrop-filter: none !important/.test(kopf) && /-webkit-backdrop-filter: none !important/.test(kopf));
 }
 
+// ── 27b8. Zensierter Modus: nur Anzeige, Daten bleiben ─────────────────────
+{
+  w.document.documentElement.classList.remove('zensiert');
+  w.document.body.innerHTML = '<button id="zensiert-knopf" aria-pressed="false"></button><input id="sys-phone" value="040 123">';
+  w.eval(fs.readFileSync('public/modules/zensiert.js', 'utf8'));
+  const druecke = () => w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Z', ctrlKey: true, shiftKey: true, bubbles: true }));
+  druecke();
+  check('Zensiert: ⌃⇧Z schaltet an', w.document.documentElement.classList.contains('zensiert'));
+  check('Zensiert: Knopf zeigt den Zustand', w.document.getElementById('zensiert-knopf').getAttribute('aria-pressed') === 'true');
+  check('Zensiert: Daten bleiben unveraendert', w.document.getElementById('sys-phone').value === '040 123');
+  check('Zensiert: Meldungen nennen keinen Namen', w.anzeigeName('Bäckerei Müller', 'Rückruf') === 'Rückruf');
+  w.document.getElementById('zensiert-knopf').click();
+  check('Zensiert: Knopf schaltet wieder aus', !w.document.documentElement.classList.contains('zensiert'));
+  check('Zensiert: ausgeschaltet zeigt Meldungen den Namen', w.anzeigeName('Bäckerei Müller') === 'Bäckerei Müller');
+
+  const stile = fs.readFileSync('styles.css', 'utf8');
+  const block = stile.slice(stile.indexOf('html.zensiert :is('), stile.indexOf('#zensiert-knopf[aria-pressed'));
+  ['.pii', '#sys-name', '#sys-phone', '#sys-email', '#note-input', '#search-input', '.kontakt-fest',
+   '.standort-adresse', '.anruf-notiz', '[data-task-id]', '.rr-name', '.rr-nummer'].forEach(sel =>
+    check(`Zensiert: ${sel} wird verdeckt`, block.includes(sel)));
+  check('Zensiert: Kartenname ist markiert', pipeSrc.includes('<span class="pii">${escapeHtml(l.name)}</span>'));
+  const idx = fs.readFileSync('index.html', 'utf8');
+  check('Zensiert: wird vor dem ersten Zeichnen gesetzt (kein Aufblitzen)',
+    idx.indexOf("localStorage.getItem('zensiert')") > -1 && idx.indexOf("localStorage.getItem('zensiert')") < idx.indexOf('<body'));
+}
+
 // ── 27c. Beim Abschluss wird nach dem Wert gefragt ─────────────────────────
 // 55 von 55 Abschluessen ohne Wert: das Feld war da, nur hat niemand gefragt.
 w.document.body.innerHTML = '';

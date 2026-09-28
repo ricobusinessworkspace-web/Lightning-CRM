@@ -8,8 +8,8 @@
     "hash": "c001dc880c4e62fd"
   },
   "styles.css": {
-    "marker": "5.9",
-    "hash": "b541ec8452b9692b"
+    "marker": "6.0",
+    "hash": "48a073dc49f21a96"
   },
   "mobile.css": {
     "marker": "1.2",
@@ -68,19 +68,23 @@
     "hash": "7ebb9e213e54cddf"
   },
   "modules/rueckruf.js": {
-    "marker": "1.1",
-    "hash": "53b172ee2382510f"
+    "marker": "1.2",
+    "hash": "6612a35ec610a29f"
+  },
+  "modules/zensiert.js": {
+    "marker": "1.0",
+    "hash": "0101990a0bac8e26"
   },
   "ui/pipeline_ui.js": {
-    "marker": "5.7",
-    "hash": "2cb749fb1b1ba51b"
+    "marker": "5.8",
+    "hash": "ef9411ebb55945b5"
   },
   "ui/main_ui.js": {
-    "marker": "5.6",
-    "hash": "133fadfe23887872"
+    "marker": "5.7",
+    "hash": "04e66d64bb578436"
   },
   "modules/scraper.js": {
-    "marker": "4.4",
-    "hash": "dcf4dfaaa410e29f"
+    "marker": "4.5",
+    "hash": "6574d5de54071e79"
   }
 }

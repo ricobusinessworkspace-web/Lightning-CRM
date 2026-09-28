@@ -177,7 +177,7 @@
         phoneHtml = `
           <div class="scout-card-detail">
             ${typeBadge}
-            <span style="font-family: monospace; font-size:12px; color: var(--text-main);">${escapeHtml(r.phone)}</span>
+            <span class="pii" style="font-family: monospace; font-size:12px; color: var(--text-main);">${escapeHtml(r.phone)}</span>
             ${waIcon}
             <button class="copy-btn" style="padding: 2px 6px; font-size: 10px; margin-left: auto;" onclick="window.api.copyText('${escapeHtml(r.phone)}').then(() => showToast('Kopiert'))">Kopieren</button>
           </div>
@@ -214,7 +214,7 @@
       return `
         <div class="${cardClass}" id="scout-card-${originalIndex}">
           <div class="scout-card-header">
-            <div class="scout-card-title" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div>
+            <div class="scout-card-title pii" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div>
             ${badgeHtml}
           </div>
           
@@ -225,7 +225,7 @@
 
           <div class="scout-card-detail">
             <span>📍</span>
-            <span style="font-size:12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(r.maps_city)}">${escapeHtml(r.maps_city || 'Unbekannter Ort')}</span>
+            <span class="pii" style="font-size:12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(r.maps_city)}">${escapeHtml(r.maps_city || 'Unbekannter Ort')}</span>
           </div>
 
           ${phoneHtml}
@@ -589,7 +589,7 @@
         impressum_phone: r.impressum_phone, estimated_kwh: r.estimated_kwh, locations
       });
 
-      showToast(`„${r.name}" in die Kaltakquise übernommen`);
+      showToast(`„${window.anzeigeName ? window.anzeigeName(r.name) : r.name}" in die Kaltakquise übernommen`);
 
       // Kam ein Standort einer Kette dazu, gilt das fuer alle Standorte.
       if (window.api.aktualisiereMehrfachStandorte) await window.api.aktualisiereMehrfachStandorte();

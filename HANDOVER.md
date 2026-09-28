@@ -1,6 +1,6 @@
 ---
 last_updated: 2026-09-28
-last_agent: Claude Opus 5.5 (Produktplan, Demo-Modus, Sicherung)
+last_agent: Claude Opus 5.5 (Zensierter Modus für Videoaufnahmen)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -391,6 +391,13 @@ Antworten auf konkrete Beschwerden, keine Zufälle.
   melden sich über `eigeneAenderung(id)` in `core/db.js` als eigen an — sonst
   lädt das Live-Echo die Liste neu. Live-Änderungen patchen nur, außer Stufe/
   Status/Zuweisung/Größe ändern sich (`ui/init.js`).
+- **Zensierter Modus ist nur Anzeige** (`modules/zensiert.js`, ⌃⇧Z, Auge oben
+  rechts, am Handy dreimal aufs Logo). `<html class="zensiert">` + CSS-Block
+  „ZENSIERT“ in `styles.css` macht markierte Stellen unlesbar (Punkte +
+  Weichzeichner). Werte werden **nie** verändert — Copy, Anrufen, Speichern,
+  Suchen laufen normal. **Neue Stelle mit Kundendaten im Markup? →
+  `class="pii"` dran** (oder id im CSS-Block ergänzen), sonst ist sie im Video
+  zu sehen. Meldungen mit Namen über `window.anzeigeName(name)`.
 - **Löschen im Verlauf ist ein Papierkorb**, kein ✕ — das ✕ heißt beim Anruf
   „nicht erreicht".
 - **Keine versteckte Ausblende-Logik.** Früher verschwanden Leads, wenn im
@@ -780,6 +787,11 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 ---
 
 ## Handover-Historie
+- 2026-09-28 — Zensierter Modus für Social-Media-Aufnahmen: Namen, Nummern,
+  E-Mail, Adressen, Notizen, Aufgaben, Anruf-Notizen, Provision, Suche,
+  Rückruf-Karten, Scout-Treffer und Command-Center-Listen werden verdeckt.
+  Nicht verdeckt: Tooltips beim Überfahren (title-Attribute) und die
+  System-Mitteilungen aufs Handy (Claude Opus 5.5).
 - 2026-09-28 — **Verkauf vorbereitet.** *Code (live):* Demo-Modus `?demo`
   (`core/demo.js`, `core/demo-daten.js`, 49 Prüfungen); Sicherung
   `npm run sicherung` (`admin_scripts/sicherung.mjs`, liest nur, 12

@@ -259,7 +259,7 @@
       const ok = await window.leadStore.save(id, { snooze_until_ms: Date.now() + SPAETER }, { label: 'Rückruf', noRefresh: true });
       if (ok) {
         entfernen(id);
-        if (typeof window.showToast === 'function') window.showToast(`${l.name || 'Rückruf'}: in 10 Minuten nochmal`);
+        if (typeof window.showToast === 'function') window.showToast(`${window.anzeigeName ? window.anzeigeName(l.name, 'Rückruf') : (l.name || 'Rückruf')}: in 10 Minuten nochmal`);
         if (typeof window.sortiereListenNeu === 'function') window.sortiereListenNeu();
       }
       return;

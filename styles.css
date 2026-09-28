@@ -2363,3 +2363,26 @@ a.kontakt-btn { text-decoration: none; display: inline-flex; align-items: center
   .rr-stapel { top: calc(env(safe-area-inset-top, 0px) + 60px); left: 12px; right: 12px; width: auto; max-height: calc(100vh - 170px); }
   .rr-knopf { height: 38px; font-size: var(--text-base); }
 }
+
+/* ── ZENSIERT: Kundendaten fuer Bildschirmaufnahmen verdecken ───────────────
+   Nur Anzeige — die Werte bleiben unveraendert (Copy, Anrufen, Speichern
+   laufen normal). Punkte statt Zeichen, dazu weichgezeichnet, damit auch die
+   Wortlaenge nicht lesbar ist. Umschalten: modules/zensiert.js (⌃⇧Z).
+   Neue Stelle mit Kundendaten? class="pii" dran oder die id hier ergaenzen. */
+html.zensiert :is(
+  .pii,
+  #sys-name, #sys-phone, #sys-email, #sys-provi, #abschluss-wert,
+  #note-input, #search-input, #loc-search-input,
+  .kontakt-fest, .standort-adresse, .anruf-notiz, [data-task-id],
+  .rr-name, .rr-nummer, #account-info
+) {
+  -webkit-text-security: disc !important;
+  color: transparent !important;
+  text-shadow: 0 0 7px rgba(242, 242, 247, 0.7) !important;
+  caret-color: var(--color-brand-accent) !important;
+}
+#zensiert-knopf[aria-pressed="true"] {
+  color: var(--color-brand-accent);
+  border-color: var(--color-brand-accent);
+  background: var(--color-intent-info-bg);
+}
