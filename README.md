@@ -24,7 +24,12 @@ npm install
 npm run dev      # Vite, Port 3000
 npm test         # jsdom-Tests, ~1 Sekunde
 npm run build
+npm run sicherung  # Kopie aller CRM-Daten nach ~/Backups/lightning-crm (braucht .env.local)
 ```
+
+**Demo-Modus:** Adresse mit `?demo` aufrufen — erfundene Daten, nichts wird
+gespeichert, nichts geht an die Datenbank (`core/demo.js`). Einstellungen für
+Datenbank und Schlüssel: `.env.example`.
 
 Die `/api/*`-Funktionen serviert Vite **nicht** — Änderungen dort lassen sich
 nur nach dem Deploy prüfen (oder mit `vercel dev`).

@@ -1,6 +1,6 @@
 ---
 last_updated: 2026-09-28
-last_agent: Claude Opus 5.5 (Bestandsaufnahme + Plan zur Kommerzialisierung)
+last_agent: Claude Opus 5.5 (Produktplan, Demo-Modus, Sicherung)
 status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz oben)
 ---
 
@@ -19,8 +19,8 @@ status: Ready for Next Phase — ein Punkt duldet keinen Aufschub (Kasten ganz o
 | `docs/mcp-server-einrichten.md` | Adresse, Zugangswort, Connector eintragen | Wenn der MCP-Zugang klemmt |
 | `docs/ungeschuetzte-tabellen.md` | Neun Jarvis-Tabellen ohne Zugriffsregeln | Wenn jemand Jarvis anfasst |
 | `docs/wohin-das-geht.md` | Richtung und Reihenfolge der nächsten Schritte | Wenn unklar ist, was als Nächstes dran ist |
-| `docs/kommerzialisierung.md` | Vom eigenen Werkzeug zum Bezahlprodukt: Befunde, Abo-Modell, Lead-Finder rechtlich, Plan in Phasen | Wenn es um Verkauf, Mandanten, Abrechnung oder den Lead-Finder als Plus geht |
-| `docs/umbau-infrastruktur.md` | Umzug in eigene Produkt-Datenbank: Schritte A–F, Test-Umgebung, Umzugsabend, Rückweg | Bevor jemand an Datenbank, Umgebungsvariablen oder Vercel-Umgebungen baut |
+| `docs/produkt/00-uebersicht.md` … `08-…` | **Verkauf:** Bestandsaufnahme, Geschäftsmodell, Recht, Infrastruktur & Kosten, Umbau-Ablauf, **Abendplan (38 Abende)**, Spiel-Idee, Marketing-Übergabe. *Vertraulich, nur lokal* (`.gitignore`), bis das Repository privat ist | Vor jeder Arbeit am Verkauf. Rico sagt „Mach Abend N" |
+| `docs/handover-vermarktung.md` | Ricos Regeln und Phasen für den Verkauf. *Vertraulich, nur lokal* | Zusammen mit `docs/produkt/` |
 | `docs/lesevertrag-jarvis.md` | Was Jarvis OS aus dem CRM liest: Sichten, `metric_key`-Katalog, Grenzen | Bevor jemand die Kennzahlen anfasst oder Jarvis anbindet |
 
 **Module unter `public/modules/`** — jedes für eine Sache, jedes mit eigener
@@ -86,10 +86,22 @@ Web-CRM für Leadgenerierung, Kaltakquise und Vertriebs-Pipeline. Aktuell im
   `api/_lib/crm.js` (MCP-Connector) setzen beide leeren Text auf NULL und leiten
   `company_domain` aus `website_url` ab. Wer die Regel ändert, muss beide
   Dateien anfassen — geprüft in `tests/mcp.test.mjs`.
-- **Tests:** 518 Prüfungen, alle grün — 267 Oberfläche (`tests/ui.test.mjs`),
-  63 MCP-Server (`tests/mcp.test.mjs`), 46 Anmelde-Vorgang
-  (`tests/oauth.test.mjs`), 42 Kontaktdaten (`tests/kontaktdaten.test.mjs`),
-  27 Öffnungszeiten, 24 Landkarte. `npm test` fährt alle sechs.
+- **Tests:** alle grün — u. a. 267 Oberfläche (`tests/ui.test.mjs`),
+  63 MCP-Server, 46 Anmelde-Vorgang, 42 Kontaktdaten, 27 Öffnungszeiten,
+  24 Landkarte; seit 28.09. dazu 49 Demo-Modus (`tests/demo.test.mjs`) und
+  12 Sicherung (`tests/sicherung.test.mjs`). `npm test` fährt alle Prüfdateien.
+- **Demo-Modus:** Adresse mit `?demo` → erfundene Firmen um Dresden, volles
+  Command Center, fälliger Rückruf, Scout mit erfundenen Treffern. Ersetzt
+  **jede** Funktion von `window.api` (auch künftige: unbekannte antworten leer)
+  und fängt Google/Nominatim/Overpass/`/api` ab; Standort-Pfeil fest in der
+  Stadtmitte. Ohne `?demo` passiert nichts. `core/demo.js`, `core/demo-daten.js`.
+  Für Social-Media-Aufnahmen und Design-Entwürfe.
+- **Sicherung:** `npm run sicherung` → `~/Backups/lightning-crm/<Datum>/`,
+  alle CRM-Tabellen seitenweise, Zählung und Prüfsumme je Tabelle. Liest nur.
+  Braucht `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (Vorlage `.env.example`).
+- **Datenbank-Adresse einstellbar:** `VITE_SUPABASE_URL` /
+  `VITE_SUPABASE_ANON_KEY` (Vercel bzw. `.env.local`). Ohne Eintrag gilt die
+  bisherige Live-Datenbank — Verhalten unverändert.
 
 ---
 
@@ -118,7 +130,8 @@ nicht zu entfernen. Schritt 1 bleibt offen.
 (ohne Anmeldung abrufbar). Im aktuellen Code steht kein Google-Schlüssel mehr,
 in der Versionsgeschichte genau einer (beginnt mit `AIzaSyD099…`). Ob er in
 der Google Cloud Console schon gesperrt ist, lässt sich von hier nicht sehen —
-Schritte 1 bis 3 liegen bei Rico.
+Schritte 1 bis 3 liegen bei Rico. **Klick für Klick:** `docs/produkt/06-abendplan.md`,
+Abend 1 (vertraulich, lokal) — dort auch die Altlast im Supabase-Speicher.
 
 Der Supabase-Schlüssel gleich daneben ist **kein** Problem: der „anon"-Schlüssel
 ist öffentlich gedacht, geschützt wird über die Zugriffsregeln.
@@ -644,20 +657,19 @@ Stelle zum Nachsehen.
 > **Reihenfolge und Begründung stehen in
 > [docs/wohin-das-geht.md](docs/wohin-das-geht.md).** Hier nur die Liste.
 
-- **Kommerzialisierung — Zielgruppe entschieden (28.09.2026):** nur TELESON
-  direkt, kein Verkauf an andere Vertriebe, keine anderen Branchen vorerst.
-  Vor größerem Umbau (Mandanten, Abrechnung) erst das Gespräch mit TELESON.
-- **Kommerzialisierung (seit 28.09.2026):** übrige Entscheidungen offen —
-  Zielgruppe, Datenquelle Lead-Finder, Name (Kollision mit „Salesforce
-  Lightning"), Zahlungsanbieter, Claude-Anbindung für Kunden, Zeitpunkt des
-  eigenen Umzugs. Stehen in
-  [docs/kommerzialisierung.md](docs/kommerzialisierung.md) §7.
+- **Verkauf (seit 28.09.2026):** Zielgruppe entschieden — Vertriebspartner
+  einzeln, viele Abos; nicht an andere Vertriebe, keine andere Branche. Offen:
+  Preise, Zugang nur mit Einladung, Name (Kollision mit „Salesforce
+  Lightning"), Lead-Finder-Quelle, Team-Sichtbarkeit, Design-Richtung.
+  → `docs/produkt/00-uebersicht.md` (vertraulich, lokal).
 
 - **`getAgentStats` lädt drei Tabellen ungefiltert** (`core/db.js`). Läuft nur
   noch im Team-Betrieb und meldet seit dem 11.09. selbst, wenn es an die
   1000-Zeilen-Grenze stößt — ein Hinweis ersetzt aber keine Auswertung in der
   Datenbank. Voraussetzung für Team-Betrieb.
-- **Keine Sicherung ausserhalb von Supabase.** Kein Export aus der App, keine
+- **Sicherung ausserhalb von Supabase:** Skript steht (`npm run sicherung`),
+  braucht einmal den Schlüssel in `.env.local` (Abendplan, Abend 2). Früherer
+  Stand dieses Punkts: kein Export aus der App, keine
   zweite Kopie. Der Posten mit dem besten Gegenwert im ganzen Plan.
 - **`crm_calls.by_user_id` ist `text` statt `uuid` + Foreign Key.** Bei ~300
   Zeilen harmlos, später nicht mehr.
@@ -731,6 +743,19 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 
 - **Lies zuerst** den Kasten „🔴 Sofort" und die „⚠️ Kritische Fallen"
   oben — jede Falle hat schon einmal Zeit gekostet.
+- **Verkaufs-Arbeit folgt `docs/produkt/06-abendplan.md`** (vertraulich,
+  lokal). Rico sagt „Mach Abend N". Nächster Abend erst nach seiner Abnahme.
+  Ricos Regeln: `docs/handover-vermarktung.md` §1.
+- **Stil, Sprache und Design nicht anfassen**, bis Rico in Phase 5 (Abend 23)
+  entscheidet. Ausdrücklich so gewünscht.
+- **`npm run dev` arbeitet auf der LIVE-Datenbank**, solange `.env.local`
+  nicht auf die Test-Datenbank zeigt (Abend 6). Bis dahin lokal nichts
+  Schreibendes ausprobieren; Oberfläche mit `?demo` testen.
+- **Demo-Modus mitdenken:** Neue Funktionen in `window.api` sind im Demo-Modus
+  automatisch abgeschaltet (antworten leer). Soll eine in der Demo laufen:
+  in `core/demo.js` nachbauen, Prüfung in `tests/demo.test.mjs`.
+- **Generalschlüssel nie mit `VITE_` benennen** — alles mit `VITE_` landet im
+  Browser.
 - **Erst prüfen, dann behaupten.** Eine Warnung auf Basis einer veralteten
   Datei (`scratch/schema.sql`) hat schon einmal Vertrauen gekostet. Read-only-
   Abfragen sind billig.
@@ -749,43 +774,32 @@ Ausgeschrieben in [docs/wohin-das-geht.md](docs/wohin-das-geht.md).
 - **⚠️ Admin-Skripte schreiben direkt auf der produktiven Datenbank.** Alles
   in `admin_scripts/` umgeht teilweise App-Logik und UI-Checks — ein Fehler
   kann zu unwiderruflichem Datenverlust führen. Immer read-only-Schritte
-  zuerst ausführen, vor jeder schreibenden Aktion Backup über
-  Supabase → Database → Backups sicherstellen.
+  zuerst ausführen, vor jeder schreibenden Aktion `npm run sicherung`
+  (im kostenlosen Supabase-Tarif gibt es keine Sicherung zum Zurückspielen).
 
 ---
 
 ## Handover-Historie
-- 2026-09-28 — Rico hat `docs/handover-vermarktung.md` abgelegt: Ziel,
-  harte Regeln und Phasen A–F für den Verkauf. **Vertraulich, per
-  `.gitignore` aus dem Repository gehalten** (enthält Vertragsinhalte). Ab
-  jetzt führend für Vermarktung und Recht; `kommerzialisierung.md` und
-  `umbau-infrastruktur.md` werden nach Ricos Entscheidungen angeglichen.
-  Abgleich ergab u. a.: `OCC_LOCKED`, `flushPendingWrites`, Instant-Save und
-  die „zwei Stage-Migrations-SQLs" gibt es im Code/Repo nicht — die
-  Entsprechungen sind Konflikt-Selbstheilung + Statuszeile und
-  `flushLeadForm()`. Widersprüche an Rico gemeldet, nichts umgesetzt
-  (Claude Opus 5.5).
-- 2026-09-28 — Kundensicht ergänzt (`docs/kommerzialisierung.md` §6a): eine
-  Web-App für alle, Kunde richtet nichts ein. **Neu bemerkt:** Kartenkacheln
-  (Esri ohne Schlüssel) und Route (OSRM-Demo-Server) sind für ein
-  Bezahlprodukt nicht lizenziert — vor dem Verkauf umstellen (Claude Opus 5.5).
-- 2026-09-28 — Ablauf des Infrastruktur-Umbaus ausgeschrieben
-  (`docs/umbau-infrastruktur.md`): Live bleibt bis zum Umzugsabend unberührt,
-  Test-Datenbank + Vorschau-Adressen pro Zweig, Generalprobe mit echten Daten,
-  Umzug an einem Abend mit Rückweg. **Neu bemerkt:** `npm run dev` schreibt
-  heute in die echte Datenbank (Adresse fest in `core/db.js`) — lokale Tests
-  sind Tests an Echtdaten, bis Schritt B4 steht (Claude Opus 5.5).
-- 2026-09-28 — Bestandsaufnahme für den Verkauf (keine Codeänderung):
-  Oberfläche mit Beispieldaten durchgeklickt (echte Daten unberührt), Code und
-  Infrastruktur geprüft, Plan in `docs/kommerzialisierung.md`. Neu gefunden:
-  (a) Fünfmal auf den Profiltitel tippen macht jeden Angemeldeten zum
-  `developer` (`ui/init.js:283` → `makeMeDeveloper`), heute harmlos, weil
-  Registrierung aus; (b) `getLeads` lädt alles und läuft ab 1000 Leads still
-  ins Supabase-Limit; (c) Supabase läuft im **kostenlosen Tarif**, also ohne
-  automatische Sicherungen zum Zurückspielen — der Hinweis „Backup über
-  Supabase → Database → Backups" unten greift dort nicht; (d) Scout speichert
-  Google-Places-Daten dauerhaft und zeigt sie auf Leaflet — für den Eigenbedarf
-  bekannt, für ein Bezahlprodukt nicht mit Googles Bedingungen vereinbar
+- 2026-09-28 — **Verkauf vorbereitet.** *Code (live):* Demo-Modus `?demo`
+  (`core/demo.js`, `core/demo-daten.js`, 49 Prüfungen); Sicherung
+  `npm run sicherung` (`admin_scripts/sicherung.mjs`, liest nur, 12
+  Prüfungen); versteckter Weg zur Entwicklerrolle entfernt (fünfmal
+  Profiltitel → `makeMeDeveloper`, durfte jeder Angemeldete); Datenbank-Adresse
+  über Umgebungsvariablen (ohne Eintrag unverändert); `.env.example`, `.env*`
+  ignoriert; `Start_CRM.command` entfernt (alter Updater hätte einen Stand vom
+  Juli über den Code entpackt). *Unterlagen:* `docs/produkt/00–08`
+  (vertraulich, lokal) ersetzen die Entwürfe vom Vormittag. Ricos
+  `docs/handover-vermarktung.md` bleibt führend für die Regeln; das
+  Käufermodell dort ist überholt (Einzel-Abos). *Neu bemerkt:* Supabase im
+  kostenlosen Tarif ohne zurückspielbare Sicherung; Vercel-Variablen nur für
+  Production; Altlast im öffentlichen Supabase-Speicher (→ Abendplan Abend 1);
+  Schriften/Leaflet von fremden Servern; Kartenkacheln und Route nicht
+  lizenziert; `getLeads` läuft ab 1000 Leads still ins Limit. *Abgleich mit
+  Ricos Handover:* `OCC_LOCKED`, `flushPendingWrites`, Instant-Save und „zwei
+  Stage-Migrations-SQLs" gibt es nicht; Entsprechungen sind
+  Konflikt-Selbstheilung + Statuszeile und `flushLeadForm()`. Beim ersten
+  Durchklicken lief einmal `savePipelineSnapshot` ohne Anmeldung gegen die
+  Datenbank; die Zugriffsregel hat abgelehnt, nichts geschrieben
   (Claude Opus 5.5).
 - 2026-09-25 — iPhone: die untere Reiter-Leiste saß über dem Kopf und
   verdeckte Logo, Glocke und Profil (Push ließ sich darum nicht aktivieren).
